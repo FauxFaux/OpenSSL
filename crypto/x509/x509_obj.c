@@ -94,7 +94,6 @@ int i;
 		OPENSSL_free(b);
 		}
 	    strncpy(buf,"NO X509_NAME",len);
-	    buf[len-1]='\0';
 	    return buf;
 	    }
 

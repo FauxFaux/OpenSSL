@@ -115,14 +115,13 @@
 
 #define TABLE_SIZE	32
 
-int BN_mod_exp2_mont(BIGNUM *rr, const BIGNUM *a1, const BIGNUM *p1,
-	const BIGNUM *a2, const BIGNUM *p2, const BIGNUM *m,
-	BN_CTX *ctx, BN_MONT_CTX *in_mont)
+int BN_mod_exp2_mont(BIGNUM *rr, BIGNUM *a1, BIGNUM *p1, BIGNUM *a2,
+	     BIGNUM *p2, BIGNUM *m, BN_CTX *ctx, BN_MONT_CTX *in_mont)
 	{
 	int i,j,bits,b,bits1,bits2,ret=0,wpos1,wpos2,window1,window2,wvalue1,wvalue2;
 	int r_is_one=1,ts1=0,ts2=0;
 	BIGNUM *d,*r;
-	const BIGNUM *a_mod_m;
+	BIGNUM *a_mod_m;
 	BIGNUM val1[TABLE_SIZE], val2[TABLE_SIZE];
 	BN_MONT_CTX *mont=NULL;
 
@@ -141,10 +140,9 @@ int BN_mod_exp2_mont(BIGNUM *rr, const BIGNUM *a1, const BIGNUM *p1,
 	bits2=BN_num_bits(p2);
 	if ((bits1 == 0) && (bits2 == 0))
 		{
-		ret = BN_one(rr);
-		return ret;
+		BN_one(rr);
+		return(1);
 		}
-	
 	bits=(bits1 > bits2)?bits1:bits2;
 
 	BN_CTX_start(ctx);
@@ -168,7 +166,7 @@ int BN_mod_exp2_mont(BIGNUM *rr, const BIGNUM *a1, const BIGNUM *p1,
 	 */
 	BN_init(&val1[0]);
 	ts1=1;
-	if (a1->neg || BN_ucmp(a1,m) >= 0)
+	if (BN_ucmp(a1,m) >= 0)
 		{
 		if (!BN_mod(&(val1[0]),a1,m,ctx))
 			goto err;
@@ -176,12 +174,6 @@ int BN_mod_exp2_mont(BIGNUM *rr, const BIGNUM *a1, const BIGNUM *p1,
 		}
 	else
 		a_mod_m = a1;
-	if (BN_is_zero(a_mod_m))
-		{
-		ret = BN_zero(rr);
-		goto err;
-		}
-
 	if (!BN_to_montgomery(&(val1[0]),a_mod_m,mont,ctx)) goto err;
 	if (window1 > 1)
 		{
@@ -203,7 +195,7 @@ int BN_mod_exp2_mont(BIGNUM *rr, const BIGNUM *a1, const BIGNUM *p1,
 	 */
 	BN_init(&val2[0]);
 	ts2=1;
-	if (a2->neg || BN_ucmp(a2,m) >= 0)
+	if (BN_ucmp(a2,m) >= 0)
 		{
 		if (!BN_mod(&(val2[0]),a2,m,ctx))
 			goto err;
@@ -211,11 +203,6 @@ int BN_mod_exp2_mont(BIGNUM *rr, const BIGNUM *a1, const BIGNUM *p1,
 		}
 	else
 		a_mod_m = a2;
-	if (BN_is_zero(a_mod_m))
-		{
-		ret = BN_zero(rr);
-		goto err;
-		}
 	if (!BN_to_montgomery(&(val2[0]),a_mod_m,mont,ctx)) goto err;
 	if (window2 > 1)
 		{

@@ -28,15 +28,16 @@
 
 #include <openssl/bio.h>
 #include <openssl/err.h>
+#include <openssl/err.h>
 #include <openssl/crypto.h>
 
-#include "e_os.h"
+#include "openssl/e_os.h"
 
-/* VxWorks defines SSIZE_MAX with an empty value causing compile errors */
-#if defined(OPENSSL_SYS_VXWORKS)
+/* VxWorks defines SSiZE_MAX with an empty value causing compile errors */
+#if defined(VXWORKS)
 # undef SSIZE_MAX
-#endif
-#ifndef SSIZE_MAX
+# define SSIZE_MAX INT_MAX
+#elif !defined(SSIZE_MAX)
 # define SSIZE_MAX INT_MAX
 #endif
 

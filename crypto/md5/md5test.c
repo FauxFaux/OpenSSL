@@ -62,14 +62,13 @@
 
 #include "../e_os.h"
 
-#ifdef OPENSSL_NO_MD5
+#ifdef NO_MD5
 int main(int argc, char *argv[])
 {
     printf("No MD5 support\n");
     return(0);
 }
 #else
-#include <openssl/evp.h>
 #include <openssl/md5.h>
 
 static char *test[]={
@@ -99,15 +98,13 @@ int main(int argc, char *argv[])
 	int i,err=0;
 	unsigned char **P,**R;
 	char *p;
-	unsigned char md[MD5_DIGEST_LENGTH];
 
 	P=(unsigned char **)test;
 	R=(unsigned char **)ret;
 	i=1;
 	while (*P != NULL)
 		{
-		EVP_Digest(&(P[0][0]),(unsigned long)strlen((char *)*P),md,NULL,EVP_md5(), NULL);
-		p=pt(md);
+		p=pt(MD5(&(P[0][0]),(unsigned long)strlen((char *)*P),NULL));
 		if (strcmp(p,(char *)*R) != 0)
 			{
 			printf("error calculating MD5 on '%s'\n",*P);

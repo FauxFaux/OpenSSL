@@ -6,10 +6,11 @@
 
 COMP_METHOD *COMP_zlib(void );
 
-static COMP_METHOD zlib_method_nozlib={
+#ifndef ZLIB
+
+static COMP_METHOD zlib_method={
 	NID_undef,
-	"(undef)",
-	NULL,
+	"(null)",
 	NULL,
 	NULL,
 	NULL,
@@ -17,8 +18,6 @@ static COMP_METHOD zlib_method_nozlib={
 	NULL,
 	};
 
-#ifndef ZLIB
-#undef ZLIB_SHARED
 #else
 
 #include <zlib.h>
@@ -39,55 +38,7 @@ static COMP_METHOD zlib_method={
 	zlib_compress_block,
 	zlib_expand_block,
 	NULL,
-	NULL,
 	};
-
-/* 
- * When OpenSSL is built on Windows, we do not want to require that
- * the ZLIB.DLL be available in order for the OpenSSL DLLs to
- * work.  Therefore, all ZLIB routines are loaded at run time
- * and we do not link to a .LIB file.
- */
-#if defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_WIN32)
-# include <windows.h>
-
-# define Z_CALLCONV _stdcall
-# define ZLIB_SHARED
-#else
-# define Z_CALLCONV
-#endif /* !(OPENSSL_SYS_WINDOWS || OPENSSL_SYS_WIN32) */
-
-#ifdef ZLIB_SHARED
-#include <openssl/dso.h>
-
-/* Prototypes for built in stubs */
-static int stub_compress(Bytef *dest,uLongf *destLen,
-	const Bytef *source, uLong sourceLen);
-static int stub_inflateEnd(z_streamp strm);
-static int stub_inflate(z_streamp strm, int flush);
-static int stub_inflateInit_(z_streamp strm, const char * version,
-	int stream_size);
-
-/* Function pointers */
-typedef int (Z_CALLCONV *compress_ft)(Bytef *dest,uLongf *destLen,
-	const Bytef *source, uLong sourceLen);
-typedef int (Z_CALLCONV *inflateEnd_ft)(z_streamp strm);
-typedef int (Z_CALLCONV *inflate_ft)(z_streamp strm, int flush);
-typedef int (Z_CALLCONV *inflateInit__ft)(z_streamp strm,
-	const char * version, int stream_size);
-static compress_ft	p_compress=NULL;
-static inflateEnd_ft	p_inflateEnd=NULL;
-static inflate_ft	p_inflate=NULL;
-static inflateInit__ft	p_inflateInit_=NULL;
-
-static int zlib_loaded = 0;     /* only attempt to init func pts once */
-static DSO *zlib_dso = NULL;
-
-#define compress                stub_compress
-#define inflateEnd              stub_inflateEnd
-#define inflate                 stub_inflate
-#define inflateInit_            stub_inflateInit_
-#endif /* ZLIB_SHARED */
 
 static int zlib_compress_block(COMP_CTX *ctx, unsigned char *out,
 	     unsigned int olen, unsigned char *in, unsigned int ilen)
@@ -115,10 +66,7 @@ static int zlib_compress_block(COMP_CTX *ctx, unsigned char *out,
 		memcpy(&(out[1]),in,ilen);
 		l=ilen+1;
 		}
-#ifdef DEBUG_ZLIB
-	fprintf(stderr,"compress(%4d)->%4d %s\n",
-		ilen,(int)l,(clear)?"clear":"zlib");
-#endif
+fprintf(stderr,"compress(%4d)->%4d %s\n",ilen,(int)l,(clear)?"clear":"zlib");
 	return((int)l);
 	}
 
@@ -140,10 +88,7 @@ static int zlib_expand_block(COMP_CTX *ctx, unsigned char *out,
 		memcpy(out,&(in[1]),ilen-1);
 		l=ilen-1;
 		}
-#ifdef DEBUG_ZLIB
-        fprintf(stderr,"expand  (%4d)->%4d %s\n",
-		ilen,(int)l,in[0]?"zlib":"clear");
-#endif
+        fprintf(stderr,"expand  (%4d)->%4d %s\n",ilen,(int)l,in[0]?"zlib":"clear");
 	return((int)l);
 	}
 
@@ -183,78 +128,6 @@ static int zz_uncompress (Bytef *dest, uLongf *destLen, const Bytef *source,
 
 COMP_METHOD *COMP_zlib(void)
 	{
-	COMP_METHOD *meth = &zlib_method_nozlib;
-
-#ifdef ZLIB_SHARED
-	if (!zlib_loaded)
-		{
-#if defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_WIN32)
-		zlib_dso = DSO_load(NULL, "ZLIB", NULL, 0);
-#else
-		zlib_dso = DSO_load(NULL, "z", NULL, 0);
-#endif
-		if (zlib_dso != NULL)
-			{
-			p_compress
-				= (compress_ft) DSO_bind_func(zlib_dso,
-					"compress");
-			p_inflateEnd
-				= (inflateEnd_ft) DSO_bind_func(zlib_dso,
-					"inflateEnd");
-			p_inflate
-				= (inflate_ft) DSO_bind_func(zlib_dso,
-					"inflate");
-			p_inflateInit_
-				= (inflateInit__ft) DSO_bind_func(zlib_dso,
-					"inflateInit_");
-			zlib_loaded++;
-			}
-		}
-
-#endif
-#if defined(ZLIB) || defined(ZLIB_SHARED)
-	meth = &zlib_method;
-#endif
-
-	return(meth);
+	return(&zlib_method);
 	}
 
-#ifdef ZLIB_SHARED
-/* Stubs for each function to be dynamicly loaded */
-static int 
-stub_compress(Bytef *dest,uLongf *destLen,const Bytef *source, uLong sourceLen)
-	{
-	if (p_compress)
-		return(p_compress(dest,destLen,source,sourceLen));
-	else
-		return(Z_MEM_ERROR);
-	}
-
-static int
-stub_inflateEnd(z_streamp strm)
-	{
-	if ( p_inflateEnd )
-		return(p_inflateEnd(strm));
-	else
-		return(Z_MEM_ERROR);
-	}
-
-static int
-stub_inflate(z_streamp strm, int flush)
-	{
-	if ( p_inflate )
-		return(p_inflate(strm,flush));
-	else
-		return(Z_MEM_ERROR);
-	}
-
-static int
-stub_inflateInit_(z_streamp strm, const char * version, int stream_size)
-	{
-	if ( p_inflateInit_ )
-		return(p_inflateInit_(strm,version,stream_size));
-	else
-		return(Z_MEM_ERROR);
-	}
-
-#endif /* ZLIB_SHARED */

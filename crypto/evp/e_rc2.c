@@ -56,14 +56,13 @@
  * [including the GNU Public Licence.]
  */
 
-#ifndef OPENSSL_NO_RC2
+#ifndef NO_RC2
 
 #include <stdio.h>
 #include "cryptlib.h"
 #include <openssl/evp.h>
 #include <openssl/objects.h>
 #include "evp_locl.h"
-#include <openssl/rc2.h>
 
 static int rc2_init_key(EVP_CIPHER_CTX *ctx, const unsigned char *key,
 			const unsigned char *iv,int enc);
@@ -73,17 +72,9 @@ static int rc2_set_asn1_type_and_iv(EVP_CIPHER_CTX *c, ASN1_TYPE *type);
 static int rc2_get_asn1_type_and_iv(EVP_CIPHER_CTX *c, ASN1_TYPE *type);
 static int rc2_ctrl(EVP_CIPHER_CTX *c, int type, int arg, void *ptr);
 
-typedef struct
-	{
-	int key_bits;	/* effective key bits */
-	RC2_KEY ks;	/* key schedule */
-	} EVP_RC2_KEY;
-
-#define data(ctx)	((EVP_RC2_KEY *)(ctx)->cipher_data)
-
-IMPLEMENT_BLOCK_CIPHER(rc2, ks, RC2, EVP_RC2_KEY, NID_rc2,
+IMPLEMENT_BLOCK_CIPHER(rc2, rc2.ks, RC2, rc2, NID_rc2,
 			8,
-			RC2_KEY_LENGTH, 8, 64,
+			EVP_RC2_KEY_SIZE, 8,
 			EVP_CIPH_VARIABLE_LENGTH | EVP_CIPH_CTRL_INIT,
 			rc2_init_key, NULL,
 			rc2_set_asn1_type_and_iv, rc2_get_asn1_type_and_iv, 
@@ -93,7 +84,7 @@ IMPLEMENT_BLOCK_CIPHER(rc2, ks, RC2, EVP_RC2_KEY, NID_rc2,
 #define RC2_64_MAGIC	0x78
 #define RC2_128_MAGIC	0x3a
 
-static const EVP_CIPHER r2_64_cbc_cipher=
+static EVP_CIPHER r2_64_cbc_cipher=
 	{
 	NID_rc2_64_cbc,
 	8,8 /* 64 bit */,8,
@@ -101,14 +92,15 @@ static const EVP_CIPHER r2_64_cbc_cipher=
 	rc2_init_key,
 	rc2_cbc_cipher,
 	NULL,
-	sizeof(EVP_RC2_KEY),
+	sizeof(EVP_CIPHER_CTX)-sizeof((((EVP_CIPHER_CTX *)NULL)->c))+
+		sizeof((((EVP_CIPHER_CTX *)NULL)->c.rc2)),
 	rc2_set_asn1_type_and_iv,
 	rc2_get_asn1_type_and_iv,
 	rc2_ctrl,
 	NULL
 	};
 
-static const EVP_CIPHER r2_40_cbc_cipher=
+static EVP_CIPHER r2_40_cbc_cipher=
 	{
 	NID_rc2_40_cbc,
 	8,5 /* 40 bit */,8,
@@ -116,19 +108,20 @@ static const EVP_CIPHER r2_40_cbc_cipher=
 	rc2_init_key,
 	rc2_cbc_cipher,
 	NULL,
-	sizeof(EVP_RC2_KEY),
+	sizeof(EVP_CIPHER_CTX)-sizeof((((EVP_CIPHER_CTX *)NULL)->c))+
+		sizeof((((EVP_CIPHER_CTX *)NULL)->c.rc2)),
 	rc2_set_asn1_type_and_iv,
 	rc2_get_asn1_type_and_iv,
 	rc2_ctrl,
 	NULL
 	};
 
-const EVP_CIPHER *EVP_rc2_64_cbc(void)
+EVP_CIPHER *EVP_rc2_64_cbc(void)
 	{
 	return(&r2_64_cbc_cipher);
 	}
 
-const EVP_CIPHER *EVP_rc2_40_cbc(void)
+EVP_CIPHER *EVP_rc2_40_cbc(void)
 	{
 	return(&r2_40_cbc_cipher);
 	}
@@ -136,8 +129,8 @@ const EVP_CIPHER *EVP_rc2_40_cbc(void)
 static int rc2_init_key(EVP_CIPHER_CTX *ctx, const unsigned char *key,
 			const unsigned char *iv, int enc)
 	{
-	RC2_set_key(&data(ctx)->ks,EVP_CIPHER_CTX_key_length(ctx),
-		    key,data(ctx)->key_bits);
+	RC2_set_key(&(ctx->c.rc2.ks),EVP_CIPHER_CTX_key_length(ctx),
+			key,ctx->c.rc2.key_bits);
 	return 1;
 	}
 
@@ -174,14 +167,13 @@ static int rc2_get_asn1_type_and_iv(EVP_CIPHER_CTX *c, ASN1_TYPE *type)
 	if (type != NULL)
 		{
 		l=EVP_CIPHER_CTX_iv_length(c);
-		OPENSSL_assert(l <= sizeof iv);
 		i=ASN1_TYPE_get_int_octetstring(type,&num,iv,l);
 		if (i != l)
 			return(-1);
 		key_bits =rc2_magic_to_meth((int)num);
 		if (!key_bits)
 			return(-1);
-		if(i > 0) EVP_CipherInit_ex(c, NULL, NULL, NULL, iv, -1);
+		if(i > 0) EVP_CipherInit(c, NULL, NULL, iv, -1);
 		EVP_CIPHER_CTX_ctrl(c, EVP_CTRL_SET_RC2_KEY_BITS, key_bits, NULL);
 		EVP_CIPHER_CTX_set_key_length(c, key_bits / 8);
 		}
@@ -204,26 +196,26 @@ static int rc2_set_asn1_type_and_iv(EVP_CIPHER_CTX *c, ASN1_TYPE *type)
 
 static int rc2_ctrl(EVP_CIPHER_CTX *c, int type, int arg, void *ptr)
 	{
-	switch(type)
-		{
-	case EVP_CTRL_INIT:
-		data(c)->key_bits = EVP_CIPHER_CTX_key_length(c) * 8;
-		return 1;
+		switch(type) {
 
-	case EVP_CTRL_GET_RC2_KEY_BITS:
-		*(int *)ptr = data(c)->key_bits;
-		return 1;
-			
-	case EVP_CTRL_SET_RC2_KEY_BITS:
-		if(arg > 0)
-			{
-			data(c)->key_bits = arg;
+			case EVP_CTRL_INIT:
+			c->c.rc2.key_bits = EVP_CIPHER_CTX_key_length(c) * 8;
 			return 1;
-			}
-		return 0;
 
-	default:
-		return -1;
+			case EVP_CTRL_GET_RC2_KEY_BITS:
+			*(int *)ptr = c->c.rc2.key_bits;
+			return 1;
+			
+			
+			case EVP_CTRL_SET_RC2_KEY_BITS:
+			if(arg > 0) {
+				c->c.rc2.key_bits = arg;
+				return 1;
+			}
+			return 0;
+
+			default:
+			return -1;
 		}
 	}
 

@@ -61,27 +61,25 @@
 #ifdef GENUINE_DSA
 /* Parameter generation follows the original release of FIPS PUB 186,
  * Appendix 2.2 (i.e. use SHA as defined in FIPS PUB 180) */
-#define HASH    EVP_sha()
+#define HASH    SHA
 #else
 /* Parameter generation follows the updated Appendix 2.2 for FIPS PUB 186,
  * also Appendix 2.2 of FIPS PUB 186-1 (i.e. use SHA as defined in
  * FIPS PUB 180-1) */
-#define HASH    EVP_sha1()
+#define HASH    SHA1
 #endif 
 
-#ifndef OPENSSL_NO_SHA
+#ifndef NO_SHA
 
 #include <stdio.h>
 #include <time.h>
 #include "cryptlib.h"
-#include <openssl/evp.h>
+#include <openssl/sha.h>
 #include <openssl/bn.h>
 #include <openssl/dsa.h>
 #include <openssl/rand.h>
-#include <openssl/sha.h>
 
-DSA *DSA_generate_parameters(int bits,
-		unsigned char *seed_in, int seed_len,
+DSA *DSA_generate_parameters(int bits, unsigned char *seed_in, int seed_len,
 		int *counter_ret, unsigned long *h_ret,
 		void (*callback)(int, int, void *),
 		void *cb_arg)
@@ -159,8 +157,8 @@ DSA *DSA_generate_parameters(int bits,
 				}
 
 			/* step 2 */
-			EVP_Digest(seed,SHA_DIGEST_LENGTH,md,NULL,HASH, NULL);
-			EVP_Digest(buf,SHA_DIGEST_LENGTH,buf2,NULL,HASH, NULL);
+			HASH(seed,SHA_DIGEST_LENGTH,md);
+			HASH(buf,SHA_DIGEST_LENGTH,buf2);
 			for (i=0; i<SHA_DIGEST_LENGTH; i++)
 				md[i]^=buf2[i];
 
@@ -207,7 +205,7 @@ DSA *DSA_generate_parameters(int bits,
 					if (buf[i] != 0) break;
 					}
 
-				EVP_Digest(buf,SHA_DIGEST_LENGTH,md,NULL,HASH, NULL);
+				HASH(buf,SHA_DIGEST_LENGTH,md);
 
 				/* step 8 */
 				if (!BN_bin2bn(md,SHA_DIGEST_LENGTH,r0))

@@ -60,21 +60,21 @@
 #include "cryptlib.h"
 #include <openssl/buffer.h>
 #include <openssl/bn.h>
-#ifndef OPENSSL_NO_RSA
+#ifndef NO_RSA
 #include <openssl/rsa.h>
 #endif
-#ifndef OPENSSL_NO_DH
+#ifndef NO_DH
 #include <openssl/dh.h>
 #endif
-#ifndef OPENSSL_NO_DSA
+#ifndef NO_DSA
 #include <openssl/dsa.h>
 #endif
 
 static int print(BIO *fp,const char *str,BIGNUM *num,
 		unsigned char *buf,int off);
-#ifndef OPENSSL_NO_RSA
-#ifndef OPENSSL_NO_FP_API
-int RSA_print_fp(FILE *fp, const RSA *x, int off)
+#ifndef NO_RSA
+#ifndef NO_FP_API
+int RSA_print_fp(FILE *fp, RSA *x, int off)
         {
         BIO *b;
         int ret;
@@ -91,7 +91,7 @@ int RSA_print_fp(FILE *fp, const RSA *x, int off)
         }
 #endif
 
-int RSA_print(BIO *bp, const RSA *x, int off)
+int RSA_print(BIO *bp, RSA *x, int off)
 	{
 	char str[128];
 	const char *s;
@@ -130,10 +130,14 @@ int RSA_print(BIO *bp, const RSA *x, int off)
 		goto err;
 		}
 
+	if (off)
+		{
+		if (off > 128) off=128;
+		memset(str,' ',off);
+		}
 	if (x->d != NULL)
 		{
-		if(!BIO_indent(bp,off,128))
-		   goto err;
+		if (off && (BIO_write(bp,str,off) <= 0)) goto err;
 		if (BIO_printf(bp,"Private-Key: (%d bit)\n",BN_num_bits(x->n))
 			<= 0) goto err;
 		}
@@ -156,11 +160,11 @@ err:
 	if (m != NULL) OPENSSL_free(m);
 	return(ret);
 	}
-#endif /* OPENSSL_NO_RSA */
+#endif /* NO_RSA */
 
-#ifndef OPENSSL_NO_DSA
-#ifndef OPENSSL_NO_FP_API
-int DSA_print_fp(FILE *fp, const DSA *x, int off)
+#ifndef NO_DSA
+#ifndef NO_FP_API
+int DSA_print_fp(FILE *fp, DSA *x, int off)
 	{
 	BIO *b;
 	int ret;
@@ -177,8 +181,9 @@ int DSA_print_fp(FILE *fp, const DSA *x, int off)
 	}
 #endif
 
-int DSA_print(BIO *bp, const DSA *x, int off)
+int DSA_print(BIO *bp, DSA *x, int off)
 	{
+	char str[128];
 	unsigned char *m=NULL;
 	int ret=0;
 	size_t buf_len=0,i;
@@ -205,10 +210,14 @@ int DSA_print(BIO *bp, const DSA *x, int off)
 		goto err;
 		}
 
+	if (off)
+		{
+		if (off > 128) off=128;
+		memset(str,' ',off);
+		}
 	if (x->priv_key != NULL)
 		{
-		if(!BIO_indent(bp,off,128))
-		   goto err;
+		if (off && (BIO_write(bp,str,off) <= 0)) goto err;
 		if (BIO_printf(bp,"Private-Key: (%d bit)\n",BN_num_bits(x->p))
 			<= 0) goto err;
 		}
@@ -225,18 +234,23 @@ err:
 	if (m != NULL) OPENSSL_free(m);
 	return(ret);
 	}
-#endif /* !OPENSSL_NO_DSA */
+#endif /* !NO_DSA */
 
 static int print(BIO *bp, const char *number, BIGNUM *num, unsigned char *buf,
 	     int off)
 	{
 	int n,i;
+	char str[128];
 	const char *neg;
 
 	if (num == NULL) return(1);
 	neg=(num->neg)?"-":"";
-	if(!BIO_indent(bp,off,128))
-		return 0;
+	if (off)
+		{
+		if (off > 128) off=128;
+		memset(str,' ',off);
+		if (BIO_write(bp,str,off) <= 0) return(0);
+		}
 
 	if (BN_num_bytes(num) <= BN_BYTES)
 		{
@@ -260,9 +274,9 @@ static int print(BIO *bp, const char *number, BIGNUM *num, unsigned char *buf,
 			{
 			if ((i%15) == 0)
 				{
-				if(BIO_puts(bp,"\n") <= 0
-				   || !BIO_indent(bp,off+4,128))
-				    return 0;
+				str[0]='\n';
+				memset(&(str[1]),' ',off+4);
+				if (BIO_write(bp,str,off+1+4) <= 0) return(0);
 				}
 			if (BIO_printf(bp,"%02x%s",buf[i],((i+1) == n)?"":":")
 				<= 0) return(0);
@@ -272,9 +286,9 @@ static int print(BIO *bp, const char *number, BIGNUM *num, unsigned char *buf,
 	return(1);
 	}
 
-#ifndef OPENSSL_NO_DH
-#ifndef OPENSSL_NO_FP_API
-int DHparams_print_fp(FILE *fp, const DH *x)
+#ifndef NO_DH
+#ifndef NO_FP_API
+int DHparams_print_fp(FILE *fp, DH *x)
         {
         BIO *b;
         int ret;
@@ -291,7 +305,7 @@ int DHparams_print_fp(FILE *fp, const DH *x)
         }
 #endif
 
-int DHparams_print(BIO *bp, const DH *x)
+int DHparams_print(BIO *bp, DH *x)
 	{
 	unsigned char *m=NULL;
 	int reason=ERR_R_BUF_LIB,ret=0;
@@ -330,9 +344,9 @@ err:
 	}
 #endif
 
-#ifndef OPENSSL_NO_DSA
-#ifndef OPENSSL_NO_FP_API
-int DSAparams_print_fp(FILE *fp, const DSA *x)
+#ifndef NO_DSA
+#ifndef NO_FP_API
+int DSAparams_print_fp(FILE *fp, DSA *x)
         {
         BIO *b;
         int ret;
@@ -349,11 +363,11 @@ int DSAparams_print_fp(FILE *fp, const DSA *x)
         }
 #endif
 
-int DSAparams_print(BIO *bp, const DSA *x)
+int DSAparams_print(BIO *bp, DSA *x)
 	{
 	unsigned char *m=NULL;
 	int reason=ERR_R_BUF_LIB,ret=0;
-	size_t buf_len=0,i;
+	size_t buf_len=0, i;
 
 	if (x->p)
 		buf_len = (size_t)BN_num_bytes(x->p);
@@ -383,5 +397,5 @@ err:
 	return(ret);
 	}
 
-#endif /* !OPENSSL_NO_DSA */
+#endif /* !NO_DSA */
 

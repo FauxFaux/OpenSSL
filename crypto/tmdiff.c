@@ -59,17 +59,20 @@
 #include <stdlib.h>
 #include "cryptlib.h"
 #include <openssl/tmdiff.h>
-#if !defined(OPENSSL_SYS_MSDOS)
-#include OPENSSL_UNISTD
-#endif
 
 #ifdef TIMEB
-#undef OPENSSL_SYS_WIN32
+#undef WIN32
 #undef TIMES
 #endif
 
-#if !defined(OPENSSL_SYS_MSDOS) && !defined(OPENSSL_SYS_WIN32) && !(defined(OPENSSL_SYS_VMS) || defined(__DECC)) && !defined(OPENSSL_SYS_MACOSX_RHAPSODY) && !defined(OPENSSL_SYS_VXWORKS)
-# define TIMES
+#ifndef MSDOS
+#  ifndef WIN32
+#   ifndef VXWORKS
+#    if !defined(VMS) || defined(__DECC)
+#      define TIMES
+#    endif
+#   endif
+#  endif
 #endif
 
 #ifndef _IRIX
@@ -84,7 +87,7 @@
    The __TMS macro will show if it was.  If it wasn't defined, we should
    undefine TIMES, since that tells the rest of the program how things
    should be handled.				-- Richard Levitte */
-#if defined(OPENSSL_SYS_VMS_DECC) && !defined(__TMS)
+#if defined(VMS) && defined(__DECC) && !defined(__TMS)
 #undef TIMES
 #endif
 
@@ -94,29 +97,29 @@
 #include <sys/param.h>
 #endif
 
-#if !defined(TIMES) && !defined(OPENSSL_SYS_VXWORKS)
+#if !defined(TIMES) && !defined(VXWORKS)
 #include <sys/timeb.h>
 #endif
 
-#ifdef OPENSSL_SYS_WIN32
+#ifdef WIN32
 #include <windows.h>
+#endif
+
+#ifdef VXWORKS
+#include <tickLib.h>
+#include <drv/timer/timerDev.h>
 #endif
 
 /* The following if from times(3) man page.  It may need to be changed */
 #ifndef HZ
-# if defined(_SC_CLK_TCK) \
-     && (!defined(OPENSSL_SYS_VMS) || __CTRL_VER >= 70000000)
-#  define HZ ((double)sysconf(_SC_CLK_TCK))
-# else
-#  ifndef CLK_TCK
-#   ifndef _BSD_CLK_TCK_ /* FreeBSD hack */
-#    define HZ  100.0
-#   else /* _BSD_CLK_TCK_ */
-#    define HZ ((double)_BSD_CLK_TCK_)
-#   endif
-#  else /* CLK_TCK */
-#   define HZ ((double)CLK_TCK)
+# ifndef CLK_TCK
+#  ifndef _BSD_CLK_TCK_ /* FreeBSD hack */
+#   define HZ  100.0
+#  else /* _BSD_CLK_TCK_ */
+#   define HZ ((double)_BSD_CLK_TCK_)
 #  endif
+# else /* CLK_TCK */
+#  define HZ ((double)CLK_TCK)
 # endif
 #endif
 
@@ -125,11 +128,11 @@ typedef struct ms_tm
 #ifdef TIMES
 	struct tms ms_tms;
 #else
-#  ifdef OPENSSL_SYS_WIN32
+#  ifdef WIN32
 	HANDLE thread_id;
 	FILETIME ms_win32;
 #  else
-#    ifdef OPENSSL_SYS_VXWORKS
+#    ifdef VXWORKS
           unsigned long ticks;
 #    else
 	struct timeb ms_timeb;
@@ -146,7 +149,7 @@ char *ms_time_new(void)
 	if (ret == NULL)
 		return(NULL);
 	memset(ret,0,sizeof(MS_TM));
-#ifdef OPENSSL_SYS_WIN32
+#ifdef WIN32
 	ret->thread_id=GetCurrentThread();
 #endif
 	return((char *)ret);
@@ -161,17 +164,17 @@ void ms_time_free(char *a)
 void ms_time_get(char *a)
 	{
 	MS_TM *tm=(MS_TM *)a;
-#ifdef OPENSSL_SYS_WIN32
+#ifdef WIN32
 	FILETIME tmpa,tmpb,tmpc;
 #endif
 
 #ifdef TIMES
 	times(&tm->ms_tms);
 #else
-#  ifdef OPENSSL_SYS_WIN32
+#  ifdef WIN32
 	GetThreadTimes(tm->thread_id,&tmpa,&tmpb,&tmpc,&(tm->ms_win32));
 #  else
-#    ifdef OPENSSL_SYS_VXWORKS
+#    ifdef VXWORKS
         tm->ticks = tickGet();
 #    else
 	ftime(&tm->ms_timeb);
@@ -189,7 +192,7 @@ double ms_time_diff(char *ap, char *bp)
 #ifdef TIMES
 	ret=(b->ms_tms.tms_utime-a->ms_tms.tms_utime)/HZ;
 #else
-# ifdef OPENSSL_SYS_WIN32
+# ifdef WIN32
 	{
 #ifdef __GNUC__
 	signed long long la,lb;
@@ -205,7 +208,7 @@ double ms_time_diff(char *ap, char *bp)
 	ret=((double)(lb-la))/1e7;
 	}
 # else
-#  ifdef OPENSSL_SYS_VXWORKS
+#  ifdef VXWORKS
         ret = (double)(b->ticks - a->ticks) / (double)sysClkRateGet();
 #  else
 	ret=	 (double)(b->ms_timeb.time-a->ms_timeb.time)+
@@ -226,11 +229,11 @@ int ms_time_cmp(char *ap, char *bp)
 #ifdef TIMES
 	d=(b->ms_tms.tms_utime-a->ms_tms.tms_utime)/HZ;
 #else
-# ifdef OPENSSL_SYS_WIN32
+# ifdef WIN32
 	d =(b->ms_win32.dwHighDateTime&0x000fffff)*10+b->ms_win32.dwLowDateTime/1e7;
 	d-=(a->ms_win32.dwHighDateTime&0x000fffff)*10+a->ms_win32.dwLowDateTime/1e7;
 # else
-#  ifdef OPENSSL_SYS_VXWORKS
+#  ifdef VXWORKS
         d = (b->ticks - a->ticks);
 #  else
 	d=	 (double)(b->ms_timeb.time-a->ms_timeb.time)+

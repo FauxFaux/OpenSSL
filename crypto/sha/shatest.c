@@ -62,14 +62,13 @@
 
 #include "../e_os.h"
 
-#ifdef OPENSSL_NO_SHA
+#ifdef NO_SHA
 int main(int argc, char *argv[])
 {
     printf("No SHA support\n");
     return(0);
 }
 #else
-#include <openssl/evp.h>
 #include <openssl/sha.h>
 
 #ifdef CHARSET_EBCDIC
@@ -109,7 +108,7 @@ int main(int argc, char *argv[])
 	unsigned char **P,**R;
 	static unsigned char buf[1000];
 	char *p,*r;
-	EVP_MD_CTX c;
+	SHA_CTX c;
 	unsigned char md[SHA_DIGEST_LENGTH];
 
 #ifdef CHARSET_EBCDIC
@@ -117,14 +116,12 @@ int main(int argc, char *argv[])
 	ebcdic2ascii(test[1], test[1], strlen(test[1]));
 #endif
 
-	EVP_MD_CTX_init(&c);
 	P=(unsigned char **)test;
 	R=(unsigned char **)ret;
 	i=1;
 	while (*P != NULL)
 		{
-		EVP_Digest(*P,(unsigned long)strlen((char *)*P),md,NULL,EVP_sha(), NULL);
-		p=pt(md);
+		p=pt(SHA(*P,(unsigned long)strlen((char *)*P),NULL));
 		if (strcmp(p,(char *)*R) != 0)
 			{
 			printf("error calculating SHA on '%s'\n",*P);
@@ -142,10 +139,10 @@ int main(int argc, char *argv[])
 #ifdef CHARSET_EBCDIC
 	ebcdic2ascii(buf, buf, 1000);
 #endif /*CHARSET_EBCDIC*/
-	EVP_DigestInit_ex(&c,EVP_sha(), NULL);
+	SHA_Init(&c);
 	for (i=0; i<1000; i++)
-		EVP_DigestUpdate(&c,buf,1000);
-	EVP_DigestFinal_ex(&c,md,NULL);
+		SHA_Update(&c,buf,1000);
+	SHA_Final(md,&c);
 	p=pt(md);
 
 	r=bigret;
@@ -157,7 +154,6 @@ int main(int argc, char *argv[])
 		}
 	else
 		printf("test 3 ok\n");
-	EVP_MD_CTX_cleanup(&c);
 	EXIT(err);
 	return(0);
 	}

@@ -75,16 +75,15 @@
 			*((c)++)=(unsigned char)(((l)>>24L)&0xff))
 
 static void mdc2_body(MDC2_CTX *c, const unsigned char *in, unsigned int len);
-int MDC2_Init(MDC2_CTX *c)
+void MDC2_Init(MDC2_CTX *c)
 	{
 	c->num=0;
 	c->pad_type=1;
 	memset(&(c->h[0]),0x52,MDC2_BLOCK);
 	memset(&(c->hh[0]),0x25,MDC2_BLOCK);
-	return 1;
 	}
 
-int MDC2_Update(MDC2_CTX *c, const unsigned char *in, unsigned long len)
+void MDC2_Update(MDC2_CTX *c, const unsigned char *in, unsigned long len)
 	{
 	int i,j;
 
@@ -96,7 +95,7 @@ int MDC2_Update(MDC2_CTX *c, const unsigned char *in, unsigned long len)
 			/* partial block */
 			memcpy(&(c->data[i]),in,(int)len);
 			c->num+=(int)len;
-			return 1;
+			return;
 			}
 		else
 			{
@@ -117,7 +116,6 @@ int MDC2_Update(MDC2_CTX *c, const unsigned char *in, unsigned long len)
 		memcpy(&(c->data[0]),&(in[i]),j);
 		c->num=j;
 		}
-	return 1;
 	}
 
 static void mdc2_body(MDC2_CTX *c, const unsigned char *in, unsigned int len)
@@ -125,7 +123,7 @@ static void mdc2_body(MDC2_CTX *c, const unsigned char *in, unsigned int len)
 	register DES_LONG tin0,tin1;
 	register DES_LONG ttin0,ttin1;
 	DES_LONG d[2],dd[2];
-	DES_key_schedule k;
+	des_key_schedule k;
 	unsigned char *p;
 	unsigned int i;
 
@@ -136,13 +134,13 @@ static void mdc2_body(MDC2_CTX *c, const unsigned char *in, unsigned int len)
 		c->h[0]=(c->h[0]&0x9f)|0x40;
 		c->hh[0]=(c->hh[0]&0x9f)|0x20;
 
-		DES_set_odd_parity(&c->h);
-		DES_set_key_unchecked(&c->h,&k);
-		DES_encrypt1(d,&k,1);
+		des_set_odd_parity(&c->h);
+		des_set_key_unchecked(&c->h,k);
+		des_encrypt1(d,k,1);
 
-		DES_set_odd_parity(&c->hh);
-		DES_set_key_unchecked(&c->hh,&k);
-		DES_encrypt1(dd,&k,1);
+		des_set_odd_parity(&c->hh);
+		des_set_key_unchecked(&c->hh,k);
+		des_encrypt1(dd,k,1);
 
 		ttin0=tin0^dd[0];
 		ttin1=tin1^dd[1];
@@ -158,7 +156,7 @@ static void mdc2_body(MDC2_CTX *c, const unsigned char *in, unsigned int len)
 		}
 	}
 
-int MDC2_Final(unsigned char *md, MDC2_CTX *c)
+void MDC2_Final(unsigned char *md, MDC2_CTX *c)
 	{
 	int i,j;
 
@@ -173,7 +171,6 @@ int MDC2_Final(unsigned char *md, MDC2_CTX *c)
 		}
 	memcpy(md,(char *)c->h,MDC2_BLOCK);
 	memcpy(&(md[MDC2_BLOCK]),(char *)c->hh,MDC2_BLOCK);
-	return 1;
 	}
 
 #undef TEST

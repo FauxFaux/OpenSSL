@@ -66,21 +66,17 @@
 /* Size of an SSL signature: MD5+SHA1 */
 #define SSL_SIG_LENGTH	36
 
-int RSA_sign(int type, const unsigned char *m, unsigned int m_len,
+int RSA_sign(int type, unsigned char *m, unsigned int m_len,
 	     unsigned char *sigret, unsigned int *siglen, RSA *rsa)
 	{
 	X509_SIG sig;
 	ASN1_TYPE parameter;
 	int i,j,ret=1;
-	unsigned char *p, *tmps = NULL;
-	const unsigned char *s = NULL;
+	unsigned char *p,*s = NULL;
 	X509_ALGOR algor;
 	ASN1_OCTET_STRING digest;
-	if((rsa->flags & RSA_FLAG_SIGN_VER) && rsa->meth->rsa_sign)
-		{
-		return rsa->meth->rsa_sign(type, m, m_len,
-			sigret, siglen, rsa);
-		}
+	if(rsa->flags & RSA_FLAG_SIGN_VER)
+	      return rsa->meth->rsa_sign(type, m, m_len, sigret, siglen, rsa);
 	/* Special case: SSL signature, just check the length */
 	if(type == NID_md5_sha1) {
 		if(m_len != SSL_SIG_LENGTH) {
@@ -107,7 +103,7 @@ int RSA_sign(int type, const unsigned char *m, unsigned int m_len,
 		sig.algor->parameter= &parameter;
 
 		sig.digest= &digest;
-		sig.digest->data=(unsigned char *)m; /* TMP UGLY CAST */
+		sig.digest->data=m;
 		sig.digest->length=m_len;
 
 		i=i2d_X509_SIG(&sig,NULL);
@@ -119,15 +115,14 @@ int RSA_sign(int type, const unsigned char *m, unsigned int m_len,
 		return(0);
 		}
 	if(type != NID_md5_sha1) {
-		tmps=(unsigned char *)OPENSSL_malloc((unsigned int)j+1);
-		if (tmps == NULL)
+		s=(unsigned char *)OPENSSL_malloc((unsigned int)j+1);
+		if (s == NULL)
 			{
 			RSAerr(RSA_F_RSA_SIGN,ERR_R_MALLOC_FAILURE);
 			return(0);
 			}
-		p=tmps;
+		p=s;
 		i2d_X509_SIG(&sig,&p);
-		s=tmps;
 	}
 	i=RSA_private_encrypt(i,s,sigret,rsa,RSA_PKCS1_PADDING);
 	if (i <= 0)
@@ -136,13 +131,13 @@ int RSA_sign(int type, const unsigned char *m, unsigned int m_len,
 		*siglen=i;
 
 	if(type != NID_md5_sha1) {
-		OPENSSL_cleanse(tmps,(unsigned int)j+1);
-		OPENSSL_free(tmps);
+		OPENSSL_cleanse(s,(unsigned int)j+1);
+		OPENSSL_free(s);
 	}
 	return(ret);
 	}
 
-int RSA_verify(int dtype, const unsigned char *m, unsigned int m_len,
+int RSA_verify(int dtype, unsigned char *m, unsigned int m_len,
 	     unsigned char *sigbuf, unsigned int siglen, RSA *rsa)
 	{
 	int i,ret=0,sigtype;
@@ -155,11 +150,8 @@ int RSA_verify(int dtype, const unsigned char *m, unsigned int m_len,
 		return(0);
 		}
 
-	if((rsa->flags & RSA_FLAG_SIGN_VER) && rsa->meth->rsa_verify)
-		{
-		return rsa->meth->rsa_verify(dtype, m, m_len,
-			sigbuf, siglen, rsa);
-		}
+	if(rsa->flags & RSA_FLAG_SIGN_VER)
+	    return rsa->meth->rsa_verify(dtype, m, m_len, sigbuf, siglen, rsa);
 
 	s=(unsigned char *)OPENSSL_malloc((unsigned int)siglen);
 	if (s == NULL)
@@ -201,9 +193,9 @@ int RSA_verify(int dtype, const unsigned char *m, unsigned int m_len,
 				(sigtype == NID_md2WithRSAEncryption)))
 				{
 				/* ok, we will let it through */
-#if !defined(OPENSSL_NO_STDIO) && !defined(OPENSSL_SYS_WIN16)
+	#if !defined(NO_STDIO) && !defined(WIN16)
 				fprintf(stderr,"signature has problems, re-make with post SSLeay045\n");
-#endif
+	#endif
 				}
 			else
 				{

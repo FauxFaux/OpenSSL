@@ -63,7 +63,7 @@
 #include <openssl/rand.h>
 
 int RSA_padding_add_PKCS1_type_1(unsigned char *to, int tlen,
-	     const unsigned char *from, int flen)
+	     unsigned char *from, int flen)
 	{
 	int j;
 	unsigned char *p;
@@ -89,10 +89,10 @@ int RSA_padding_add_PKCS1_type_1(unsigned char *to, int tlen,
 	}
 
 int RSA_padding_check_PKCS1_type_1(unsigned char *to, int tlen,
-	     const unsigned char *from, int flen, int num)
+	     unsigned char *from, int flen, int num)
 	{
 	int i,j;
-	const unsigned char *p;
+	unsigned char *p;
 
 	p=from;
 	if ((num != (flen+1)) || (*(p++) != 01))
@@ -141,7 +141,7 @@ int RSA_padding_check_PKCS1_type_1(unsigned char *to, int tlen,
 	}
 
 int RSA_padding_add_PKCS1_type_2(unsigned char *to, int tlen,
-	     const unsigned char *from, int flen)
+	     unsigned char *from, int flen)
 	{
 	int i,j;
 	unsigned char *p;
@@ -179,10 +179,10 @@ int RSA_padding_add_PKCS1_type_2(unsigned char *to, int tlen,
 	}
 
 int RSA_padding_check_PKCS1_type_2(unsigned char *to, int tlen,
-	     const unsigned char *from, int flen, int num)
+	     unsigned char *from, int flen, int num)
 	{
 	int i,j;
-	const unsigned char *p;
+	unsigned char *p;
 
 	p=from;
 	if ((num != (flen+1)) || (*(p++) != 02))

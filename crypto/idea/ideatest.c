@@ -62,7 +62,7 @@
 
 #include "../e_os.h"
 
-#ifdef OPENSSL_NO_IDEA
+#ifdef NO_IDEA
 int main(int argc, char *argv[])
 {
     printf("No IDEA support\n");

@@ -61,7 +61,6 @@
 #include "cryptlib.h"
 #include "bn_lcl.h"
 
-
 /* The old slow way */
 #if 0
 int BN_div(BIGNUM *dv, BIGNUM *rem, const BIGNUM *m, const BIGNUM *d,
@@ -127,8 +126,7 @@ int BN_div(BIGNUM *dv, BIGNUM *rem, const BIGNUM *m, const BIGNUM *d,
 
 #else
 
-#if !defined(OPENSSL_NO_ASM) && !defined(OPENSSL_NO_INLINE_ASM) \
-    && !defined(PEDANTIC) && !defined(BN_DIV3W)
+#if !defined(NO_ASM) && !defined(NO_INLINE_ASM) && !defined(PEDANTIC) && !defined(BN_DIV3W)
 # if defined(__GNUC__) && __GNUC__>=2
 #  if defined(__i386) || defined (__i386__)
    /*
@@ -150,32 +148,10 @@ int BN_div(BIGNUM *dv, BIGNUM *rem, const BIGNUM *m, const BIGNUM *d,
 	    q;					\
 	})
 #  define REMAINDER_IS_ALREADY_CALCULATED
-#  elif defined(__x86_64) && defined(SIXTY_FOUR_BIT_LONG)
-   /*
-    * Same story here, but it's 128-bit by 64-bit division. Wow!
-    *					<appro@fy.chalmers.se>
-    */
-#  define bn_div_words(n0,n1,d0)		\
-	({  asm volatile (			\
-		"divq	%4"			\
-		: "=a"(q), "=d"(rem)		\
-		: "a"(n1), "d"(n0), "g"(d0)	\
-		: "cc");			\
-	    q;					\
-	})
-#  define REMAINDER_IS_ALREADY_CALCULATED
 #  endif /* __<cpu> */
 # endif /* __GNUC__ */
-#endif /* OPENSSL_NO_ASM */
+#endif /* NO_ASM */
 
-
-/* BN_div computes  dv := num / divisor,  rounding towards zero, and sets up
- * rm  such that  dv*divisor + rm = num  holds.
- * Thus:
- *     dv->neg == num->neg ^ divisor->neg  (unless the result is zero)
- *     rm->neg == num->neg                 (unless the remainder is zero)
- * If 'dv' or 'rm' is NULL, the respective value is not returned.
- */
 int BN_div(BIGNUM *dv, BIGNUM *rm, const BIGNUM *num, const BIGNUM *divisor,
 	   BN_CTX *ctx)
 	{
@@ -209,7 +185,7 @@ int BN_div(BIGNUM *dv, BIGNUM *rm, const BIGNUM *num, const BIGNUM *divisor,
 	if (dv == NULL)
 		res=BN_CTX_get(ctx);
 	else	res=dv;
-	if (sdiv == NULL || res == NULL) goto err;
+	if (sdiv==NULL || res == NULL) goto err;
 	tmp->neg=0;
 
 	/* First we normalise the numbers */
@@ -256,14 +232,12 @@ int BN_div(BIGNUM *dv, BIGNUM *rm, const BIGNUM *num, const BIGNUM *divisor,
 		}
 	else
 		res->top--;
-	if (res->top == 0)
-		res->neg = 0;
 	resp--;
 
 	for (i=0; i<loop-1; i++)
 		{
 		BN_ULONG q,l0;
-#if defined(BN_DIV3W) && !defined(OPENSSL_NO_ASM)
+#if defined(BN_DIV3W) && !defined(NO_ASM)
 		BN_ULONG bn_div_3_words(BN_ULONG*,BN_ULONG,BN_ULONG);
 		q=bn_div_3_words(wnump,d1,d0);
 #else
@@ -282,11 +256,6 @@ int BN_div(BIGNUM *dv, BIGNUM *rm, const BIGNUM *num, const BIGNUM *divisor,
 			q=(BN_ULONG)(((((BN_ULLONG)n0)<<BN_BITS2)|n1)/d0);
 #else
 			q=bn_div_words(n0,n1,d0);
-#ifdef BN_DEBUG_LEVITTE
-			fprintf(stderr,"DEBUG: bn_div_words(0x%08X,0x%08X,0x%08\
-X) -> 0x%08X\n",
-				n0, n1, d0, q);
-#endif
 #endif
 
 #ifndef REMAINDER_IS_ALREADY_CALCULATED
@@ -311,18 +280,11 @@ X) -> 0x%08X\n",
 			BN_ULONG t2l,t2h,ql,qh;
 
 			q=bn_div_words(n0,n1,d0);
-#ifdef BN_DEBUG_LEVITTE
-			fprintf(stderr,"DEBUG: bn_div_words(0x%08X,0x%08X,0x%08\
-X) -> 0x%08X\n",
-				n0, n1, d0, q);
-#endif
 #ifndef REMAINDER_IS_ALREADY_CALCULATED
 			rem=(n1-q*d0)&BN_MASK2;
 #endif
 
-#if defined(BN_UMULT_LOHI)
-			BN_UMULT_LOHI(t2l,t2h,d1,q);
-#elif defined(BN_UMULT_HIGH)
+#ifdef BN_UMULT_HIGH
 			t2l = d1 * q;
 			t2h = BN_UMULT_HIGH(d1,q);
 #else
@@ -369,13 +331,8 @@ X) -> 0x%08X\n",
 		}
 	if (rm != NULL)
 		{
-		/* Keep a copy of the neg flag in num because if rm==num
-		 * BN_rshift() will overwrite it.
-		 */
-		int neg = num->neg;
 		BN_rshift(rm,snum,norm_shift);
-		if (!BN_is_zero(rm))
-			rm->neg = neg;
+		rm->neg=num->neg;
 		}
 	BN_CTX_end(ctx);
 	return(1);
@@ -385,3 +342,40 @@ err:
 	}
 
 #endif
+
+/* rem != m */
+int BN_mod(BIGNUM *rem, const BIGNUM *m, const BIGNUM *d, BN_CTX *ctx)
+	{
+#if 0 /* The old slow way */
+	int i,nm,nd;
+	BIGNUM *dv;
+
+	if (BN_ucmp(m,d) < 0)
+		return((BN_copy(rem,m) == NULL)?0:1);
+
+	BN_CTX_start(ctx);
+	dv=BN_CTX_get(ctx);
+
+	if (!BN_copy(rem,m)) goto err;
+
+	nm=BN_num_bits(rem);
+	nd=BN_num_bits(d);
+	if (!BN_lshift(dv,d,nm-nd)) goto err;
+	for (i=nm-nd; i>=0; i--)
+		{
+		if (BN_cmp(rem,dv) >= 0)
+			{
+			if (!BN_sub(rem,rem,dv)) goto err;
+			}
+		if (!BN_rshift1(dv,dv)) goto err;
+		}
+	BN_CTX_end(ctx);
+	return(1);
+ err:
+	BN_CTX_end(ctx);
+	return(0);
+#else
+	return(BN_div(NULL,rem,m,d,ctx));
+#endif
+	}
+

@@ -59,17 +59,17 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include "cryptlib.h"
-#include <openssl/dso.h>
-#ifdef OPENSSL_SYS_VMS
+#ifdef VMS
 #pragma message disable DOLLARID
 #include <lib$routines.h>
 #include <stsdef.h>
 #include <descrip.h>
 #include <starlet.h>
 #endif
+#include "cryptlib.h"
+#include <openssl/dso.h>
 
-#ifndef OPENSSL_SYS_VMS
+#ifndef VMS
 DSO_METHOD *DSO_METHOD_vms(void)
 	{
 	return NULL;
@@ -77,7 +77,7 @@ DSO_METHOD *DSO_METHOD_vms(void)
 #else
 #pragma message disable DOLLARID
 
-static int vms_load(DSO *dso);
+static int vms_load(DSO *dso, const char *filename);
 static int vms_unload(DSO *dso);
 static void *vms_bind_var(DSO *dso, const char *symname);
 static DSO_FUNC_TYPE vms_bind_func(DSO *dso, const char *symname);
@@ -86,9 +86,8 @@ static int vms_unbind_var(DSO *dso, char *symname, void *symptr);
 static int vms_unbind_func(DSO *dso, char *symname, DSO_FUNC_TYPE symptr);
 static int vms_init(DSO *dso);
 static int vms_finish(DSO *dso);
-static long vms_ctrl(DSO *dso, int cmd, long larg, void *parg);
 #endif
-static char *vms_name_converter(DSO *dso, const char *filename);
+static long vms_ctrl(DSO *dso, int cmd, long larg, void *parg);
 
 static DSO_METHOD dso_meth_vms = {
 	"OpenSSL 'VMS' shared library method",
@@ -101,8 +100,7 @@ static DSO_METHOD dso_meth_vms = {
 	NULL, /* unbind_var */
 	NULL, /* unbind_func */
 #endif
-	NULL, /* ctrl */
-	vms_name_converter,
+	vms_ctrl,
 	NULL, /* init */
 	NULL  /* finish */
 	};
@@ -130,19 +128,10 @@ DSO_METHOD *DSO_METHOD_vms(void)
 	return(&dso_meth_vms);
 	}
 
-static int vms_load(DSO *dso)
+static int vms_load(DSO *dso, const char *filename)
 	{
-	void *ptr = NULL;
-	/* See applicable comments in dso_dl.c */
-	char *filename = DSO_convert_filename(dso, NULL);
 	DSO_VMS_INTERNAL *p;
 	const char *sp1, *sp2;	/* Search result */
-
-	if(filename == NULL)
-		{
-		DSOerr(DSO_F_DLFCN_LOAD,DSO_R_NO_FILENAME);
-		goto err;
-		}
 
 	/* A file specification may look like this:
 	 *
@@ -185,14 +174,14 @@ static int vms_load(DSO *dso)
 		|| (sp1 - filename) + strlen(sp2) > FILENAME_MAX)
 		{
 		DSOerr(DSO_F_VMS_LOAD,DSO_R_FILENAME_TOO_BIG);
-		goto err;
+		return(0);
 		}
 
 	p = (DSO_VMS_INTERNAL *)OPENSSL_malloc(sizeof(DSO_VMS_INTERNAL));
 	if(p == NULL)
 		{
 		DSOerr(DSO_F_VMS_LOAD,ERR_R_MALLOC_FAILURE);
-		goto err;
+		return(0);
 		}
 
 	strncpy(p->filename, sp1, sp2-sp1);
@@ -214,19 +203,10 @@ static int vms_load(DSO *dso)
 	if(!sk_push(dso->meth_data, (char *)p))
 		{
 		DSOerr(DSO_F_VMS_LOAD,DSO_R_STACK_ERROR);
-		goto err;
-		}
-
-	/* Success (for now, we lie.  We actually do not know...) */
-	dso->loaded_filename = filename;
-	return(1);
-err:
-	/* Cleanup! */
-	if(p != NULL)
 		OPENSSL_free(p);
-	if(filename != NULL)
-		OPENSSL_free(filename);
-	return(0);
+		return(0);
+		}
+	return(1);
 	}
 
 /* Note that this doesn't actually unload the shared image, as there is no
@@ -368,12 +348,28 @@ static DSO_FUNC_TYPE vms_bind_func(DSO *dso, const char *symname)
 	return sym;
 	}
 
-static char *vms_name_converter(DSO *dso, const char *filename)
-	{
-        int len = strlen(filename);
-        char *not_translated = OPENSSL_malloc(len+1);
-        strcpy(not_translated,filename);
-	return(not_translated);
-	}
+static long vms_ctrl(DSO *dso, int cmd, long larg, void *parg)
+        {
+        if(dso == NULL)
+                {
+                DSOerr(DSO_F_VMS_CTRL,ERR_R_PASSED_NULL_PARAMETER);
+                return(-1);
+                }
+        switch(cmd)
+                {
+        case DSO_CTRL_GET_FLAGS:
+                return dso->flags;
+        case DSO_CTRL_SET_FLAGS:
+                dso->flags = (int)larg;
+                return(0);
+        case DSO_CTRL_OR_FLAGS:
+                dso->flags |= (int)larg;
+                return(0);
+        default:
+                break;
+                }
+        DSOerr(DSO_F_VMS_CTRL,DSO_R_UNKNOWN_COMMAND);
+        return(-1);
+        }
 
-#endif /* OPENSSL_SYS_VMS */
+#endif /* VMS */

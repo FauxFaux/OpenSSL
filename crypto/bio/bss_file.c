@@ -71,7 +71,7 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 
-#if !defined(OPENSSL_NO_STDIO)
+#if !defined(NO_STDIO)
 
 static int MS_CALLBACK file_write(BIO *h, const char *buf, int num);
 static int MS_CALLBACK file_read(BIO *h, char *buf, int size);
@@ -103,10 +103,7 @@ BIO *BIO_new_file(const char *filename, const char *mode)
 		{
 		SYSerr(SYS_F_FOPEN,get_last_sys_error());
 		ERR_add_error_data(5,"fopen('",filename,"','",mode,"')");
-		if (errno == ENOENT)
-			BIOerr(BIO_F_BIO_NEW_FILE,BIO_R_NO_SUCH_FILE);
-		else
-			BIOerr(BIO_F_BIO_NEW_FILE,ERR_R_SYS_LIB);
+		BIOerr(BIO_F_BIO_NEW_FILE,ERR_R_SYS_LIB);
 		return(NULL);
 		}
 	if ((ret=BIO_new(BIO_s_file_internal())) == NULL)
@@ -162,12 +159,6 @@ static int MS_CALLBACK file_read(BIO *b, char *out, int outl)
 	if (b->init && (out != NULL))
 		{
 		ret=fread(out,1,(int)outl,(FILE *)b->ptr);
-		if(ret == 0 && ferror((FILE *)b->ptr))
-			{
-			SYSerr(SYS_F_FREAD,get_last_sys_error());
-			BIOerr(BIO_F_FILE_READ,ERR_R_SYS_LIB);
-			ret=-1;
-			}
 		}
 	return(ret);
 	}
@@ -213,17 +204,12 @@ static long MS_CALLBACK file_ctrl(BIO *b, int cmd, long num, void *ptr)
 		b->shutdown=(int)num&BIO_CLOSE;
 		b->ptr=(char *)ptr;
 		b->init=1;
-#if defined(OPENSSL_SYS_MSDOS) || defined(OPENSSL_SYS_WINDOWS)
+#if defined(MSDOS) || defined(WINDOWS)
 		/* Set correct text/binary mode */
 		if (num & BIO_FP_TEXT)
 			_setmode(fileno((FILE *)ptr),_O_TEXT);
 		else
 			_setmode(fileno((FILE *)ptr),_O_BINARY);
-#elif defined(OPENSSL_SYS_OS2)
-		if (num & BIO_FP_TEXT)
-			setmode(fileno((FILE *)ptr), O_TEXT);
-		else
-			setmode(fileno((FILE *)ptr), O_BINARY);
 #endif
 		break;
 	case BIO_C_SET_FILENAME:
@@ -247,7 +233,7 @@ static long MS_CALLBACK file_ctrl(BIO *b, int cmd, long num, void *ptr)
 			ret=0;
 			break;
 			}
-#if defined(OPENSSL_SYS_MSDOS) || defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_OS2)
+#if defined(MSDOS) || defined(WINDOWS)
 		if (!(num & BIO_FP_TEXT))
 			strcat(p,"b");
 		else
@@ -317,7 +303,7 @@ static int MS_CALLBACK file_puts(BIO *bp, const char *str)
 	return(ret);
 	}
 
-#endif /* OPENSSL_NO_STDIO */
+#endif /* NO_STDIO */
 
 #endif /* HEADER_BSS_FILE_C */
 
