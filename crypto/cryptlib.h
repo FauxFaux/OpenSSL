@@ -62,7 +62,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "openssl/e_os.h"
+#ifdef FLAT_INC
+#include "e_os.h"
+#else
+#include "../e_os.h"
+#endif
 
 #include <openssl/crypto.h>
 #include <openssl/buffer.h> 
