@@ -1,4 +1,13 @@
-#!/usr/local/bin/perl
+:
+eval 'exec perl -S $0 ${1+"$@"}'
+    if $running_under_some_shell;
+##
+##  Configure -- OpenSSL source tree configuration script
+##
+
+require 5.000;
+use strict;
+
 #
 # see PROBLEMS for instructions on what sort of things to do when 
 # tracking a bug --tjh
@@ -37,34 +46,34 @@
 # SHA1_ASM	use some extra sha1 assember, must define L_ENDIAN for x86
 # RMD160_ASM	use some extra ripemd160 assember,
 
-$x86_gcc_des="DES_PTR DES_RISC1 DES_UNROLL";
+my $x86_gcc_des="DES_PTR DES_RISC1 DES_UNROLL";
 
 # MD2_CHAR slags pentium pros
-$x86_gcc_opts="RC4_INDEX MD2_INT BF_PTR2";
+my $x86_gcc_opts="RC4_INDEX MD2_INT BF_PTR2";
 
 # MODIFY THESE PARAMETERS IF YOU ARE GOING TO USE THE 'util/speed.sh SCRIPT
 # Don't worry about these normally
 
-$tcc="cc";
-$tflags="-fast -Xa";
-$tbn_mul="";
-$tlib="-lnsl -lsocket";
+my $tcc="cc";
+my $tflags="-fast -Xa";
+my $tbn_mul="";
+my $tlib="-lnsl -lsocket";
 #$bits1="SIXTEEN_BIT ";
 #$bits2="THIRTY_TWO_BIT ";
-$bits1="THIRTY_TWO_BIT ";
-$bits2="SIXTY_FOUR_BIT ";
+my $bits1="THIRTY_TWO_BIT ";
+my $bits2="SIXTY_FOUR_BIT ";
 
-$x86_sol_asm="asm/bn86-sol.o asm/co86-sol.o:asm/dx86-sol.o asm/yx86-sol.o:asm/bx86-sol.o:asm/mx86-sol.o:asm/sx86-sol.o:asm/cx86-sol.o:asm/rx86-sol.o:asm/rm86-sol.o:asm/r586-sol.o";
-$x86_elf_asm="asm/bn86-elf.o asm/co86-elf.o:asm/dx86-elf.o asm/yx86-elf.o:asm/bx86-elf.o:asm/mx86-elf.o:asm/sx86-elf.o:asm/cx86-elf.o:asm/rx86-elf.o:asm/rm86-elf.o:asm/r586-elf.o";
-$x86_out_asm="asm/bn86-out.o asm/co86-out.o:asm/dx86-out.o asm/yx86-out.o:asm/bx86-out.o:asm/mx86-out.o:asm/sx86-out.o:asm/cx86-out.o:asm/rx86-out.o:asm/rm86-out.o:asm/r586-out.o";
-$x86_bsdi_asm="asm/bn86bsdi.o asm/co86bsdi.o:asm/dx86bsdi.o asm/yx86bsdi.o:asm/bx86bsdi.o:asm/mx86bsdi.o:asm/sx86bsdi.o:asm/cx86bsdi.o:asm/rx86bsdi.o:asm/rm86bsdi.o:asm/r586bsdi.o";
+my $x86_sol_asm="asm/bn86-sol.o asm/co86-sol.o:asm/dx86-sol.o asm/yx86-sol.o:asm/bx86-sol.o:asm/mx86-sol.o:asm/sx86-sol.o:asm/cx86-sol.o:asm/rx86-sol.o:asm/rm86-sol.o:asm/r586-sol.o";
+my $x86_elf_asm="asm/bn86-elf.o asm/co86-elf.o:asm/dx86-elf.o asm/yx86-elf.o:asm/bx86-elf.o:asm/mx86-elf.o:asm/sx86-elf.o:asm/cx86-elf.o:asm/rx86-elf.o:asm/rm86-elf.o:asm/r586-elf.o";
+my $x86_out_asm="asm/bn86-out.o asm/co86-out.o:asm/dx86-out.o asm/yx86-out.o:asm/bx86-out.o:asm/mx86-out.o:asm/sx86-out.o:asm/cx86-out.o:asm/rx86-out.o:asm/rm86-out.o:asm/r586-out.o";
+my $x86_bsdi_asm="asm/bn86bsdi.o asm/co86bsdi.o:asm/dx86bsdi.o asm/yx86bsdi.o:asm/bx86bsdi.o:asm/mx86bsdi.o:asm/sx86bsdi.o:asm/cx86bsdi.o:asm/rx86bsdi.o:asm/rm86bsdi.o:asm/r586bsdi.o";
 
 # -DB_ENDIAN slows things down on a sparc for md5, but helps sha1.
 # So the md5_locl.h file has an undef B_ENDIAN if sun is defined
 
 #config-string	CC : CFLAGS : LDFLAGS : special header file mods:bn_asm \
 # des_asm:bf_asm
-%table=(
+my %table=(
 #"b",		"$tcc:$tflags:$tlib:$bits1:$tbn_mul::",
 #"bl-4c-2c",	"$tcc:$tflags:$tlib:${bits1}BN_LLONG RC4_CHAR MD2_CHAR:$tbn_mul::",
 #"bl-4c-ri",	"$tcc:$tflags:$tlib:${bits1}BN_LLONG RC4_CHAR RC4_INDEX:$tbn_mul::",
@@ -73,7 +82,8 @@ $x86_bsdi_asm="asm/bn86bsdi.o asm/co86bsdi.o:asm/dx86bsdi.o asm/yx86bsdi.o:asm/b
 # A few of my development configs
 "purify",	"purify gcc:-g -DPURIFY -Wall:-lsocket -lnsl::::",
 "debug",	"gcc:-DBN_DEBUG -DREF_CHECK -DCRYPTO_MDEBUG -ggdb -g2 -Wformat -Wshadow -Wmissing-prototypes -Wmissing-declarations -Werror:-lefence::::",
-"debug-rse","gcc:-DTERMIOS -DL_ENDIAN -DREF_CHECK -DCRYPTO_MDEBUG -g -ggdb3 -Wall:::::",
+"debug-ben",	"gcc:-DBN_DEBUG -DREF_CHECK -DCRYPTO_MDEBUG -O2 -Wall -Wshadow -Werror -pipe:::::",
+"debug-rse","cc:-DTERMIOS -DL_ENDIAN -pipe -O -g -ggdb3 -Wall::BN_LLONG $x86_gcc_des $x86_gcc_opts:$x86_elf_asm",
 "dist",		"cc:-O -DNOPROTO::::",
 
 # Basic configs that should work on any box
@@ -94,6 +104,8 @@ $x86_bsdi_asm="asm/bn86bsdi.o asm/co86bsdi.o:asm/dx86bsdi.o asm/yx86bsdi.o:asm/b
 	BN_LLONG RC4_CHAR DES_PTR DES_RISC1 DES_UNROLL BF_PTR:asm/sparc.o::",
 "solaris-usparc-sc4","cc:-xtarget=ultra -xarch=v8plus -Xa -xO5 -DB_ENDIAN:\
 	-lsocket -lnsl:\
+	BN_LLONG RC4_CHAR DES_PTR DES_RISC1 DES_UNROLL BF_PTR:asm/sparc.o::",
+"solaris-sparc-sc4-pic","cc:-xO5 -Xa -DB_ENDIAN -KPIC:-lsocket -lnsl:\
 	BN_LLONG RC4_CHAR DES_PTR DES_RISC1 DES_UNROLL BF_PTR:asm/sparc.o::",
 
 # Sunos configs, assuming sparc for the gcc one.
@@ -139,20 +151,22 @@ $x86_bsdi_asm="asm/bn86bsdi.o asm/co86bsdi.o:asm/dx86bsdi.o asm/yx86bsdi.o:asm/b
 "linux-elf",	"gcc:-DL_ENDIAN -DTERMIO -O3 -fomit-frame-pointer -m486 -Wall -Wuninitialized::BN_LLONG $x86_gcc_des $x86_gcc_opts:$x86_elf_asm",
 "debug-linux-elf","gcc:-DREF_CHECK -DCRYPTO_MDEBUG -DL_ENDIAN -DTERMIO -g -m486 -Wall:-lefence:BN_LLONG $x86_gcc_des $x86_gcc_opts:$x86_elf_asm",
 "linux-aout",	"gcc:-DL_ENDIAN -DTERMIO -O3 -fomit-frame-pointer -m486 -Wall::BN_LLONG $x86_gcc_des $x86_gcc_opts:$x86_out_asm",
+"linux-mips",    "gcc:-DL_ENDIAN -DTERMIO -O3 -fomit-frame-pointer -Wall
+-Wuninitialized:::BN_LLONG:",
 "NetBSD-sparc",	"gcc:-DTERMIOS -O3 -fomit-frame-pointer -mv8 -Wall -DB_ENDIAN::BN_LLONG MD2_CHAR RC4_INDEX DES_UNROLL:::",
 "NetBSD-m68",	"gcc:-DTERMIOS -O3 -fomit-frame-pointer -Wall -DB_ENDIAN::BN_LLONG MD2_CHAR RC4_INDEX DES_UNROLL:::",
 "NetBSD-x86",	"gcc:-DTERMIOS -D_ANSI_SOURCE -O3 -fomit-frame-pointer -m486 -Wall::BN_LLONG $x86_gcc_des $x86_gcc_opts:",
 #"FreeBSD",   "gcc:-DTERMIOS -DL_ENDIAN -D_ANSI_SOURCE -fomit-frame-pointer -O3 -m486 -Wall::BN_LLONG $x86_gcc_des $x86_gcc_opts:$x86_out_asm",
 "FreeBSD",      "gcc:-DTERMIOS -DL_ENDIAN -fomit-frame-pointer -O3 -m486 -Wall::BN_LLONG $x86_gcc_des $x86_gcc_opts:$x86_out_asm",
 "FreeBSD-elf",  "gcc:-DTERMIOS -DL_ENDIAN -fomit-frame-pointer -O3 -m486 -Wall::BN_LLONG $x86_gcc_des $x86_gcc_opts:$x86_elf_asm",
-#"bsdi-gcc",     "gcc:-O3 -ffast-math -DL_ENDIAN -DPERL5 -m486::RSA_LLONG $x86_gc_des $x86_gcc_opts:$x86_bsdi_asm",
-"nextstep",	"cc:-O3 -Wall::BN_LLONG $x86_gcc_des $x86_gcc_opts:::",
+"bsdi-gcc",     "gcc:-O3 -ffast-math -DL_ENDIAN -DPERL5 -m486::RSA_LLONG $x86_gcc_des $x86_gcc_opts:$x86_bsdi_asm",
+"nextstep",	"cc:-O3 -Wall::BN_LLONG $x86_gcc_des ${x86_gcc_opts}:::",
 # NCR MP-RAS UNIX ver 02.03.01
-"ncr-scde","cc:-O6 -Xa -Hoff=BEHAVED -686 -Hwide -Hiw:-lsocket -lnsl:$x86_gcc_des $x86_gcc_opts:::",
+"ncr-scde","cc:-O6 -Xa -Hoff=BEHAVED -686 -Hwide -Hiw:-lsocket -lnsl:$x86_gcc_des ${x86_gcc_opts}:::",
 
 # UnixWare 2.0
-"unixware-2.0","cc:-O -DFILIO_H:-lsocket -lnsl:$x86_gcc_des $x86_gcc_opts:::",
-"unixware-2.0-pentium","cc:-O -DFILIO_H -Kpentium -Kthread:-lsocket -lnsl:MD2_CHAR RC4_INDEX $x86_des_des::",
+"unixware-2.0","cc:-O -DFILIO_H:-lsocket -lnsl:$x86_gcc_des ${x86_gcc_opts}:::",
+"unixware-2.0-pentium","cc:-O -DFILIO_H -Kpentium -Kthread:-lsocket -lnsl:MD2_CHAR RC4_INDEX ${x86_gcc_des}::",
 
 # IBM's AIX.
 "aix-cc",   "cc:-O -DAIX -DB_ENDIAN::BN_LLONG RC4_CHAR:::",
@@ -188,16 +202,15 @@ $x86_bsdi_asm="asm/bn86bsdi.o asm/co86bsdi.o:asm/dx86bsdi.o asm/yx86bsdi.o:asm/b
 
 # SCO 5 - Ben Laurie <ben@algroup.co.uk> says the -O breaks the
 # SCO cc.
-"sco5-cc",  "cc::-lsocket:$x86_gcc_des $x86_gcc_opts:::", # des options?
+"sco5-cc",  "cc::-lsocket:$x86_gcc_des ${x86_gcc_opts}:::", # des options?
 
 # Sinix RM400
 "SINIX-N","/usr/ucb/cc:-O2 -misaligned:-lucb:RC4_INDEX RC4_CHAR:::",
 
 # Windows NT, Microsoft Visual C++ 4.0
 
-# hmm... bug in perl under NT, I need to concatinate :-(
-"VC-NT","cl:::BN_LLONG RC4_INDEX ".$x86_gcc_opts.":::",
-"VC-WIN32","cl:::BN_LLONG RC4_INDEX ".$x86_gcc_opts.":::",
+"VC-NT","cl:::BN_LLONG RC4_INDEX ${x86_gcc_opts}:::",
+"VC-WIN32","cl:::BN_LLONG RC4_INDEX ${x86_gcc_opts}:::",
 "VC-WIN16","cl:::MD2_CHAR DES_UNROLL DES_PTR RC4_INDEX THIRTY_TWO_BIT:::",
 "VC-W31-16","cl:::BN_LLONG MD2_CHAR DES_UNROLL DES_PTR RC4_INDEX SIXTEEN_BIT:::",
 "VC-W31-32","cl:::MD2_CHAR DES_UNROLL DES_PTR RC4_INDEX THIRTY_TWO_BIT:::",
@@ -206,6 +219,9 @@ $x86_bsdi_asm="asm/bn86bsdi.o asm/co86bsdi.o:asm/dx86bsdi.o asm/yx86bsdi.o:asm/b
 # Borland C++ 4.5
 "BC-32","bcc32:::DES_PTR RC4_INDEX:::",
 "BC-16","bcc:::BN_LLONG DES_PTR RC4_INDEX SIXTEEN_BIT:::",
+
+# CygWin32
+"CygWin32", "gcc:-DTERMIOS -DL_ENDIAN -fomit-frame-pointer -O3 -m486 -Wall::BN_LLONG $x86_gcc_des $x86_gcc_opts:",
 
 # Our old Ultrix box :-). -O2 breaks some of the bignum stuff (now fixed,
 # it is a compiler bug, look in bug/ultrixcc.c for example code.
@@ -218,27 +234,44 @@ $x86_bsdi_asm="asm/bn86bsdi.o asm/co86bsdi.o:asm/dx86bsdi.o asm/yx86bsdi.o:asm/b
 "OpenBSD-mips","gcc:-O2 -DL_ENDIAN:BN_LLONG MD2_CHAR RC4_INDEX RC4_CHAR DES_UNROLL DES_RISC2 DES_PTR BF_PTR::::",
 );
 
-$no_asm=0;
-$postfix="org";
-$Makefile="Makefile.ssl";
-$des_locl="crypto/des/des_locl.h";
-$des	="crypto/des/des.h";
-$bn	="crypto/bn/bn.h";
-$md2	="crypto/md2/md2.h";
-$rc4	="crypto/rc4/rc4.h";
-$rc4_locl="crypto/rc4/rc4_locl.h";
-$idea	="crypto/idea/idea.h";
-$rc2	="crypto/rc2/rc2.h";
-$bf	="crypto/bf/bf_locl.h";
-$bn_asm	="bn_asm.o";
-$des_enc="des_enc.o fcrypt_b.o";
-$bf_enc	="bf_enc.o";
-$cast_enc="c_enc.o";
-$rc4_enc="rc4_enc.o";
-$rc5_enc="rc5_enc.o";
-$md5_obj="";
-$sha1_obj="";
-$rmd160_obj="";
+# Miscellaneous hacks: this is designed to allow environments where the "one
+# makefile" option does not auto build all files.
+# The first six fields are the hard coded versions of the stuff generated by
+# ctx_size for pem.h: that is EVP_ENCODE_CTX_SIZE, EVP_MD_SIZE EVP_MD_CTX_SIZE,
+# EVP_CIPHER_SIZE, EVP_CIPHER_CTX_SIZE and EVP_MAX_MD_SIZE respectively.
+# If the seventh field is 1 then auto generate
+# crypto/date.h
+# Need to add Win16 and others here.
+
+my %misc_table = (
+"VC-WIN32", 	"96:60:152:40:4212:20:1",
+"VC-NT", 	"96:60:152:40:4212:20:1"
+);
+
+my @WinTargets=qw(VC-NT VC-WIN32 VC-WIN16 VC-W31-16 VC-W31-32 VC-MSDOS BC-32
+	BC-16 CygWin32);
+
+my $no_asm=0;
+my $postfix="org";
+my $Makefile="Makefile.ssl";
+my $des_locl="crypto/des/des_locl.h";
+my $des	="crypto/des/des.h";
+my $bn	="crypto/bn/bn.h";
+my $md2	="crypto/md2/md2.h";
+my $rc4	="crypto/rc4/rc4.h";
+my $rc4_locl="crypto/rc4/rc4_locl.h";
+my $idea	="crypto/idea/idea.h";
+my $rc2	="crypto/rc2/rc2.h";
+my $bf	="crypto/bf/bf_locl.h";
+my $bn_asm	="bn_asm.o";
+my $des_enc="des_enc.o fcrypt_b.o";
+my $bf_enc	="bf_enc.o";
+my $cast_enc="c_enc.o";
+my $rc4_enc="rc4_enc.o";
+my $rc5_enc="rc5_enc.o";
+my $md5_obj="";
+my $sha1_obj="";
+my $rmd160_obj="";
 
 if ($#ARGV < 0)
 	{
@@ -246,7 +279,9 @@ if ($#ARGV < 0)
 	exit(1);
 	}
 
-$flags="";
+my $flags="";
+my $libs="";
+my $target="";
 foreach (@ARGV)
 	{
 	if ($_ =~ /^no-asm$/)
@@ -261,11 +296,19 @@ foreach (@ARGV)
 			{
 			$flags.=$_." ";
 			}
+		elsif ($_ =~ /^-[fK](.*)$/)
+			{
+			$flags.=$_." ";
+			}
 		else
 			{
-			die "unknown options, only -Dxxx, -Lxxx -lxxx supported\n";
+			die "unknown options, only -Dxxx, -Lxxx, -lxxx, -fxxx and -Kxxx are supported\n";
 			}
 		}
+	elsif ($_ =~ /^([^:]+):(.+)$/) {
+		eval "\$table{\$1} = \"$2\""; # allow $xxx constructs in the string
+		$target=$1;
+	}
 	else
 		{
 		die "target already defined - $target\n" if ($target ne "");
@@ -284,9 +327,13 @@ if (!defined($table{$target}))
 	exit(1);
 	}
 
-($cc,$cflags,$lflags,$bn_ops,$bn_obj,$des_obj,$bf_obj,$md5_obj,$sha1_obj,
-	$cast_obj,$rc4_obj,$rmd160_obj,$rc5_obj)=
-	split(/\s*:\s*/,$table{$target});
+my $IsWindows=scalar grep /^$target$/,@WinTargets;
+
+print "IsWindows=$IsWindows\n";
+
+(my $cc,my $cflags,my $lflags,my $bn_ops,my $bn_obj,my $des_obj,my $bf_obj,
+ $md5_obj,$sha1_obj,my $cast_obj,my $rc4_obj,$rmd160_obj,my $rc5_obj)=
+	split(/\s*:\s*/,$table{$target} . ":" x 20 , -1);
 $cflags="$flags$cflags" if ($flags ne "");
 $lflags="$libs$lflags"if ($libs ne "");
 
@@ -296,9 +343,12 @@ if ($no_asm)
 	$sha1_obj=$md5_obj=$rmd160_obj="";
 	}
 
-($bn1)=split(/\s+/,$bn_obj);
-$bn1=$bn_asm unless ($bn1 =~ /\.o$/);
-$bn_obj="$bn1";
+#my ($bn1)=split(/\s+/,$bn_obj);
+#$bn1 = "" unless defined $bn1;
+#$bn1=$bn_asm unless ($bn1 =~ /\.o$/);
+#$bn_obj="$bn1";
+
+$bn_obj = $bn_asm unless $bn_obj ne "";
 
 $des_obj=$des_enc	unless ($des_obj =~ /\.o$/);
 $bf_obj=$bf_enc		unless ($bf_obj =~ /\.o$/);
@@ -321,9 +371,8 @@ if ($rmd160_obj =~ /\.o$/)
 	$cflags.=" -DRMD160_ASM";
 	}
 
-$n=&file_new($Makefile);
-open(IN,"<".$Makefile) || die "unable to read $Makefile:$!\n";
-open(OUT,">".$n) || die "unable to read $n:$!\n";
+open(IN,'<Makefile.org') || die "unable to read Makefile.org:$!\n";
+open(OUT,">$Makefile") || die "unable to create $Makefile:$!\n";
 while (<IN>)
 	{
 	chop;
@@ -331,7 +380,7 @@ while (<IN>)
 	s/^CC=.*$/CC= $cc/;
 	s/^CFLAG=.*$/CFLAG= $cflags/;
 	s/^EX_LIBS=.*$/EX_LIBS= $lflags/;
-	s/^BN_MULW=.*$/BN_MULW= $bn_obj/;
+	s/^BN_ASM=.*$/BN_ASM= $bn_obj/;
 	s/^DES_ENC=.*$/DES_ENC= $des_obj/;
 	s/^BF_ENC=.*$/BF_ENC= $bf_obj/;
 	s/^CAST_ENC=.*$/CAST_ENC= $cast_obj/;
@@ -344,12 +393,11 @@ while (<IN>)
 	}
 close(IN);
 close(OUT);
-&Rename($Makefile,&file_old($Makefile));
-&Rename($n,$Makefile);
+
 print "CC            =$cc\n";
 print "CFLAG         =$cflags\n";
 print "EX_LIBS       =$lflags\n";
-print "BN_MULW       =$bn_obj\n";
+print "BN_ASM        =$bn_obj\n";
 print "DES_ENC       =$des_obj\n";
 print "BF_ENC        =$bf_obj\n";
 print "CAST_ENC      =$cast_obj\n";
@@ -359,20 +407,22 @@ print "MD5_OBJ_ASM   =$md5_obj\n";
 print "SHA1_OBJ_ASM  =$sha1_obj\n";
 print "RMD160_OBJ_ASM=$rmd160_obj\n";
 
-$des_ptr=0;
-$des_risc1=0;
-$des_risc2=0;
-$des_unroll=0;
-$bn_ll=0;
-$def_int=2;
-$rc4_int=$def_int;
-$md2_int=$def_int;
-$idea_int=$def_int;
-$rc2_int=$def_int;
-$rc4_idx=0;
-$bf_ptr=0;
-@type=("char","short","int","long");
-($b64l,$b64,$b32,$b16,$b8)=(0,0,1,0,0);
+my $des_ptr=0;
+my $des_risc1=0;
+my $des_risc2=0;
+my $des_unroll=0;
+my $bn_ll=0;
+my $def_int=2;
+my $rc4_int=$def_int;
+my $md2_int=$def_int;
+my $idea_int=$def_int;
+my $rc2_int=$def_int;
+my $rc4_idx=0;
+my $bf_ptr=0;
+my @type=("char","short","int","long");
+my ($b64l,$b64,$b32,$b16,$b8)=(0,0,1,0,0);
+
+my $des_int;
 
 foreach (sort split(/\s+/,$bn_ops))
 	{
@@ -400,8 +450,8 @@ foreach (sort split(/\s+/,$bn_ops))
 	($b64l,$b64,$b32,$b16,$b8)=(0,0,0,0,1) if /EIGHT_BIT/;
 	}
 
-(($in=$bn) =~ s/\.([^.]+)/.$postfix/);
-$n=&file_new($bn);
+((my $in=$bn) =~ s/\.([^.]+)/.$postfix/);
+my $n=&file_new($bn);
 open(IN,"<".$in) || die "unable to read $bn:$!\n";
 open(OUT,">$n") || die "unable to read $n:$!\n";
 while (<IN>)
@@ -565,6 +615,50 @@ close(OUT);
 &Rename($bf,&file_old($bf));
 &Rename($n,$bf);
 
+# Now the miscellaneous fixups
+
+if(defined $misc_table{$target}) {
+	my ($enc_ctx, $md_size, $md_ctx_size, $cipher_size, $cipher_ctx_size,
+		$max_md_size, $date_fix) = 
+		split(/\s*:\s*/,$misc_table{$target} . ":", -1);
+
+#print "EVP_ENCODE_CTX_SIZE $enc_ctx\n";
+#print "EVP_MD_SIZE $md_size\n";
+#print "EVP_MD_CTX_SIZE $md_ctx_size\n";
+#print "EVP_CIPHER_SIZE $cipher_size\n";
+#print "EVP_CIPHER_CTX_SIZE $cipher_ctx_size\n";
+#print "EVP_MAX_MD_SIZE $max_md_size\n";
+#printf "Date fix: %s\n", $date_fix ? "Yes" : "No";
+
+# Fix the date
+
+if($date_fix) {
+	open (OUT,">crypto/date.h") || die "Can't open date.h";
+	printf OUT "#define DATE \"%s\"\n", scalar gmtime();
+	close(OUT);
+}
+
+open (IN, "crypto/pem/pem.org") || die "Can't open crypto/pem/pem.org";
+open (OUT, ">crypto/pem/pem.h") || die "Can't create crypto/pem/pem.h";
+
+# Now fix up pem.h
+while(<IN>) {
+	chop;
+	s/^(#define EVP_ENCODE_CTX_SIZE).*$/$1 $enc_ctx/;
+	s/^(#define EVP_MD_SIZE).*$/$1 $md_size/;
+	s/^(#define EVP_MD_CTX_SIZE).*$/$1 $md_ctx_size/;
+	s/^(#define EVP_CIPHER_SIZE).*$/$1 $cipher_size/;
+	s/^(#define EVP_CIPHER_CTX_SIZE).*$/$1 $cipher_ctx_size/;
+	s/^(#define EVP_MAX_MD_SIZE).*$/$1 $max_md_size/;
+	print OUT "$_\n";
+}
+
+close (IN);
+close (OUT);
+
+
+}
+
 print "SIXTY_FOUR_BIT_LONG mode\n" if $b64l;
 print "SIXTY_FOUR_BIT mode\n" if $b64;
 print "THIRTY_TWO_BIT mode\n" if $b32;
@@ -583,16 +677,19 @@ print "IDEA uses u$type[$idea_int]\n" if $idea_int != $def_int;
 print "RC2 uses u$type[$rc2_int]\n" if $rc2_int != $def_int;
 print "BF_PTR used\n" if $bf_ptr == 1; 
 print "BF_PTR2 used\n" if $bf_ptr == 2; 
+
+system 'make -f Makefile.ssl links' if !$IsWindows;
+
 exit(0);
 
 sub bad_target
 	{
 	print STDERR "Usage: Configure [-Dxxx] [-Lxxx] [-lxxx] os/compiler\n";
 	print STDERR "pick os/compiler from:";
-	$j=0;
+	my $j=0;
+	my $i;
 	foreach $i (sort keys %table)
 		{
-		next if /^b-/;
 		print STDERR "\n" if ($j++ % 4) == 0;
 		printf(STDERR "%-18s ",$i);
 		}
@@ -601,11 +698,13 @@ sub bad_target
 
 sub Rename
 	{
-	local($from,$to)=@_;
-
+	my($from,$to)=@_;
 	unlink($to);
-	rename($from,$to) || die "unable to rename $from to $to:$!\n";
+	if(!rename($from,$to))
+	    {
+	     -e $from && die "unable to rename $from to $to:$!\n";
+	    }
 	}
 
-sub file_new { local($a)=@_; $a =~ s/(\.[^.]+$|$)/.new/; $a; }
-sub file_old { local($a)=@_; $a =~ s/(\.[^.]+$|$)/.old/; $a; }
+sub file_new { my($a)=@_; $a =~ s/(\.[^.]+$|$)/.new/; $a; }
+sub file_old { my($a)=@_; $a =~ s/(\.[^.]+$|$)/.old/; $a; }

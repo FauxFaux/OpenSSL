@@ -64,10 +64,10 @@
 static int ssl23_num_ciphers(void );
 static SSL_CIPHER *ssl23_get_cipher(unsigned int u);
 static int ssl23_read(SSL *s, char *buf, int len);
-static int ssl23_write(SSL *s, char *buf, int len);
+static int ssl23_write(SSL *s, const char *buf, int len);
 static long ssl23_default_timeout(void );
-static int ssl23_put_cipher_by_char(SSL_CIPHER *c, unsigned char *p);
-static SSL_CIPHER *ssl23_get_cipher_by_char(unsigned char *p);
+static int ssl23_put_cipher_by_char(const SSL_CIPHER *c, unsigned char *p);
+static SSL_CIPHER *ssl23_get_cipher_by_char(const unsigned char *p);
 #else
 static int ssl23_num_ciphers();
 static SSL_CIPHER *ssl23_get_cipher();
@@ -78,7 +78,7 @@ static int ssl23_put_cipher_by_char();
 static SSL_CIPHER *ssl23_get_cipher_by_char();
 #endif
 
-char *SSL23_version_str="SSLv2/3 compatibility part of OpenSSL 0.9.1c 23-Dec-1998";
+char *SSL23_version_str="SSLv2/3 compatibility" OPENSSL_VERSION_PTEXT;
 
 static SSL_METHOD SSLv23_data= {
 	TLS1_VERSION,
@@ -88,7 +88,7 @@ static SSL_METHOD SSLv23_data= {
 	ssl_undefined_function,
 	ssl_undefined_function,
 	ssl23_read,
-	ssl_undefined_function,
+        (int (*)(struct ssl_st *, char *, int))ssl_undefined_function,
 	ssl23_write,
 	ssl_undefined_function,
 	ssl_undefined_function,
@@ -134,7 +134,7 @@ unsigned int u;
 /* This function needs to check if the ciphers required are actually
  * available */
 static SSL_CIPHER *ssl23_get_cipher_by_char(p)
-unsigned char *p;
+const unsigned char *p;
 	{
 	SSL_CIPHER c,*cp;
 	unsigned long id;
@@ -151,7 +151,7 @@ unsigned char *p;
 	}
 
 static int ssl23_put_cipher_by_char(c,p)
-SSL_CIPHER *c;
+const SSL_CIPHER *c;
 unsigned char *p;
 	{
 	long l;
@@ -202,7 +202,7 @@ int len;
 
 static int ssl23_write(s,buf,len)
 SSL *s;
-char *buf;
+const char *buf;
 int len;
 	{
 	int n;

@@ -9,13 +9,21 @@
 $crypto_num="util/libeay.num";
 $ssl_num=   "util/ssleay.num";
 
-$NT=1;
+$W32=1;
+$NT=0;
 foreach (@ARGV)
 	{
-	$NT=1 if $_ eq "32";
-	$NT=0 if $_ eq "16";
+	$W32=1 if $_ eq "32";
+	$W32=0 if $_ eq "16";
+	if($_ eq "NT") {
+		$W32 = 1;
+		$NT = 1;
+	}
 	$do_ssl=1 if $_ eq "ssleay";
+	$do_ssl=1 if $_ eq "ssl";
 	$do_crypto=1 if $_ eq "libeay";
+	$do_crypto=1 if $_ eq "crypto";
+	$do_update=1 if $_ eq "update";
 	}
 
 if (!$do_ssl && !$do_crypto)
@@ -25,7 +33,9 @@ if (!$do_ssl && !$do_crypto)
 	}
 
 %ssl_list=&load_numbers($ssl_num);
+$max_ssl = $max_num;
 %crypto_list=&load_numbers($crypto_num);
+$max_crypto = $max_num;
 
 $ssl="ssl/ssl.h";
 
@@ -65,6 +75,7 @@ $crypto.=" crypto/err/err.h";
 $crypto.=" crypto/pkcs7/pkcs7.h";
 $crypto.=" crypto/x509/x509.h";
 $crypto.=" crypto/x509/x509_vfy.h";
+$crypto.=" crypto/x509v3/x509v3.h";
 $crypto.=" crypto/rand/rand.h";
 $crypto.=" crypto/hmac/hmac.h";
 $crypto.=" crypto/comp/comp.h";
@@ -73,11 +84,33 @@ $crypto.=" crypto/tmdiff.h";
 $match{'NOPROTO'}=1;
 $match2{'PERL5'}=1;
 
-&print_def_file(*STDOUT,"SSLEAY",*ssl_list,&do_defs("SSLEAY",$ssl))
-	if $do_ssl == 1;
+@ssl_func = &do_defs("SSLEAY", $ssl);
+@crypto_func = &do_defs("LIBEAY", $crypto);
 
-&print_def_file(*STDOUT,"LIBEAY",*crypto_list,&do_defs("LIBEAY",$crypto))
-	if $do_crypto == 1;
+if ($do_update) {
+
+if ($do_ssl == 1) {
+	open(OUT, ">>$ssl_num");
+	&update_numbers(*OUT,"SSLEAY",*ssl_list,$max_ssl, @ssl_func);
+	close OUT;
+}
+
+if($do_crypto == 1) {
+	open(OUT, ">>$crypto_num");
+	&update_numbers(*OUT,"LIBEAY",*crypto_list,$max_crypto, @crypto_func);
+	close OUT;
+}
+
+} else {
+
+	&print_def_file(*STDOUT,"SSLEAY",*ssl_list,@ssl_func)
+		if $do_ssl == 1;
+
+	&print_def_file(*STDOUT,"LIBEAY",*crypto_list,@crypto_func)
+		if $do_crypto == 1;
+
+}
+
 
 sub do_defs
 	{
@@ -97,7 +130,7 @@ sub do_defs
 		while (($i=index($a,"/*")) >= 0)
 			{
 			$j=index($a,"*/");
-			break unless ($j >= 0);
+			last unless ($j >= 0);
 			$a=substr($a,0,$i).substr($a,$j+2);
 		#	print "$i $j\n";
 			}
@@ -139,7 +172,7 @@ sub do_defs
 				$tag{$t}= -$tag{$t};
 				next;
 				}
-#printf STDERR "$_\n%2d %2d %2d %2d %2d $NT\n",
+#printf STDERR "$_\n%2d %2d %2d %2d %2d $W32\n",
 #$tag{'NOPROTO'},$tag{'FreeBSD'},$tag{'WIN16'},$tag{'PERL5'},$tag{'NO_FP_API'};
 
 			$t=undef;
@@ -147,14 +180,14 @@ sub do_defs
 				{ $t=&do_extern($name,$_); }
 			elsif (	($tag{'NOPROTO'} == 1) &&
 				($tag{'FreeBSD'} != 1) &&
-				(($NT && ($tag{'WIN16'} != 1)) ||
-				 (!$NT && ($tag{'WIN16'} != -1))) &&
+				(($W32 && ($tag{'WIN16'} != 1)) ||
+				 (!$W32 && ($tag{'WIN16'} != -1))) &&
 				($tag{'PERL5'} != 1) &&
 #				($tag{'_WINDLL'} != -1) &&
-				((!$NT && $tag{'_WINDLL'} != -1) ||
-				 ($NT && $tag{'_WINDLL'} != 1)) &&
-				((($tag{'NO_FP_API'} != 1) && $NT) ||
-				 (($tag{'NO_FP_API'} != -1) && !$NT)))
+				((!$W32 && $tag{'_WINDLL'} != -1) ||
+				 ($W32 && $tag{'_WINDLL'} != 1)) &&
+				((($tag{'NO_FP_API'} != 1) && $W32) ||
+				 (($tag{'NO_FP_API'} != -1) && !$W32)))
 				{ $t=&do_line($name,$_); }
 			else
 				{ $t=undef; }
@@ -188,24 +221,31 @@ sub do_line
 		{ return($1); }
 	elsif (/(SSL_get_info_callback)/)
 		{ return($1); }
-	elsif ((!$NT) && /(ERR_load_CRYPTO_strings)/)
+	elsif ((!$W32) && /(ERR_load_CRYPTO_strings)/)
 		{ return("ERR_load_CRYPTOlib_strings"); }
-	elsif (!$NT && /BIO_s_file/)
+	elsif (!$W32 && /BIO_s_file/)
 		{ return(undef); }
-	elsif (!$NT && /BIO_new_file/)
+	elsif (!$W32 && /BIO_new_file/)
 		{ return(undef); }
-	elsif (!$NT && /BIO_new_fp/)
+	elsif (!$W32 && /BIO_new_fp/)
 		{ return(undef); }
-	elsif ($NT && /BIO_s_file_internal/)
+	elsif ($W32 && /BIO_s_file_internal/)
 		{ return(undef); }
-	elsif ($NT && /BIO_new_file_internal/)
+	elsif ($W32 && /BIO_new_file_internal/)
 		{ return(undef); }
-	elsif ($NT && /BIO_new_fp_internal/)
+	elsif ($W32 && /BIO_new_fp_internal/)
+		{ return(undef); }
+        elsif (/SSL_add_dir_cert_subjects_to_stack/)
+		{ return(undef); }
+	elsif (!$NT && /BIO_s_log/)
 		{ return(undef); }
 	else
 		{
 		/\s\**(\S+)\s*\(/;
-		return($1);
+		$_ = $1;
+		tr/()*//d;
+#print STDERR "$1 : $_\n";
+		return($_);
 		}
 	}
 
@@ -223,23 +263,23 @@ sub print_def_file
 	local(*OUT,$name,*nums,@functions)=@_;
 	local($n)=1;
 
-	if ($NT)
+	if ($W32)
 		{ $name.="32"; }
 	else
 		{ $name.="16"; }
 
 	print OUT <<"EOF";
 ;
-; Definition file for the DDL version of the $name library from SSLeay
+; Definition file for the DLL version of the $name library from OpenSSL
 ;
 
 LIBRARY         $name
 
-DESCRIPTION     'SSLeay $name - eay\@cryptsoft.com'
+DESCRIPTION     'OpenSSL $name - http://www.openssl.org/'
 
 EOF
 
-	if (!$NT)
+	if (!$W32)
 		{
 		print <<"EOF";
 CODE            PRELOAD MOVEABLE
@@ -264,12 +304,13 @@ EOF
 		{
 		if (!defined($nums{$func}))
 			{
-			printf STDERR "$func does not have a number assigned\n";
+			printf STDERR "$func does not have a number assigned\n"
+					if(!$do_update);
 			}
 		else
 			{
 			$n=$nums{$func};
-			printf OUT "    %s%-35s@%d\n",($NT)?"":"_",$func,$n;
+			printf OUT "    %s%-40s@%d\n",($W32)?"":"_",$func,$n;
 			}
 		}
 	printf OUT "\n";
@@ -280,6 +321,8 @@ sub load_numbers
 	local($name)=@_;
 	local($j,@a,%ret);
 
+	$max_num = 0;
+
 	open(IN,"<$name") || die "unable to open $name:$!\n";
 	while (<IN>)
 		{
@@ -288,7 +331,28 @@ sub load_numbers
 		next if /^\s*$/;
 		@a=split;
 		$ret{$a[0]}=$a[1];
+		$max_num = $a[1] if $a[1] > $max_num;
 		}
 	close(IN);
 	return(%ret);
+	}
+
+sub update_numbers
+	{
+	local(*OUT,$name,*nums,$start_num, @functions)=@_;
+	my $new_funcs = 0;
+	print STDERR "Updating $name\n";
+	foreach $func (@functions)
+		{
+		if (!defined($nums{$func}))
+			{
+			$new_funcs++;
+			printf OUT "%s%-40s%d\n","",$func, ++$start_num;
+			}
+		}
+	if($new_funcs) {
+		print STDERR "$new_funcs New Functions added\n";
+	} else {
+		print STDERR "No New Functions Added\n";
+	}
 	}

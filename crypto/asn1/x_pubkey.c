@@ -183,11 +183,15 @@ EVP_PKEY *pkey;
 		goto err;
 		}
 
-	i=i2d_PublicKey(pkey,NULL);
+	if ((i=i2d_PublicKey(pkey,NULL)) <= 0) goto err;
 	if ((s=(unsigned char *)Malloc(i+1)) == NULL) goto err;
 	p=s;
 	i2d_PublicKey(pkey,&p);
 	if (!ASN1_BIT_STRING_set(pk->public_key,s,i)) goto err;
+	/* Set number of unused bits to zero */
+	pk->public_key->flags&= ~(ASN1_STRING_FLAG_BITS_LEFT|0x07);
+	pk->public_key->flags|=ASN1_STRING_FLAG_BITS_LEFT;
+
 	Free(s);
 
 	CRYPTO_add(&pkey->references,1,CRYPTO_LOCK_EVP_PKEY);
@@ -218,7 +222,11 @@ X509_PUBKEY *key;
 
 	if (key == NULL) goto err;
 
-	if (key->pkey != NULL) return(key->pkey);
+	if (key->pkey != NULL)
+	    {
+	    CRYPTO_add(&key->pkey->references,1,CRYPTO_LOCK_EVP_PKEY);
+	    return(key->pkey);
+	    }
 
 	if (key->public_key == NULL) goto err;
 
@@ -248,6 +256,7 @@ X509_PUBKEY *key;
 		}
 #endif
 	key->pkey=ret;
+	CRYPTO_add(&ret->references,1,CRYPTO_LOCK_EVP_PKEY);
 	return(ret);
 err:
 	if (ret != NULL)

@@ -1,3 +1,4 @@
+
 /* crypto/x509/x509.h */
 /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
  * All rights reserved.
@@ -320,6 +321,13 @@ typedef struct Netscape_spki_st
 	ASN1_BIT_STRING *signature;
 	} NETSCAPE_SPKI;
 
+/* Netscape certificate sequence structure */
+typedef struct Netscape_certificate_sequence
+	{
+	ASN1_OBJECT *type;
+	STACK /* X509 */ *certs;
+	} NETSCAPE_CERT_SEQUENCE;
+
 #ifndef HEADER_BN_H
 #define BIGNUM 		char
 #endif
@@ -479,6 +487,12 @@ typedef struct CBCParameter_st
 #define		X509_REQ_extract_key(a)	X509_REQ_get_pubkey(a)
 #define		X509_name_cmp(a,b)	X509_NAME_cmp((a),(b))
 #define		X509_get_signature_type(x) EVP_PKEY_type(OBJ_obj2nid((x)->sig_alg->algorithm))
+
+#define		X509_CRL_get_version(x) ASN1_INTEGER_get((x)->crl->version)
+#define 	X509_CRL_get_lastUpdate(x) ((x)->crl->lastUpdate)
+#define 	X509_CRL_get_nextUpdate(x) ((x)->crl->nextUpdate)
+#define		X509_CRL_get_issuer(x) ((x)->crl->issuer)
+#define		X509_CRL_get_REVOKED(x) ((x)->crl->revoked)
 
 /* This one is only used so that a binary form can output, as in
  * i2d_X509_NAME(X509_get_X509_PUBKEY(x),&buf) */
@@ -670,6 +684,12 @@ int		i2d_NETSCAPE_SPKAC(NETSCAPE_SPKAC *a,unsigned char **pp);
 NETSCAPE_SPKAC *d2i_NETSCAPE_SPKAC(NETSCAPE_SPKAC **a,unsigned char **pp,
 		long length);
 
+
+int i2d_NETSCAPE_CERT_SEQUENCE(NETSCAPE_CERT_SEQUENCE *a, unsigned char **pp);
+NETSCAPE_CERT_SEQUENCE *NETSCAPE_CERT_SEQUENCE_new(void);
+NETSCAPE_CERT_SEQUENCE *d2i_NETSCAPE_CERT_SEQUENCE(NETSCAPE_CERT_SEQUENCE **a, unsigned char **pp, long length);
+void NETSCAPE_CERT_SEQUENCE_free(NETSCAPE_CERT_SEQUENCE *a);
+
 #ifdef HEADER_ENVELOPE_H
 X509_INFO *	X509_INFO_new(void);
 void		X509_INFO_free(X509_INFO *a);
@@ -721,12 +741,14 @@ unsigned long	X509_NAME_hash(X509_NAME *x);
 int		X509_CRL_cmp(X509_CRL *a,X509_CRL *b);
 #ifndef NO_FP_API
 int		X509_print_fp(FILE *bp,X509 *x);
+int		X509_CRL_print_fp(FILE *bp,X509_CRL *x);
 int		X509_REQ_print_fp(FILE *bp,X509_REQ *req);
 #endif
 
 #ifdef HEADER_BIO_H
 int		X509_NAME_print(BIO *bp, X509_NAME *name, int obase);
 int		X509_print(BIO *bp,X509 *x);
+int		X509_CRL_print(BIO *bp,X509_CRL *x);
 int		X509_REQ_print(BIO *bp,X509_REQ *req);
 #endif
 
@@ -985,6 +1007,11 @@ void		NETSCAPE_SPKAC_free();
 int		i2d_NETSCAPE_SPKAC();
 NETSCAPE_SPKAC *d2i_NETSCAPE_SPKAC();
 
+int i2d_NETSCAPE_CERT_SEQUENCE();
+NETSCAPE_CERT_SEQUENCE *NETSCAPE_CERT_SEQUENCE_new();
+NETSCAPE_CERT_SEQUENCE *d2i_NETSCAPE_CERT_SEQUENCE();
+void NETSCAPE_CERT_SEQUENCE_free();
+
 #ifdef HEADER_ENVELOPE_H
 X509_INFO *	X509_INFO_new();
 void		X509_INFO_free();
@@ -1031,11 +1058,13 @@ unsigned long	X509_NAME_hash();
 int		X509_CRL_cmp();
 #ifndef NO_FP_API
 int		X509_print_fp();
+int		X509_CRL_print_fp();
 int		X509_REQ_print_fp();
 #endif
 
 int		X509_NAME_print();
 int		X509_print();
+int		X509_CRL_print();
 int		X509_REQ_print();
 
 int 		X509_NAME_entry_count();
@@ -1123,6 +1152,7 @@ X509 *X509_find_by_subject();
 #define X509_F_X509V3_ADD_EXTENSION			 105
 #define X509_F_X509V3_PACK_STRING			 106
 #define X509_F_X509V3_UNPACK_STRING			 107
+#define X509_F_X509_CHECK_PRIVATE_KEY			 128
 #define X509_F_X509_EXTENSION_CREATE_BY_NID		 108
 #define X509_F_X509_EXTENSION_CREATE_BY_OBJ		 109
 #define X509_F_X509_GET_PUBKEY_PARAMETERS		 110
@@ -1146,14 +1176,19 @@ X509 *X509_find_by_subject();
 
 /* Reason codes. */
 #define X509_R_BAD_X509_FILETYPE			 100
+#define X509_R_CANT_CHECK_DH_KEY			 114
 #define X509_R_CERT_ALREADY_IN_HASH_TABLE		 101
 #define X509_R_ERR_ASN1_LIB				 102
+#define X509_R_INVALID_DIRECTORY			 113
+#define X509_R_KEY_TYPE_MISMATCH			 115
+#define X509_R_KEY_VALUES_MISMATCH			 116
 #define X509_R_LOADING_CERT_DIR				 103
 #define X509_R_LOADING_DEFAULTS				 104
 #define X509_R_NO_CERT_SET_FOR_US_TO_VERIFY		 105
 #define X509_R_SHOULD_RETRY				 106
 #define X509_R_UNABLE_TO_FIND_PARAMETERS_IN_CHAIN	 107
 #define X509_R_UNABLE_TO_GET_CERTS_PUBLIC_KEY		 108
+#define X509_R_UNKNOWN_KEY_TYPE				 117
 #define X509_R_UNKNOWN_NID				 109
 #define X509_R_UNKNOWN_STRING_TYPE			 110
 #define X509_R_UNSUPPORTED_ALGORITHM			 111

@@ -67,7 +67,7 @@ static long ssl2_default_timeout(void );
 static long ssl2_default_timeout();
 #endif
 
-char *ssl2_version_str="SSLv2 part of OpenSSL 0.9.1c 23-Dec-1998";
+char *ssl2_version_str="SSLv2" OPENSSL_VERSION_PTEXT;
 
 #define SSL2_NUM_CIPHERS (sizeof(ssl2_ciphers)/sizeof(SSL_CIPHER))
 
@@ -78,7 +78,7 @@ SSL_CIPHER ssl2_ciphers[]={
 	1,
 	SSL2_TXT_NULL_WITH_MD5,
 	SSL2_CK_NULL_WITH_MD5,
-	SSL_kRSA|SSL_aRSA|SSL_eNULL|SSL_MD5|SSL_EXP|SSL_SSLV2,
+	SSL_kRSA|SSL_aRSA|SSL_eNULL|SSL_MD5|SSL_EXP40|SSL_SSLV2,
 	0,
 	SSL_ALL_CIPHERS,
 	},
@@ -88,7 +88,7 @@ SSL_CIPHER ssl2_ciphers[]={
 	1,
 	SSL2_TXT_RC4_128_EXPORT40_WITH_MD5,
 	SSL2_CK_RC4_128_EXPORT40_WITH_MD5,
-	SSL_kRSA|SSL_aRSA|SSL_RC4|SSL_MD5|SSL_EXP|SSL_SSLV2,
+	SSL_kRSA|SSL_aRSA|SSL_RC4|SSL_MD5|SSL_EXP40|SSL_SSLV2,
 	SSL2_CF_5_BYTE_ENC,
 	SSL_ALL_CIPHERS,
 	},
@@ -106,7 +106,7 @@ SSL_CIPHER ssl2_ciphers[]={
 	1,
 	SSL2_TXT_RC2_128_CBC_EXPORT40_WITH_MD5,
 	SSL2_CK_RC2_128_CBC_EXPORT40_WITH_MD5,
-	SSL_kRSA|SSL_aRSA|SSL_RC2|SSL_MD5|SSL_EXP|SSL_SSLV2,
+	SSL_kRSA|SSL_aRSA|SSL_RC2|SSL_MD5|SSL_EXP40|SSL_SSLV2,
 	SSL2_CF_5_BYTE_ENC,
 	SSL_ALL_CIPHERS,
 	},
@@ -257,6 +257,9 @@ SSL *s;
 	{
 	SSL2_CTX *s2;
 
+	if(s == NULL)
+	    return;
+
 	s2=s->s2;
 	if (s2->rbuf != NULL) Free(s2->rbuf);
 	if (s2->wbuf != NULL) Free(s2->wbuf);
@@ -317,7 +320,7 @@ char *parg;
 /* This function needs to check if the ciphers required are actually
  * available */
 SSL_CIPHER *ssl2_get_cipher_by_char(p)
-unsigned char *p;
+const unsigned char *p;
 	{
 	static int init=1;
 	static SSL_CIPHER *sorted[SSL2_NUM_CIPHERS];
@@ -351,7 +354,7 @@ unsigned char *p;
 	}
 
 int ssl2_put_cipher_by_char(c,p)
-SSL_CIPHER *c;
+const SSL_CIPHER *c;
 unsigned char *p;
 	{
 	long l;

@@ -10,7 +10,7 @@ INCLUDES=
 CFLAG=-g
 INSTALLTOP=/usr/local/ssl
 MAKE=		make -f Makefile.ssl
-MAKEDEPEND=	makedepend -f Makefile.ssl
+MAKEDEPEND=	$(TOP)/util/domd $(TOP)
 MAKEFILE=	Makefile.ssl
 AR=		ar r
 
@@ -66,18 +66,17 @@ asm/cx86-out.o: asm/cx86unix.cpp
 asm/cx86bsdi.o: asm/cx86unix.cpp
 	$(CPP) -DBSDI asm/cx86unix.cpp | sed 's/ :/:/' | as -o asm/cx86bsdi.o
 
-asm/cx86unix.cpp:
+asm/cx86unix.cpp: asm/cast-586.pl
 	(cd asm; perl cast-586.pl cpp >cx86unix.cpp)
 
 files:
 	perl $(TOP)/util/files.pl Makefile.ssl >> $(TOP)/MINFO
 
 links:
-	/bin/rm -f Makefile
-	$(TOP)/util/point.sh Makefile.ssl Makefile ;
-	$(TOP)/util/mklink.sh ../../include $(EXHEADER)
-	$(TOP)/util/mklink.sh ../../test $(TEST)
-	$(TOP)/util/mklink.sh ../../apps $(APPS)
+	@$(TOP)/util/point.sh Makefile.ssl Makefile
+	@$(TOP)/util/mklink.sh ../../include $(EXHEADER)
+	@$(TOP)/util/mklink.sh ../../test $(TEST)
+	@$(TOP)/util/mklink.sh ../../apps $(APPS)
 
 install:
 	@for i in $(EXHEADER) ; \
@@ -102,8 +101,14 @@ dclean:
 	mv -f Makefile.new $(MAKEFILE)
 
 clean:
-	/bin/rm -f *.o asm/*.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
+	rm -f *.o asm/*.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
 
 errors:
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
+
+c_cfb64.o: cast.h cast_lcl.h
+c_ecb.o: ../opensslv.h cast.h cast_lcl.h
+c_enc.o: cast.h cast_lcl.h
+c_ofb64.o: cast.h cast_lcl.h
+c_skey.o: cast.h cast_lcl.h cast_s.h

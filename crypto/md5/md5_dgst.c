@@ -58,8 +58,9 @@
 
 #include <stdio.h>
 #include "md5_locl.h"
+#include "opensslv.h"
 
-char *MD5_version="MD5 part of OpenSSL 0.9.1c 23-Dec-1998";
+char *MD5_version="MD5" OPENSSL_VERSION_PTEXT;
 
 /* Implemented from RFC1321 The MD5 Message-Digest Algorithm
  */
@@ -97,11 +98,12 @@ MD5_CTX *c;
 	c->num=0;
 	}
 
-void MD5_Update(c, data, len)
+void MD5_Update(c, _data, len)
 MD5_CTX *c;
-register unsigned char *data;
+const void *_data;
 unsigned long len;
 	{
+	register const unsigned char *data=_data;
 	register ULONG *p;
 	int sw,sc;
 	ULONG l;

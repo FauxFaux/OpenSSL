@@ -58,9 +58,10 @@
 
 #include "des_locl.h"
 #include "spr.h"
+#include "opensslv.h"
 
 char *libdes_version="libdes v 3.24 - 20-Apr-1996 - eay";
-char *DES_version="DES part of OpenSSL 0.9.1c 23-Dec-1998";
+char *DES_version="DES" OPENSSL_VERSION_PTEXT;
 
 char *des_options()
 	{
@@ -102,18 +103,15 @@ char *des_options()
 	}
 		
 
-void des_ecb_encrypt(input, output, ks, enc)
-des_cblock (*input);
-des_cblock (*output);
+void des_ecb_encrypt(in, out, ks, enc)
+const des_cblock in;
+des_cblock out;
 des_key_schedule ks;
 int enc;
 	{
 	register DES_LONG l;
-	register unsigned char *in,*out;
 	DES_LONG ll[2];
 
-	in=(unsigned char *)input;
-	out=(unsigned char *)output;
 	c2l(in,l); ll[0]=l;
 	c2l(in,l); ll[1]=l;
 	des_encrypt(ll,ks,enc);

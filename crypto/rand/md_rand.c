@@ -57,9 +57,11 @@
  */
 
 #include <stdio.h>
-#include "cryptlib.h"
 #include <sys/types.h>
 #include <time.h>
+#include <string.h>
+#include "e_os.h"
+#include "crypto.h"
 
 #if !defined(USE_MD5_RAND) && !defined(USE_SHA1_RAND) && !defined(USE_MDC2_RAND) && !defined(USE_MD2_RAND)
 #ifndef NO_MD5
@@ -126,10 +128,10 @@ static unsigned char state[STATE_SIZE+MD_DIGEST_LENGTH];
 static unsigned char md[MD_DIGEST_LENGTH];
 static long md_count[2]={0,0};
 
-char *RAND_version="RAND part of OpenSSL 0.9.1c 23-Dec-1998";
+char *RAND_version="RAND" OPENSSL_VERSION_PTEXT;
 
 static void ssleay_rand_cleanup(void);
-static void ssleay_rand_seed(unsigned char *buf, int num);
+static void ssleay_rand_seed(const void *buf, int num);
 static void ssleay_rand_bytes(unsigned char *buf, int num);
 
 RAND_METHOD rand_ssleay_meth={
@@ -154,7 +156,7 @@ static void ssleay_rand_cleanup()
 	}
 
 static void ssleay_rand_seed(buf,num)
-unsigned char *buf;
+const void *buf;
 int num;
 	{
 	int i,j,k,st_idx,st_num;
@@ -202,7 +204,7 @@ int num;
 		MD_Final(md,&m);
 		md_count[1]++;
 
-		buf+=j;
+		buf=(char *)buf + j;
 
 		for (k=0; k<j; k++)
 			{
@@ -247,15 +249,15 @@ int num;
 		CRYPTO_w_unlock(CRYPTO_LOCK_RAND);
 		/* put in some default random data, we need more than
 		 * just this */
-		RAND_seed((unsigned char *)&m,sizeof(m));
+		RAND_seed(&m,sizeof(m));
 #ifndef MSDOS
 		l=getpid();
-		RAND_seed((unsigned char *)&l,sizeof(l));
+		RAND_seed(&l,sizeof(l));
 		l=getuid();
-		RAND_seed((unsigned char *)&l,sizeof(l));
+		RAND_seed(&l,sizeof(l));
 #endif
 		l=time(NULL);
-		RAND_seed((unsigned char *)&l,sizeof(l));
+		RAND_seed(&l,sizeof(l));
 
 /* #ifdef DEVRANDOM */
 		/* 
@@ -344,13 +346,13 @@ int num;
  * <URL:http://www.microsoft.com/kb/developr/win_dk/q97193.htm>;
  * the original copyright message is:
  *
-//   (C) Copyright Microsoft Corp. 1993.  All rights reserved.
-//
-//   You have a royalty-free right to use, modify, reproduce and
-//   distribute the Sample Files (and/or any modified version) in
-//   any way you find useful, provided that you agree that
-//   Microsoft has no warranty obligations or liability for any
-//   Sample Application Files which are modified.
+ *   (C) Copyright Microsoft Corp. 1993.  All rights reserved.
+ *
+ *   You have a royalty-free right to use, modify, reproduce and
+ *   distribute the Sample Files (and/or any modified version) in
+ *   any way you find useful, provided that you agree that
+ *   Microsoft has no warranty obligations or liability for any
+ *   Sample Application Files which are modified.
  */
 /*
  * I have modified the loading of bytes via RAND_seed() mechanism since

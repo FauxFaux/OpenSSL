@@ -69,6 +69,7 @@
 #include "bn.h"
 #include "evp.h"
 #include "x509.h"
+#include "x509v3.h"
 #include "objects.h"
 #include "pem.h"
 
@@ -305,6 +306,7 @@ bad:
 		}
 
 	ERR_load_crypto_strings();
+	X509V3_add_standard_extensions();
 
 	if (!X509_STORE_set_default_paths(ctx))
 		{
@@ -368,6 +370,7 @@ bad:
 	                goto end;
 	                }
 		i=X509_REQ_verify(req,pkey);
+		EVP_PKEY_free(pkey);
 		if (i < 0)
 			{
 			BIO_printf(bio_err,"Signature verification error\n");
@@ -400,7 +403,9 @@ bad:
 		ci->key=req->req_info->pubkey;
 	        req->req_info->pubkey=NULL;
 #else
-		X509_set_pubkey(x,X509_REQ_get_pubkey(req));
+		pkey = X509_REQ_get_pubkey(req);
+		X509_set_pubkey(x,pkey);
+		EVP_PKEY_free(pkey);
 #endif
 		}
 	else
@@ -463,7 +468,6 @@ bad:
 				BIO_printf(STDout,"%08lx\n",X509_subject_name_hash(x));
 				}
 			else
-#ifndef NO_RSA
 				if (modulus == i)
 				{
 				EVP_PKEY *pkey;
@@ -476,14 +480,21 @@ bad:
 					goto end;
 					}
 				BIO_printf(STDout,"Modulus=");
+#ifndef NO_RSA
 				if (pkey->type == EVP_PKEY_RSA)
 					BN_print(STDout,pkey->pkey.rsa->n);
 				else
+#endif
+#ifndef NO_DSA
+				if (pkey->type == EVP_PKEY_DSA)
+					BN_print(STDout,pkey->pkey.dsa->pub_key);
+				else
+#endif
 					BIO_printf(STDout,"Wrong Algorithm type");
 				BIO_printf(STDout,"\n");
+				EVP_PKEY_free(pkey);
 				}
 			else
-#endif
 				if (C == i)
 				{
 				unsigned char *d;
@@ -545,13 +556,13 @@ bad:
 			else if (startdate == i)
 				{
 				BIO_puts(STDout,"notBefore=");
-				ASN1_UTCTIME_print(STDout,X509_get_notBefore(x));
+				ASN1_TIME_print(STDout,X509_get_notBefore(x));
 				BIO_puts(STDout,"\n");
 				}
 			else if (enddate == i)
 				{
 				BIO_puts(STDout,"notAfter=");
-				ASN1_UTCTIME_print(STDout,X509_get_notAfter(x));
+				ASN1_TIME_print(STDout,X509_get_notAfter(x));
 				BIO_puts(STDout,"\n");
 				}
 			else if (fingerprint == i)
@@ -688,6 +699,7 @@ end:
 	if (Upkey != NULL) EVP_PKEY_free(Upkey);
 	if (CApkey != NULL) EVP_PKEY_free(CApkey);
 	if (rq != NULL) X509_REQ_free(rq);
+	X509V3_EXT_cleanup();
 	EXIT(ret);
 	}
 
@@ -711,7 +723,9 @@ int days;
 	X509_STORE_CTX xsc;
 	EVP_PKEY *upkey;
 
-	EVP_PKEY_copy_parameters(X509_get_pubkey(xca),pkey);
+	upkey = X509_get_pubkey(xca);
+	EVP_PKEY_copy_parameters(upkey,pkey);
+	EVP_PKEY_free(upkey);
 
 	X509_STORE_CTX_init(&xsc,ctx,x,NULL);
 	buf=(char *)Malloc(EVP_PKEY_size(pkey)*2+
@@ -829,6 +843,7 @@ int days;
 		/* Force a re-write */
 		X509_set_pubkey(x,upkey);
 		}
+	EVP_PKEY_free(upkey);
 
 	if (!X509_sign(x,pkey,digest)) goto end;
 	ret=1;
@@ -1029,8 +1044,12 @@ int days;
 EVP_MD *digest;
 	{
 
-	EVP_PKEY_copy_parameters(X509_get_pubkey(x),pkey);
-	EVP_PKEY_save_parameters(X509_get_pubkey(x),1);
+	EVP_PKEY *pktmp;
+
+	pktmp = X509_get_pubkey(x);
+	EVP_PKEY_copy_parameters(pktmp,pkey);
+	EVP_PKEY_save_parameters(pktmp,1);
+	EVP_PKEY_free(pktmp);
 
 	if (!X509_set_issuer_name(x,X509_get_subject_name(x))) goto err;
 	if (X509_gmtime_adj(X509_get_notBefore(x),0) == NULL) goto err;

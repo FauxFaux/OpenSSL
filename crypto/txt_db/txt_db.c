@@ -66,7 +66,7 @@
 #undef BUFSIZE
 #define BUFSIZE	512
 
-char *TXT_DB_version="TXT_DB part of OpenSSL 0.9.1c 23-Dec-1998";
+char *TXT_DB_version="TXT_DB" OPENSSL_VERSION_PTEXT;
 
 TXT_DB *TXT_DB_read(in,num)
 BIO *in;
@@ -158,7 +158,7 @@ int num;
 		if ((n != num) || (*f != '\0'))
 			{
 #if !defined(NO_STDIO) && !defined(WIN16)	/* temporaty fix :-( */
-			fprintf(stderr,"wrong number of fields on line %ld\n",ln);
+			fprintf(stderr,"wrong number of fields on line %ld (looking for field %d, got %d, '%s' left)\n",ln,num,n,f);
 #endif
 			er=2;
 			goto err;
@@ -355,6 +355,9 @@ TXT_DB *db;
 	{
 	int i,n;
 	char **p,*max;
+
+	if(db == NULL)
+	    return;
 
 	if (db->index != NULL)
 		{

@@ -9,7 +9,7 @@ INCLUDES=
 CFLAG=-g
 INSTALLTOP=/usr/local/ssl
 MAKE=		make -f Makefile.ssl
-MAKEDEPEND=	makedepend -f Makefile.ssl
+MAKEDEPEND=	$(TOP)/util/domd $(TOP)
 MAKEFILE=	Makefile.ssl
 AR=		ar r
 
@@ -20,7 +20,7 @@ TEST=md2test.c
 APPS=
 
 LIB=$(TOP)/libcrypto.a
-LIBSRC=md2_dgst.c md5_one.c
+LIBSRC=md2_dgst.c md2_one.c
 LIBOBJ=md2_dgst.o md2_one.o
 
 SRC= $(LIBSRC)
@@ -44,11 +44,10 @@ files:
 	perl $(TOP)/util/files.pl Makefile.ssl >> $(TOP)/MINFO
 
 links:
-	/bin/rm -f Makefile
-	$(TOP)/util/point.sh Makefile.ssl Makefile ;
-	$(TOP)/util/mklink.sh ../../include $(EXHEADER)
-	$(TOP)/util/mklink.sh ../../test $(TEST)
-	$(TOP)/util/mklink.sh ../../apps $(APPS)
+	@$(TOP)/util/point.sh Makefile.ssl Makefile
+	@$(TOP)/util/mklink.sh ../../include $(EXHEADER)
+	@$(TOP)/util/mklink.sh ../../test $(TEST)
+	@$(TOP)/util/mklink.sh ../../apps $(APPS)
 
 install:
 	@for i in $(EXHEADER) ; \
@@ -73,8 +72,13 @@ dclean:
 	mv -f Makefile.new $(MAKEFILE)
 
 clean:
-	/bin/rm -f *.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
+	rm -f *.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
 
 errors:
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
+
+md2_dgst.o: ../opensslv.h md2.h
+md2_one.o: ../../include/bio.h ../../include/buffer.h ../../include/e_os.h
+md2_one.o: ../../include/err.h ../../include/stack.h ../cryptlib.h ../crypto.h
+md2_one.o: ../opensslv.h md2.h

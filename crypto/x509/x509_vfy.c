@@ -70,7 +70,6 @@
 #include "asn1.h"
 #include "x509.h"
 #include "objects.h"
-#include "pem.h"
 
 #ifndef NOPROTO
 static int null_callback(int ok,X509_STORE_CTX *e);
@@ -80,7 +79,8 @@ static int null_callback();
 static int internal_verify();
 #endif
 
-char *X509_version="X.509 part of OpenSSL 0.9.1c 23-Dec-1998";
+char *X509_version="X.509" OPENSSL_VERSION_PTEXT;
+
 static STACK *x509_store_ctx_method=NULL;
 static int x509_store_ctx_num=0;
 #if 0
@@ -345,11 +345,13 @@ X509_STORE_CTX *ctx;
 				}
 			if (X509_verify(xs,pkey) <= 0)
 				{
+				EVP_PKEY_free(pkey);
 				ctx->error=X509_V_ERR_CERT_SIGNATURE_FAILURE;
 				ctx->current_cert=xs;
 				ok=(*cb)(0,ctx);
 				if (!ok) goto end;
 				}
+			EVP_PKEY_free(pkey);
 			pkey=NULL;
 
 			i=X509_cmp_current_time(X509_get_notBefore(xs));
@@ -492,6 +494,7 @@ STACK *chain;
 			break;
 		else
 			{
+			EVP_PKEY_free(ktmp);
 			ktmp=NULL;
 			}
 		}
@@ -506,10 +509,11 @@ STACK *chain;
 		{
 		ktmp2=X509_get_pubkey((X509 *)sk_value(chain,j));
 		EVP_PKEY_copy_parameters(ktmp2,ktmp);
+		EVP_PKEY_free(ktmp2);
 		}
 	
-	if (pkey != NULL)
-		EVP_PKEY_copy_parameters(pkey,ktmp);
+	if (pkey != NULL) EVP_PKEY_copy_parameters(pkey,ktmp);
+	EVP_PKEY_free(ktmp);
 	return(1);
 	}
 

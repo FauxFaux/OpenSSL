@@ -73,6 +73,7 @@ extern "C" {
 
 #include "evp.h"
 #include "x509.h"
+#include "pem2.h"
 
 #define PEM_OBJ_UNDEF		0
 #define PEM_OBJ_X509		1
@@ -251,6 +252,11 @@ typedef struct pem_ctx_st
 		PEM_ASN1_write((int (*)())i2d_DHparams,PEM_STRING_DHPARAMS,fp,\
 			(char *)x,NULL,NULL,0,NULL)
 
+#define PEM_write_NETSCAPE_CERT_SEQUENCE(fp,x) \
+                PEM_ASN1_write((int (*)())i2d_NETSCAPE_CERT_SEQUENCE, \
+			PEM_STRING_X509,fp, \
+                        (char *)x, NULL,NULL,0,NULL)
+
 #define	PEM_read_SSL_SESSION(fp,x,cb) (SSL_SESSION *)PEM_ASN1_read( \
 	(char *(*)())d2i_SSL_SESSION,PEM_STRING_SSL_SESSION,fp,(char **)x,cb)
 #define	PEM_read_X509(fp,x,cb) (X509 *)PEM_ASN1_read( \
@@ -271,6 +277,11 @@ typedef struct pem_ctx_st
 	(char *(*)())d2i_PKCS7,PEM_STRING_PKCS7,fp,(char **)x,cb)
 #define	PEM_read_DHparams(fp,x,cb) (DH *)PEM_ASN1_read( \
 	(char *(*)())d2i_DHparams,PEM_STRING_DHPARAMS,fp,(char **)x,cb)
+
+#define PEM_read_NETSCAPE_CERT_SEQUENCE(fp,x,cb) \
+		(NETSCAPE_CERT_SEQUENCE *)PEM_ASN1_read( \
+        (char *(*)())d2i_NETSCAPE_CERT_SEQUENCE,PEM_STRING_X509,fp,\
+							(char **)x,cb)
 
 #define PEM_write_bio_SSL_SESSION(bp,x) \
 		PEM_ASN1_write_bio((int (*)())i2d_SSL_SESSION, \
@@ -308,6 +319,11 @@ typedef struct pem_ctx_st
 		PEM_ASN1_write_bio((int (*)())i2d_DSAparams, \
 			PEM_STRING_DSAPARAMS,bp,(char *)x,NULL,NULL,0,NULL)
 
+#define PEM_write_bio_NETSCAPE_CERT_SEQUENCE(bp,x) \
+                PEM_ASN1_write_bio((int (*)())i2d_NETSCAPE_CERT_SEQUENCE, \
+			PEM_STRING_X509,bp, \
+                        (char *)x, NULL,NULL,0,NULL)
+
 #define	PEM_read_bio_SSL_SESSION(bp,x,cb) (SSL_SESSION *)PEM_ASN1_read_bio( \
 	(char *(*)())d2i_SSL_SESSION,PEM_STRING_SSL_SESSION,bp,(char **)x,cb)
 #define	PEM_read_bio_X509(bp,x,cb) (X509 *)PEM_ASN1_read_bio( \
@@ -331,6 +347,11 @@ typedef struct pem_ctx_st
 	(char *(*)())d2i_DHparams,PEM_STRING_DHPARAMS,bp,(char **)x,cb)
 #define	PEM_read_bio_DSAparams(bp,x,cb) (DSA *)PEM_ASN1_read_bio( \
 	(char *(*)())d2i_DSAparams,PEM_STRING_DSAPARAMS,bp,(char **)x,cb)
+
+#define PEM_read_bio_NETSCAPE_CERT_SEQUENCE(bp,x,cb) \
+		(NETSCAPE_CERT_SEQUENCE *)PEM_ASN1_read_bio( \
+        (char *(*)())d2i_NETSCAPE_CERT_SEQUENCE,PEM_STRING_X509,bp,\
+							(char **)x,cb)
 
 #endif
 
@@ -377,8 +398,6 @@ void    PEM_SignUpdate(EVP_MD_CTX *ctx,unsigned char *d,unsigned int cnt);
 int	PEM_SignFinal(EVP_MD_CTX *ctx, unsigned char *sigret,
 		unsigned int *siglen, EVP_PKEY *pkey);
 
-void	ERR_load_PEM_strings(void);
-
 void	PEM_proc_type(char *buf, int type);
 void	PEM_dek_info(char *buf, char *type, int len, char *str);
 
@@ -395,6 +414,7 @@ EVP_PKEY *PEM_read_PrivateKey(FILE *fp,EVP_PKEY **x,int (*cb)());
 PKCS7 *PEM_read_PKCS7(FILE *fp,PKCS7 **x,int (*cb)());
 DH *PEM_read_DHparams(FILE *fp,DH **x,int (*cb)());
 DSA *PEM_read_DSAparams(FILE *fp,DSA **x,int (*cb)());
+NETSCAPE_CERT_SEQUENCE *PEM_read_NETSCAPE_CERT_SEQUENCE(FILE *fp,NETSCAPE_CERT_SEQUENCE **x,int (*cb)());
 int PEM_write_X509(FILE *fp,X509 *x);
 int PEM_write_X509_REQ(FILE *fp,X509_REQ *x);
 int PEM_write_X509_CRL(FILE *fp,X509_CRL *x);
@@ -408,6 +428,7 @@ int PEM_write_PrivateKey(FILE *fp,EVP_PKEY *x,EVP_CIPHER *enc,
 int PEM_write_PKCS7(FILE *fp,PKCS7 *x);
 int PEM_write_DHparams(FILE *fp,DH *x);
 int PEM_write_DSAparams(FILE *fp,DSA *x);
+int PEM_write_NETSCAPE_CERT_SEQUENCE(FILE *fp,NETSCAPE_CERT_SEQUENCE *x);
 #endif
 
 #ifdef HEADER_BIO_H
@@ -420,6 +441,7 @@ DSA *PEM_read_bio_DSAPrivateKey(BIO *bp,DSA **x,int (*cb)());
 EVP_PKEY *PEM_read_bio_PrivateKey(BIO *bp,EVP_PKEY **x,int (*cb)());
 PKCS7 *PEM_read_bio_PKCS7(BIO *bp,PKCS7 **x,int (*cb)());
 DH *PEM_read_bio_DHparams(BIO *bp,DH **x,int (*cb)());
+NETSCAPE_CERT_SEQUENCE *PEM_read_bio_NETSCAPE_CERT_SEQUENCE(BIO *bp,NETSCAPE_CERT_SEQUENCE **x,int (*cb)());
 DSA *PEM_read_bio_DSAparams(BIO *bp,DSA **x,int (*cb)());
 int PEM_write_bio_X509(BIO *bp,X509 *x);
 int PEM_write_bio_X509_REQ(BIO *bp,X509_REQ *x);
@@ -434,6 +456,7 @@ int PEM_write_bio_PrivateKey(BIO *fp,EVP_PKEY *x,EVP_CIPHER *enc,
 int PEM_write_bio_PKCS7(BIO *bp,PKCS7 *x);
 int PEM_write_bio_DHparams(BIO *bp,DH *x);
 int PEM_write_bio_DSAparams(BIO *bp,DSA *x);
+int PEM_write_bio_NETSCAPE_CERT_SEQUENCE(BIO *bp,NETSCAPE_CERT_SEQUENCE *x);
 #endif
 
 #endif /* SSLEAY_MACROS */
@@ -459,6 +482,8 @@ int	PEM_ASN1_write_bio();
 int	PEM_SealInit();
 void	PEM_SealUpdate();
 int	PEM_SealFinal();
+void    PEM_SignInit();
+void    PEM_SignUpdate();
 int	PEM_SignFinal();
 
 void	ERR_load_PEM_strings();
@@ -478,6 +503,7 @@ EVP_PKEY *PEM_read_PrivateKey();
 PKCS7 *PEM_read_PKCS7();
 DH *PEM_read_DHparams();
 DSA *PEM_read_DSAparams();
+NETSCAPE_CERT_SEQUENCE *PEM_read_NETSCAPE_CERT_SEQUENCE();
 int PEM_write_X509();
 int PEM_write_X509_REQ();
 int PEM_write_X509_CRL();
@@ -488,6 +514,7 @@ int PEM_write_PrivateKey();
 int PEM_write_PKCS7();
 int PEM_write_DHparams();
 int PEM_write_DSAparams();
+int PEM_write_NETSCAPE_CERT_SEQUENCE();
 #endif
 
 X509 *PEM_read_bio_X509();
@@ -500,6 +527,7 @@ EVP_PKEY *PEM_read_bio_PrivateKey();
 PKCS7 *PEM_read_bio_PKCS7();
 DH *PEM_read_bio_DHparams();
 DSA *PEM_read_bio_DSAparams();
+NETSCAPE_CERT_SEQUENCE *PEM_read_bio_NETSCAPE_CERT_SEQUENCE();
 int PEM_write_bio_X509();
 int PEM_write_bio_X509_REQ();
 int PEM_write_bio_X509_CRL();
@@ -510,6 +538,7 @@ int PEM_write_bio_PrivateKey();
 int PEM_write_bio_PKCS7();
 int PEM_write_bio_DHparams();
 int PEM_write_bio_DSAparams();
+int PEM_write_bio_NETSCAPE_CERT_SEQUENCE();
 
 #endif /* SSLEAY_MACROS */
 

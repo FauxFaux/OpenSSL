@@ -72,7 +72,7 @@
 #undef MIN_NODES
 #define MIN_NODES	4
 
-char *STACK_version="Stack part of OpenSSL 0.9.1c 23-Dec-1998";
+char *STACK_version="Stack" OPENSSL_VERSION_PTEXT;
 
 #ifndef NOPROTO
 #define	FP_ICC	(int (*)(const void *,const void *))
@@ -82,13 +82,17 @@ char *STACK_version="Stack part of OpenSSL 0.9.1c 23-Dec-1998";
 
 #include <errno.h>
 
-void sk_set_cmp_func(sk,c)
+int (*sk_set_cmp_func(sk,c))()
 STACK *sk;
 int (*c)();
 	{
+	int (*old)()=sk->comp;
+
 	if (sk->comp != c)
 		sk->sorted=0;
 	sk->comp=c;
+
+	return old;
 	}
 
 STACK *sk_dup(sk)
@@ -161,7 +165,7 @@ int loc;
 
 		f=(char **)st->data;
 		t=(char **)&(st->data[1]);
-		for (i=st->num; i>loc; i--)
+		for (i=st->num; i>=loc; i--)
 			t[i]=f[i];
 			
 #ifdef undef /* no memmove on sunos :-( */

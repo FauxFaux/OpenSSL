@@ -460,6 +460,7 @@ typedef struct evp_Encode_Ctx_st
 
 #ifndef NOPROTO
 
+int     EVP_MD_CTX_copy(EVP_MD_CTX *out,EVP_MD_CTX *in);  
 void	EVP_DigestInit(EVP_MD_CTX *ctx, EVP_MD *type);
 void	EVP_DigestUpdate(EVP_MD_CTX *ctx,unsigned char *d,unsigned int cnt);
 void	EVP_DigestFinal(EVP_MD_CTX *ctx,unsigned char *md,unsigned int *s);
@@ -529,6 +530,7 @@ void EVP_CIPHER_CTX_cleanup(EVP_CIPHER_CTX *a);
 BIO_METHOD *BIO_f_md(void);
 BIO_METHOD *BIO_f_base64(void);
 BIO_METHOD *BIO_f_cipher(void);
+BIO_METHOD *BIO_f_reliable(void);
 void BIO_set_cipher(BIO *b,EVP_CIPHER *c,unsigned char *k,
 	unsigned char *i, int enc);
 #endif
@@ -626,6 +628,7 @@ int EVP_CIPHER_get_asn1_iv(EVP_CIPHER_CTX *c,ASN1_TYPE *type);
 
 #else
 
+int     EVP_MD_CTX_copy(); 
 void	EVP_DigestInit();
 void	EVP_DigestUpdate();
 void	EVP_DigestFinal();
@@ -679,6 +682,7 @@ void EVP_CIPHER_CTX_cleanup();
 BIO_METHOD *BIO_f_md();
 BIO_METHOD *BIO_f_base64();
 BIO_METHOD *BIO_f_cipher();
+BIO_METHOD *BIO_f_reliable();
 void BIO_set_cipher();
 #endif
 
@@ -690,6 +694,7 @@ EVP_MD *EVP_sha1();
 EVP_MD *EVP_dss();
 EVP_MD *EVP_dss1();
 EVP_MD *EVP_mdc2();
+EVP_MD *EVP_ripemd160();
 
 EVP_CIPHER *EVP_enc_null();
 EVP_CIPHER *EVP_des_ecb();
@@ -760,8 +765,8 @@ int EVP_PKEY_missing_parameters();
 int EVP_PKEY_save_parameters();
 int EVP_PKEY_cmp_parameters();
 
-int EVP_CIPHER_param_to_asn1(EVP_CIPHER_CTX *c, ASN1_TYPE *type);
-int EVP_CIPHER_asn1_to_param(EVP_CIPHER_CTX *c, ASN1_TYPE *type);
+int EVP_CIPHER_param_to_asn1();
+int EVP_CIPHER_asn1_to_param();
 
 int EVP_CIPHER_set_asn1_iv();
 int EVP_CIPHER_get_asn1_iv();
@@ -782,6 +787,7 @@ int EVP_CIPHER_get_asn1_iv();
 #define EVP_F_EVP_SIGNFINAL				 107
 #define EVP_F_EVP_VERIFYFINAL				 108
 #define EVP_F_RC2_MAGIC_TO_METH				 109
+#define EVP_F_EVP_MD_CTX_COPY                            110
 
 /* Reason codes. */
 #define EVP_R_BAD_DECRYPT				 100
@@ -795,6 +801,7 @@ int EVP_CIPHER_get_asn1_iv();
 #define EVP_R_UNSUPPORTED_KEY_SIZE			 108
 #define EVP_R_WRONG_FINAL_BLOCK_LENGTH			 109
 #define EVP_R_WRONG_PUBLIC_KEY_TYPE			 110
+#define EVP_R_INPUT_NOT_INITALISED                       111
  
 #ifdef  __cplusplus
 }

@@ -109,13 +109,13 @@ X509_STORE_CTX *ctx;
 	case X509_V_ERR_CERT_NOT_YET_VALID:
 	case X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD:
 		BIO_printf(bio_err,"notBefore=");
-		ASN1_UTCTIME_print(bio_err,X509_get_notBefore(ctx->current_cert));
+		ASN1_TIME_print(bio_err,X509_get_notBefore(ctx->current_cert));
 		BIO_printf(bio_err,"\n");
 		break;
 	case X509_V_ERR_CERT_HAS_EXPIRED:
 	case X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD:
 		BIO_printf(bio_err,"notAfter=");
-		ASN1_UTCTIME_print(bio_err,X509_get_notAfter(ctx->current_cert));
+		ASN1_TIME_print(bio_err,X509_get_notAfter(ctx->current_cert));
 		BIO_printf(bio_err,"\n");
 		break;
 		}
@@ -156,9 +156,13 @@ char *key_file;
 		ssl=SSL_new(ctx);
 		x509=SSL_get_certificate(ssl);
 
-		if (x509 != NULL)
-			EVP_PKEY_copy_parameters(X509_get_pubkey(x509),
-				SSL_get_privatekey(ssl));
+		if (x509 != NULL) {
+			EVP_PKEY *pktmp;
+			pktmp = X509_get_pubkey(x509);
+			EVP_PKEY_copy_parameters(pktmp,
+						SSL_get_privatekey(ssl));
+			EVP_PKEY_free(pktmp);
+		}
 		SSL_free(ssl);
 		*/
 

@@ -65,10 +65,17 @@
 
 /* 06-Apr-92 Luke Brennan    Support for VMS */
 #include "des_locl.h"
+#include "cryptlib.h"
 #include <signal.h>
 #include <string.h>
 #include <setjmp.h>
 #include <errno.h>
+
+#ifdef WIN_CONSOLE_BUG
+#include <windows.h>
+#include <wincon.h>
+#endif
+
 
 /* There are 5 types of terminal interface supported,
  * TERMIO, TERMIOS, VMS, MSDOS and SGTTY
@@ -179,7 +186,7 @@ static jmp_buf save;
 int des_read_pw_string(buf, length, prompt, verify)
 char *buf;
 int length;
-char *prompt;
+const char *prompt;
 int verify;
 	{
 	char buff[BUFSIZ];
@@ -209,7 +216,7 @@ int des_read_pw(buf, buff, size, prompt, verify)
 char *buf;
 char *buff;
 int size;
-char *prompt;
+const char *prompt;
 int verify;
 	{
 #ifdef VMS
@@ -223,13 +230,26 @@ int verify;
 	TTY_STRUCT tty_orig,tty_new;
 #endif
 #endif
-	int number=5;
-	int ok=0;
-	int ps=0;
-	int is_a_tty=1;
-
-	FILE *tty=NULL;
+	int number;
+	int ok;
+	/* statics are simply to avoid warnings about longjmp clobbering
+	   things */
+	static int ps;
+	int is_a_tty;
+	static FILE *tty;
 	char *p;
+
+	if (setjmp(save))
+		{
+		ok=0;
+		goto error;
+		}
+
+	number=5;
+	ok=0;
+	ps=0;
+	is_a_tty=1;
+	tty=NULL;
 
 #ifndef MSDOS
 	if ((tty=fopen("/dev/tty","r")) == NULL)
@@ -267,11 +287,6 @@ int verify;
 		return(-1);
 #endif
 
-	if (setjmp(save))
-		{
-		ok=0;
-		goto error;
-		}
 	pushsig();
 	ps=1;
 
@@ -454,6 +469,18 @@ FILE *tty;
 			break;
 			}
 		}
+#ifdef WIN_CONSOLE_BUG
+/* Win95 has several evil console bugs: one of these is that the
+ * last character read using getch() is passed to the next read: this is
+ * usually a CR so this can be trouble. No STDIO fix seems to work but
+ * flushing the console appears to do the trick.
+ */
+                {
+                        HANDLE inh;
+                        inh = GetStdHandle(STD_INPUT_HANDLE);
+                        FlushConsoleInputBuffer(inh);
+                }
+#endif
 	return(strlen(buf));
 	}
 #endif

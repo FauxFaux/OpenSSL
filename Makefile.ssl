@@ -1,34 +1,10 @@
-#
-# Makefile for all the SSL related library routines and utilities
-VERSION = 0.9.1c
+##
+## Makefile for OpenSSL
+##
+
+VERSION = 0.9.2b
 PLATFORM=dist
-#
-# make install will install:
-#   libraries into $INSTALLTOP/lib
-#   headers   into $INSTALLTOP/include
-#   utilities into $INSTALLTOP/bin
-#
-# By default INSTALLTOP is set to /usr/local/ssl
-# If you want things install elsewere, consider running
-# perl util/ssldir.pl /new/path
-#
-# Interesting Mailing Lists:
-#     ssl-bugs@mincom.oz.au
-#     ssl-users@mincom.oz.au
-#
-# To join the Mailing Lists:
-#     ssl-bugs-request@mincom.oz.au
-#     ssl-users-request@mincom.oz.au
-#
-# If you must get hold of people directly (we much prefer the above
-# lists to be used if the question is of general interest!):
-#       Eric Young <eay@cryptsoft.com>
-#       Tim Hudson <tjh@cryptsoft.com>
-#       or both    <ssleay@cryptsoft.com>
-#
-# The primary distribution of SSLeay is from
-# ftp://ftp.psy.uq.oz.au/pub/Crypto/SSL
-#
+
 # NOCONST - Define for C compilers that don't like the const key word.
 # NOPROTO - Define in if your compiler does not support prototypes.
 # RSAref  - Define if we are to link with RSAref.
@@ -157,10 +133,9 @@ SDIRS=  \
 	des rc2 rc4 rc5 idea bf cast \
 	bn rsa dsa dh \
 	buffer bio stack lhash rand err objects \
-	evp pem asn1 x509 conf txt_db pkcs7 comp
+	evp asn1 pem x509 x509v3 conf txt_db pkcs7 comp
 
-# If you change the INSTALLTOP, make sure to also change the values
-# in crypto/location.h
+# Do not edit this manually. Use util/ssldir.pl do change this!
 INSTALLTOP=/usr/local/ssl
 
 MAKEFILE= Makefile.ssl
@@ -184,36 +159,42 @@ WTARFILE=       $(NAME)-win.tar
 EXHEADER=       e_os.h
 HEADER=         e_os.h
 
-all:
+all: Makefile.ssl
 	@for i in $(DIRS) ;\
 	do \
-	(cd $$i; echo "making $$i..."; \
-	$(MAKE) CC='${CC}' PLATFORM='${PLATFORM}' CFLAG='${CFLAG}' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' SDIRS='${SDIRS}' AR='${AR}' all ); \
+	(cd $$i && echo "making all in $$i..." && \
+	$(MAKE) CC='${CC}' PLATFORM='${PLATFORM}' CFLAG='${CFLAG}' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' SDIRS='${SDIRS}' AR='${AR}' all ) || exit 1; \
 	done;
 
 sub_all:
 	@for i in $(DIRS) ;\
 	do \
-	(cd $$i; echo "making $$i..."; \
-	$(MAKE) CC='${CC}' PLATFORM='${PLATFORM}' CFLAG='${CFLAG}' SDIRS='$(SDIRS)' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' AR='${AR}' all ); \
+	(cd $$i && echo "making all in $$i..." && \
+	$(MAKE) CC='${CC}' PLATFORM='${PLATFORM}' CFLAG='${CFLAG}' SDIRS='$(SDIRS)' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' AR='${AR}' all ) || exit 1; \
 	done;
+
+Makefile.ssl: Makefile.org
+	@echo "Makefile.ssl is older than Makefile.org."
+	@echo "Reconfigure the source tree (via 'perl Configure' or 'sh config')"
+	@echo "and update the error lists (via 'make errors'), please."
+	@false
 
 libclean:
-	/bin/rm *.a */lib */*/lib
+	rm -f *.a */lib */*/lib
 
 clean:
-	/bin/rm -f shlib/*.o *.o core a.out fluff *.map
+	rm -f shlib/*.o *.o core a.out fluff *.map
 	@for i in $(DIRS) ;\
 	do \
-	(cd $$i; echo "cleaning $$i..."; \
-	$(MAKE) SDIRS='${SDIRS}' clean ); \
-	/bin/rm -f $(LIBS); \
+	(cd $$i && echo "making clean in $$i..." && \
+	$(MAKE) SDIRS='${SDIRS}' clean ) || exit 1; \
+	rm -f $(LIBS); \
 	done;
-	/bin/rm -f *.a *.o speed.* *.map *.so .pure core
-	/bin/rm -f $(TARFILE)
+	rm -f *.a *.o speed.* *.map *.so .pure core
+	rm -f $(TARFILE)
 	@for i in $(ONEDIRS) ;\
 	do \
-	/bin/rm -fr $$i/*; \
+	rm -fr $$i/*; \
 	done
 
 makefile.one: files
@@ -224,71 +205,69 @@ files:  MINFO
 	perl $(TOP)/util/files.pl Makefile.ssl > $(TOP)/MINFO
 	@for i in $(DIRS) ;\
 	do \
-	(cd $$i; echo "making 'files' in $$i..."; \
-	$(MAKE) SDIRS='${SDIRS}' files ); \
+	(cd $$i && echo "making 'files' in $$i..." && \
+	$(MAKE) SDIRS='${SDIRS}' files ) || exit 1; \
 	done;
 
 links:
-	/bin/rm -f Makefile
-	./util/point.sh Makefile.ssl Makefile
-	$(TOP)/util/mklink.sh include $(EXHEADER)
-	@for i in $(DIRS) ;\
-	do \
-	(cd $$i; echo "making links in $$i..."; \
-	$(MAKE) SDIRS='${SDIRS}' links ); \
+	@$(TOP)/util/point.sh Makefile.ssl Makefile
+	@$(TOP)/util/mklink.sh include $(EXHEADER)
+	@for i in $(DIRS); do \
+	(cd $$i && echo "making links in $$i..." && \
+	$(MAKE) CC='${CC}' PLATFORM='${PLATFORM}' CFLAG='${CFLAG}' SDIRS='$(SDIRS)' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' AR='${AR}' links ) || exit 1; \
 	done;
-	@(SSLEAY="`pwd`/apps/ssleay"; export SSLEAY; sh tools/c_rehash certs)
+	@(OPENSSL="`pwd`/apps/openssl"; export OPENSSL; sh tools/c_rehash certs)
 
 dclean:
-	/bin/rm -f *.bak
+	rm -f *.bak
 	@for i in $(DIRS) ;\
 	do \
-	(cd $$i; echo "undoing makedepend in $$i..."; \
-	$(MAKE) SDIRS='${SDIRS}' dclean ); \
+	(cd $$i && echo "making dclean in $$i..." && \
+	$(MAKE) SDIRS='${SDIRS}' dclean ) || exit 1; \
 	done;
 
 rehash:
-	@(PATH="`pwd`/apps:${PATH}"; sh tools/c_rehash certs)
+	@(OPENSSL="`pwd`/apps/openssl"; export OPENSSL; sh tools/c_rehash certs)
 
 test:   tests
 
 tests:
-	(cd test; echo "testing $$i..."; \
+	@(cd test && echo "testing..." && \
 	$(MAKE) CC='${CC}' CFLAG='${CFLAG}' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' SDIRS='${SDIRS}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' AR='${AR}' tests );
-	@apps/ssleay version -a
+	@apps/openssl version -a
 
 depend:
 	@for i in $(DIRS) ;\
 	do \
-	(cd $$i; echo "making dependancies $$i..."; \
-	$(MAKE) SDIRS='${SDIRS}' depend ); \
+	(cd $$i && echo "making dependancies $$i..." && \
+	$(MAKE) SDIRS='${SDIRS}' depend ) || exit 1; \
 	done;
 
 lint:
 	@for i in $(DIRS) ;\
 	do \
-	(cd $$i; echo "making lint $$i..."; \
-	$(MAKE) SDIRS='${SDIRS}' lint ); \
+	(cd $$i && echo "making lint $$i..." && \
+	$(MAKE) SDIRS='${SDIRS}' lint ) || exit 1; \
 	done;
 
 tags:
 	@for i in $(DIRS) ;\
 	do \
-	(cd $$i; echo "making tags $$i..."; \
-	$(MAKE) SDIRS='${SDIRS}' tags ); \
+	(cd $$i && echo "making tags $$i..." && \
+	$(MAKE) SDIRS='${SDIRS}' tags ) || exit 1; \
 	done;
 
 errors:
 	@for i in $(DIRS) ;\
 	do \
-	(cd $$i; echo "making errors in $$i..."; \
-	$(MAKE) SDIRS='${SDIRS}' errors ); \
+	(cd $$i && echo "making errors in $$i..." && \
+	$(MAKE) SDIRS='${SDIRS}' errors ) || exit 1; \
 	done;
 
 tar:
 	@gtar --no-recursion -cvf - \
-		`find * -depth -print | grep -v CVS | grep -v .cvsignore | sort` |\
-	tardy --user_number=0  --user_name=rse      \
+		`find * -depth -print | grep -v CVS | grep -v .cvsignore | grep -v STATUS | sort` |\
+	tardy --user_number=0  --user_name=openssl \
 	      --group_number=0 --group_name=openssl \
 	      --prefix=openssl-$(VERSION) - |\
 	gzip --best >../$(TARFILE).gz; \
@@ -296,12 +275,8 @@ tar:
 
 dist:   
 	perl Configure dist
-	perl util/up_ver.pl ${VERSION}
 	@$(MAKE) dist_pem_h
 	@$(MAKE) SDIRS='${SDIRS}' clean
-	@$(MAKE) SDIRS='${SDIRS}' dclean
-	@(cd apps; sh ./rmlinks)
-	@$(MAKE) makefile.one
 	@$(MAKE) tar
 
 dist_pem_h:

@@ -185,6 +185,7 @@ BIO *bio;
 				}
 			pkey=X509_get_pubkey(ri->cert);
 			jj=EVP_PKEY_size(pkey);
+			EVP_PKEY_free(pkey);
 			if (max < jj) max=jj;
 			}
 		if ((tmp=(unsigned char *)Malloc(max)) == NULL)
@@ -197,6 +198,7 @@ BIO *bio;
 			ri=(PKCS7_RECIP_INFO *)sk_value(rsk,i);
 			pkey=X509_get_pubkey(ri->cert);
 			jj=EVP_PKEY_encrypt(tmp,key,keylen,pkey);
+			EVP_PKEY_free(pkey);
 			if (jj <= 0)
 				{
 				PKCS7err(PKCS7_F_PKCS7_DATAINIT,ERR_R_EVP_LIB);
@@ -503,6 +505,11 @@ BIO *bio;
 	case NID_pkcs7_signed:
 		si_sk=p7->d.sign->signer_info;
 		os=p7->d.sign->contents->d.data;
+		/* If detached data then the content is excluded */
+		if(p7->detached) {
+			ASN1_OCTET_STRING_free(os);
+			p7->d.sign->contents->d.data = NULL;
+		}
 		break;
 		}
 
@@ -580,11 +587,11 @@ BIO *bio;
 				/* Now sign the mess */
 				EVP_SignInit(&ctx_tmp,md_tmp);
 				x=i2d_ASN1_SET(sk,NULL,i2d_X509_ATTRIBUTE,
-					V_ASN1_SET,V_ASN1_UNIVERSAL);
+					V_ASN1_SET,V_ASN1_UNIVERSAL, IS_SET);
 				pp=(unsigned char *)Malloc(x);
 				p=pp;
 				i2d_ASN1_SET(sk,&p,i2d_X509_ATTRIBUTE,
-					V_ASN1_SET,V_ASN1_UNIVERSAL);
+					V_ASN1_SET,V_ASN1_UNIVERSAL, IS_SET);
 				EVP_SignUpdate(&ctx_tmp,pp,x);
 				Free(pp);
 				pp=NULL;
@@ -608,9 +615,7 @@ BIO *bio;
 			}
 		}
 
-	if (p7->detached)
-		ASN1_OCTET_STRING_set(os,(unsigned char *)"",0);
-	else
+	if (!p7->detached)
 		{
 		btmp=BIO_find_type(bio,BIO_TYPE_MEM);
 		if (btmp == NULL)
@@ -648,6 +653,7 @@ PKCS7_SIGNER_INFO *si;
 	STACK *sk,*cert;
 	BIO *btmp;
 	X509 *x509;
+	EVP_PKEY *pkey;
 
 	if (PKCS7_type_is_signed(p7))
 		{
@@ -715,7 +721,7 @@ PKCS7_SIGNER_INFO *si;
 	if ((sk != NULL) && (sk_num(sk) != 0))
 		{
 		unsigned char md_dat[EVP_MAX_MD_SIZE];
-		int md_len;
+                unsigned int md_len;
 		ASN1_OCTET_STRING *message_digest;
 
 		EVP_DigestFinal(&mdc_tmp,md_dat,&md_len);
@@ -725,7 +731,7 @@ PKCS7_SIGNER_INFO *si;
 			PKCS7err(PKCS7_F_PKCS7_DATAVERIFY,PKCS7_R_UNABLE_TO_FIND_MESSAGE_DIGEST);
 			goto err;
 			}
-		if ((message_digest->length != md_len) ||
+		if ((message_digest->length != (int)md_len) ||
 			(memcmp(message_digest->data,md_dat,md_len)))
 			{
 #if 0
@@ -742,22 +748,27 @@ for (ii=0; ii<md_len; ii++) printf("%02X",md_dat[ii]); printf(" calc\n");
 			}
 
 		EVP_VerifyInit(&mdc_tmp,EVP_get_digestbynid(md_type));
+		/* Note: when forming the encoding of the attributes we
+		 * shouldn't reorder them or this will break the signature.
+		 * This is done by using the IS_SEQUENCE flag.
+		 */
 		i=i2d_ASN1_SET(sk,NULL,i2d_X509_ATTRIBUTE,
-			V_ASN1_SET,V_ASN1_UNIVERSAL);
+			V_ASN1_SET,V_ASN1_UNIVERSAL, IS_SEQUENCE);
 		pp=(unsigned char *)Malloc(i);
 		p=pp;
 		i2d_ASN1_SET(sk,&p,i2d_X509_ATTRIBUTE,
-			V_ASN1_SET,V_ASN1_UNIVERSAL);
+			V_ASN1_SET,V_ASN1_UNIVERSAL, IS_SEQUENCE);
 		EVP_VerifyUpdate(&mdc_tmp,pp,i);
+
 		Free(pp);
 		}
 
 	os=si->enc_digest;
-	if (X509_get_pubkey(x509)->type == EVP_PKEY_DSA)
-		mdc_tmp.digest=EVP_dss1();
+	pkey = X509_get_pubkey(x509);
+	if(pkey->type == EVP_PKEY_DSA) mdc_tmp.digest=EVP_dss1();
 
-	i=EVP_VerifyFinal(&mdc_tmp,os->data,os->length,
-		X509_get_pubkey(x509));
+	i=EVP_VerifyFinal(&mdc_tmp,os->data,os->length, pkey);
+	EVP_PKEY_free(pkey);
 	if (i <= 0)
 		{
 		PKCS7err(PKCS7_F_PKCS7_DATAVERIFY,PKCS7_R_SIGNATURE_FAILURE);

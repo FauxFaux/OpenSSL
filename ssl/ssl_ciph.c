@@ -58,6 +58,7 @@
 
 #include <stdio.h>
 #include "objects.h"
+#include "comp.h"
 #include "ssl_locl.h"
 
 #define SSL_ENC_DES_IDX		0
@@ -72,6 +73,8 @@
 static EVP_CIPHER *ssl_cipher_methods[SSL_ENC_NUM_IDX]={
 	NULL,NULL,NULL,NULL,NULL,NULL,
 	};
+
+static STACK /* SSL_COMP */ *ssl_comp_methods=NULL;
 
 #define SSL_MD_MD5_IDX	0
 #define SSL_MD_SHA1_IDX	1
@@ -108,7 +111,8 @@ typedef struct cipher_order_st
 	} CIPHER_ORDER;
 
 static SSL_CIPHER cipher_aliases[]={
-	{0,SSL_TXT_ALL, 0,SSL_ALL,   0,SSL_ALL},	/* must be first */
+	/* Don't include eNULL unless specifically enabled */
+	{0,SSL_TXT_ALL, 0,SSL_ALL & ~SSL_eNULL, 0,SSL_ALL}, /* must be first */
 	{0,SSL_TXT_kRSA,0,SSL_kRSA,  0,SSL_MKEY_MASK},
 	{0,SSL_TXT_kDHr,0,SSL_kDHr,  0,SSL_MKEY_MASK},
 	{0,SSL_TXT_kDHd,0,SSL_kDHd,  0,SSL_MKEY_MASK},
@@ -141,14 +145,15 @@ static SSL_CIPHER cipher_aliases[]={
 	{0,SSL_TXT_ADH,	0,SSL_ADH,   0,SSL_AUTH_MASK|SSL_MKEY_MASK},
 	{0,SSL_TXT_FZA,	0,SSL_FZA,   0,SSL_AUTH_MASK|SSL_MKEY_MASK|SSL_ENC_MASK},
 
-	{0,SSL_TXT_EXP,	0,SSL_EXP,   0,SSL_EXP_MASK},
-	{0,SSL_TXT_EXPORT,0,SSL_EXPORT,0,SSL_EXP_MASK},
-	{0,SSL_TXT_SSLV2,0,SSL_SSLV2,0,SSL_SSL_MASK},
-	{0,SSL_TXT_SSLV3,0,SSL_SSLV3,0,SSL_SSL_MASK},
-	{0,SSL_TXT_TLSV1,0,SSL_SSLV3,0,SSL_SSL_MASK},
-	{0,SSL_TXT_LOW,  0,SSL_LOW,0,SSL_STRONG_MASK},
+	{0,SSL_TXT_EXP40, 0,SSL_EXP40, 0,SSL_EXP_MASK},
+	{0,SSL_TXT_EXPORT,0,SSL_EXP40, 0,SSL_EXP_MASK},
+	{0,SSL_TXT_EXP56, 0,SSL_EXP56, 0,SSL_EXP_MASK},
+	{0,SSL_TXT_SSLV2, 0,SSL_SSLV2, 0,SSL_SSL_MASK},
+	{0,SSL_TXT_SSLV3, 0,SSL_SSLV3, 0,SSL_SSL_MASK},
+	{0,SSL_TXT_TLSV1, 0,SSL_TLSV1, 0,SSL_SSL_MASK},
+	{0,SSL_TXT_LOW,   0,SSL_LOW,   0,SSL_STRONG_MASK},
 	{0,SSL_TXT_MEDIUM,0,SSL_MEDIUM,0,SSL_STRONG_MASK},
-	{0,SSL_TXT_HIGH, 0,SSL_HIGH,0,SSL_STRONG_MASK},
+	{0,SSL_TXT_HIGH,  0,SSL_HIGH,  0,SSL_STRONG_MASK},
 	};
 
 static int init_ciphers=1;
@@ -180,14 +185,41 @@ static void load_ciphers()
 		EVP_get_digestbyname(SN_sha1);
 	}
 
-int ssl_cipher_get_evp(c,enc,md)
-SSL_CIPHER *c;
+int ssl_cipher_get_evp(s,enc,md,comp)
+SSL_SESSION *s;
 EVP_CIPHER **enc;
 EVP_MD **md;
+SSL_COMP **comp;
 	{
 	int i;
+	SSL_CIPHER *c;
 
+	c=s->cipher;
 	if (c == NULL) return(0);
+	if (comp != NULL)
+		{
+		SSL_COMP ctmp;
+
+		if (s->compress_meth == 0)
+			*comp=NULL;
+		else if (ssl_comp_methods == NULL)
+			{
+			/* bad */
+			*comp=NULL;
+			}
+		else
+			{
+
+			ctmp.id=s->compress_meth;
+			i=sk_find(ssl_comp_methods,(char *)&ctmp);
+			if (i >= 0)
+				*comp=(SSL_COMP *)sk_value(ssl_comp_methods,i);
+			else
+				*comp=NULL;
+			}
+		}
+
+	if ((enc == NULL) || (md == NULL)) return(0);
 
 	switch (c->algorithms & SSL_ENC_MASK)
 		{
@@ -322,7 +354,7 @@ char *str;
 	mask|=SSL_kDHr|SSL_kDHd|SSL_kEDH|SSL_aDH;
 #endif
 
-#ifndef SSL_ALLOW_ENULL
+#ifdef SSL_FORBID_ENULL
 	mask|=SSL_eNULL;
 #endif
 
@@ -372,7 +404,7 @@ char *str;
 		}
 
 	/* special case */
-	cipher_aliases[0].algorithms= ~mask;
+	cipher_aliases[0].algorithms &= ~mask;
 
 	/* get the aliases */
 	k=sizeof(cipher_aliases)/sizeof(SSL_CIPHER);
@@ -585,7 +617,7 @@ SSL_CIPHER *cipher;
 char *buf;
 int len;
 	{
-	int export;
+        int is_export,pkl,kl;
 	char *ver,*exp;
 	char *kx,*au,*enc,*mac;
 	unsigned long alg,alg2;
@@ -594,8 +626,10 @@ int len;
 	alg=cipher->algorithms;
 	alg2=cipher->algorithm2;
 
-	export=(alg&SSL_EXP)?1:0;
-	exp=(export)?" export":"";
+        is_export=SSL_IS_EXPORT(alg);
+	pkl=SSL_EXPORT_PKEYLENGTH(alg);
+	kl=SSL_EXPORT_KEYLENGTH(alg);
+        exp=is_export?" export":"";
 
 	if (alg & SSL_SSLV2)
 		ver="SSLv2";
@@ -607,7 +641,7 @@ int len;
 	switch (alg&SSL_MKEY_MASK)
 		{
 	case SSL_kRSA:
-		kx=(export)?"RSA(512)":"RSA";
+                kx=is_export?(pkl == 512 ? "RSA(512)" : "RSA(1024)"):"RSA";
 		break;
 	case SSL_kDHr:
 		kx="DH/RSA";
@@ -619,7 +653,7 @@ int len;
 		kx="Fortezza";
 		break;
 	case SSL_kEDH:
-		kx=(export)?"DH(512)":"DH";
+                kx=is_export?(pkl == 512 ? "DH(512)" : "DH(1024)"):"DH";
 		break;
 	default:
 		kx="unknown";
@@ -648,16 +682,17 @@ int len;
 	switch (alg&SSL_ENC_MASK)
 		{
 	case SSL_DES:
-		enc=export?"DES(40)":"DES(56)";
+                enc=(is_export && kl == 5)?"DES(40)":"DES(56)";
 		break;
 	case SSL_3DES:
 		enc="3DES(168)";
 		break;
 	case SSL_RC4:
-		enc=export?"RC4(40)":((alg2&SSL2_CF_8_BYTE_ENC)?"RC4(64)":"RC4(128)");
+                enc=is_export?(kl == 5 ? "RC4(40)" : "RC4(56)")
+		  :((alg2&SSL2_CF_8_BYTE_ENC)?"RC4(64)":"RC4(128)");
 		break;
 	case SSL_RC2:
-		enc=export?"RC2(40)":"RC2(128)";
+                enc=is_export?(kl == 5 ? "RC2(40)" : "RC2(56)"):"RC2(128)";
 		break;
 	case SSL_IDEA:
 		enc="IDEA(128)";
@@ -730,17 +765,19 @@ int *alg_bits;
 	int ret=0,a=0;
 	EVP_CIPHER *enc;
 	EVP_MD *md;
+	SSL_SESSION ss;
 
 	if (c != NULL)
 		{
-		if (!ssl_cipher_get_evp(c,&enc,&md))
+		ss.cipher=c;
+		if (!ssl_cipher_get_evp(&ss,&enc,&md,NULL))
 			return(0);
 
 		a=EVP_CIPHER_key_length(enc)*8;
 
-		if (c->algorithms & SSL_EXP)
+		if (SSL_C_IS_EXPORT(c))
 			{
-			ret=40;
+			ret=SSL_C_EXPORT_KEYLENGTH(c)*8;
 			}
 		else
 			{
@@ -754,5 +791,57 @@ int *alg_bits;
 	if (alg_bits != NULL) *alg_bits=a;
 	
 	return(ret);
+	}
+
+SSL_COMP *ssl3_comp_find(sk,n)
+STACK *sk;
+int n;
+	{
+	SSL_COMP *ctmp;
+	int i,nn;
+
+	if ((n == 0) || (sk == NULL)) return(NULL);
+	nn=sk_num(sk);
+	for (i=0; i<nn; i++)
+		{
+		ctmp=(SSL_COMP *)sk_value(sk,i);
+		if (ctmp->id == n)
+			return(ctmp);
+		}
+	return(NULL);
+	}
+
+static int sk_comp_cmp(a,b)
+SSL_COMP **a,**b;
+	{
+	return((*a)->id-(*b)->id);
+	}
+
+STACK *SSL_COMP_get_compression_methods()
+	{
+	return(ssl_comp_methods);
+	}
+
+int SSL_COMP_add_compression_method(id,cm)
+int id;
+COMP_METHOD *cm;
+	{
+	SSL_COMP *comp;
+	STACK *sk;
+
+	comp=(SSL_COMP *)Malloc(sizeof(SSL_COMP));
+	comp->id=id;
+	comp->method=cm;
+	if (ssl_comp_methods == NULL)
+		sk=ssl_comp_methods=sk_new(sk_comp_cmp);
+	else
+		sk=ssl_comp_methods;
+	if ((sk == NULL) || !sk_push(sk,(char *)comp))
+		{
+		SSLerr(SSL_F_SSL_COMP_ADD_COMPRESSION_METHOD,ERR_R_MALLOC_FAILURE);
+		return(0);
+		}
+	else
+		return(1);
 	}
 

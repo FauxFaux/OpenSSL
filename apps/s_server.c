@@ -75,9 +75,9 @@
 #include "s_apps.h"
 
 #ifndef NOPROTO
-static RSA MS_CALLBACK *tmp_rsa_cb(SSL *s, int export);
-static int sv_body(char *hostname, int s);
-static int www_body(char *hostname, int s);
+static RSA MS_CALLBACK *tmp_rsa_cb(SSL *s, int export,int keylength);
+static int sv_body(char *hostname, int s, char *context);
+static int www_body(char *hostname, int s, char *context);
 static void close_accept_socket(void );
 static void sv_usage(void);
 static int init_ssl_connection(SSL *s);
@@ -190,12 +190,15 @@ static void sv_usage()
 	BIO_printf(bio_err,"usage: s_server [args ...]\n");
 	BIO_printf(bio_err,"\n");
 	BIO_printf(bio_err," -accept arg   - port to accept on (default is %d)\n",PORT);
+	BIO_printf(bio_err," -context arg  - set session ID context\n");
 	BIO_printf(bio_err," -verify arg   - turn on peer certificate verification\n");
 	BIO_printf(bio_err," -Verify arg   - turn on peer certificate verification, must have a cert.\n");
 	BIO_printf(bio_err," -cert arg     - certificate file to use, PEM format assumed\n");
 	BIO_printf(bio_err,"                 (default is %s)\n",TEST_CERT);
 	BIO_printf(bio_err," -key arg      - RSA file to use, PEM format assumed, in cert file if\n");
 	BIO_printf(bio_err,"                 not specified (default is %s)\n",TEST_CERT);
+	BIO_printf(bio_err," -dcert arg    - second certificate file to use (usually for DSA)\n");
+	BIO_printf(bio_err," -dkey arg     - second private key file to use (usually for DSA)\n");
 #ifdef FIONBIO
 	BIO_printf(bio_err," -nbio         - Run with non-blocking IO\n");
 #endif
@@ -205,7 +208,7 @@ static void sv_usage()
 	BIO_printf(bio_err," -CApath arg   - PEM format directory of CA's\n");
 	BIO_printf(bio_err," -CAfile arg   - PEM format file of CA's\n");
 	BIO_printf(bio_err," -nocert       - Don't use any certificates (Anon-DH)\n");
-	BIO_printf(bio_err," -cipher arg   - play with 'ssleay ciphers' to see what goes here\n");
+	BIO_printf(bio_err," -cipher arg   - play with 'openssl ciphers' to see what goes here\n");
 	BIO_printf(bio_err," -quiet        - No server output\n");
 	BIO_printf(bio_err," -no_tmp_rsa   - Do not generate a tmp RSA key\n");
 	BIO_printf(bio_err," -ssl2         - Just talk SSLv2\n");
@@ -216,7 +219,7 @@ static void sv_usage()
 	BIO_printf(bio_err," -no_tls1      - Just disable TLSv1\n");
 	BIO_printf(bio_err," -bugs         - Turn on SSL bug compatability\n");
 	BIO_printf(bio_err," -www          - Respond to a 'GET /' with a status page\n");
-	BIO_printf(bio_err," -WWW          - Returns requested page from to a 'GET <path> HTTP/1.0'\n");
+	BIO_printf(bio_err," -WWW          - Respond to a 'GET /<path> HTTP/1.0' with file ./<path>\n");
 	}
 
 static int local_argc=0;
@@ -229,6 +232,7 @@ char *argv[];
 	{
 	short port=PORT;
 	char *CApath=NULL,*CAfile=NULL;
+	char *context = NULL;
 	int badop=0,bugs=0;
 	int ret=1;
 	int off=0;
@@ -289,6 +293,11 @@ char *argv[];
 			if (--argc < 1) goto bad;
 			verify_depth=atoi(*(++argv));
 			BIO_printf(bio_err,"verify depth is %d, must return a certificate\n",verify_depth);
+			}
+		else if	(strcmp(*argv,"-context") == 0)
+			{
+			if (--argc < 1) goto bad;
+			context= *(++argv);
 			}
 		else if	(strcmp(*argv,"-cert") == 0)
 			{
@@ -505,13 +514,13 @@ bad:
 		SSL_CTX_set_cipher_list(ctx,cipher);
 	SSL_CTX_set_verify(ctx,s_server_verify,verify_callback);
 
-	SSL_CTX_set_client_CA_list(ctx,SSL_load_client_CA_file(s_cert_file));
+	SSL_CTX_set_client_CA_list(ctx,SSL_load_client_CA_file(CAfile));
 
 	BIO_printf(bio_s_out,"ACCEPT\n");
 	if (www)
-		do_server(port,&accept_socket,www_body);
+		do_server(port,&accept_socket,www_body, context);
 	else
-		do_server(port,&accept_socket,sv_body);
+		do_server(port,&accept_socket,sv_body, context);
 	print_stats(bio_s_out,ctx);
 	ret=0;
 end:
@@ -551,9 +560,10 @@ SSL_CTX *ssl_ctx;
 		SSL_CTX_sess_get_cache_size(ssl_ctx));
 	}
 
-static int sv_body(hostname, s)
+static int sv_body(hostname, s, context)
 char *hostname;
 int s;
+char *context;
 	{
 	char *buf=NULL;
 	fd_set readfds;
@@ -580,8 +590,11 @@ int s;
 		}
 #endif
 
-	if (con == NULL)
+	if (con == NULL) {
 		con=(SSL *)SSL_new(ctx);
+		if(context)
+		      SSL_set_session_id_context(con, context, strlen(context));
+	}
 	SSL_clear(con);
 
 	sbio=BIO_new_socket(s,BIO_NOCLOSE);
@@ -645,7 +658,7 @@ int s;
 					/* strcpy(buf,"server side RE-NEGOTIATE\n"); */
 					}
 				if ((buf[0] == 'R') &&
-					((buf[1] == '\0') || (buf[1] == '\r')))
+					((buf[1] == '\n') || (buf[1] == '\r')))
 					{
 					SSL_set_verify(con,
 						SSL_VERIFY_PEER|SSL_VERIFY_CLIENT_ONCE,NULL);
@@ -868,9 +881,10 @@ char *file;
 	}
 #endif
 
-static int www_body(hostname, s)
+static int www_body(hostname, s, context)
 char *hostname;
 int s;
+char *context;
 	{
 	char *buf=NULL;
 	int ret=1;
@@ -903,6 +917,7 @@ int s;
 	if (!BIO_set_write_buffer_size(io,bufsize)) goto err;
 
 	if ((con=(SSL *)SSL_new(ctx)) == NULL) goto err;
+	if(context) SSL_set_session_id_context(con, context, strlen(context));
 
 	sbio=BIO_new_socket(s,BIO_NOCLOSE);
 	if (s_nbio_test)
@@ -1211,9 +1226,10 @@ err:
 	return(ret);
 	}
 
-static RSA MS_CALLBACK *tmp_rsa_cb(s,export)
+static RSA MS_CALLBACK *tmp_rsa_cb(s,export,keylength)
 SSL *s;
 int export;
+int keylength;
 	{
 	static RSA *rsa_tmp=NULL;
 
@@ -1221,11 +1237,11 @@ int export;
 		{
 		if (!s_quiet)
 			{
-			BIO_printf(bio_err,"Generating temp (512 bit) RSA key...");
+			BIO_printf(bio_err,"Generating temp (%d bit) RSA key...",keylength);
 			BIO_flush(bio_err);
 			}
 #ifndef NO_RSA
-		rsa_tmp=RSA_generate_key(512,RSA_F4,NULL,NULL);
+		rsa_tmp=RSA_generate_key(keylength,RSA_F4,NULL,NULL);
 #endif
 		if (!s_quiet)
 			{

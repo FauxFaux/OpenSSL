@@ -175,7 +175,7 @@ X509_OBJECT *ret;
 	{
 	if ((ctx->method == NULL) || (ctx->method->get_by_alias == NULL))
 		return(X509_LU_FAIL);
-	return(ctx->method->get_by_alias(ctx,str,len,ret));
+	return(ctx->method->get_by_alias(ctx,type,str,len,ret));
 	}
 
 static unsigned long x509_object_hash(a)
@@ -231,6 +231,7 @@ X509_STORE *X509_STORE_new()
 	ret->verify_cb=NULL;
 	memset(&ret->ex_data,0,sizeof(CRYPTO_EX_DATA));
 	ret->references=1;
+	ret->depth=0;
 	return(ret);
 	}
 
@@ -257,6 +258,9 @@ X509_STORE *vfy;
 	int i;
 	STACK *sk;
 	X509_LOOKUP *lu;
+
+	if(vfy == NULL)
+	    return;
 
 	sk=vfy->get_cert_methods;
 	for (i=0; i<sk_num(sk); i++)

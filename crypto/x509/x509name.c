@@ -154,7 +154,7 @@ X509_NAME *name;
 int loc;
 	{
 	X509_NAME_ENTRY *ret;
-	int i,j,n,set_prev,set_next;
+	int i,n,set_prev,set_next;
 	STACK *sk;
 
 	if ((name == NULL) || (sk_num(name->entries) <= loc) || (loc < 0))
@@ -181,11 +181,8 @@ int loc;
 	 * so basically only if prev and next differ by 2, then
 	 * re-number down by 1 */
 	if (set_prev+1 < set_next)
-		{
-		j=set_next-set_prev-1;
 		for (i=loc; i<n; i++)
-			((X509_NAME_ENTRY *)sk_value(sk,loc-1))->set-=j;
-		}
+			((X509_NAME_ENTRY *)sk_value(sk,i))->set--;
 	return(ret);
 	}
 
@@ -254,7 +251,7 @@ int set;
 	return(1);
 err:
 	if (new_name != NULL)
-		X509_NAME_ENTRY_free(ne);
+		X509_NAME_ENTRY_free(new_name);
 	return(0);
 	}
 

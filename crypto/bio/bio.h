@@ -322,13 +322,6 @@ typedef struct bio_f_buffer_ctx_struct
 #define BIO_set_app_data(s,arg)		BIO_set_ex_data(s,0,(char *)arg)
 #define BIO_get_app_data(s)		BIO_get_ex_data(s,0)
 
-int BIO_get_ex_num(BIO *bio);
-int BIO_set_ex_data(BIO *bio,int idx,char *data);
-char *BIO_get_ex_data(BIO *bio,int idx);
-void BIO_set_ex_free_func(BIO *bio,int idx,void (*cb)());
-int BIO_get_ex_new_index(long argl, char *argp, int (*new_func)(),
-	int (*dup_func)(), void (*free_func)());
-
 /* BIO_s_connect() and BIO_s_socks4a_connect() */
 #define BIO_set_conn_hostname(b,name) BIO_ctrl(b,BIO_C_SET_CONNECT,0,(char *)name)
 #define BIO_set_conn_port(b,port) BIO_ctrl(b,BIO_C_SET_CONNECT,1,(char *)port)
@@ -383,8 +376,10 @@ int BIO_get_ex_new_index(long argl, char *argp, int (*new_func)(),
 #define BIO_seek(b,ofs)	(int)BIO_ctrl(b,BIO_C_FILE_SEEK,ofs,NULL)
 #define BIO_tell(b)	(int)BIO_ctrl(b,BIO_C_FILE_TELL,0,NULL)
 
+/* name is cast to lose const, but might be better to route through a function
+   so we can do it safely */
 #define BIO_read_filename(b,name) BIO_ctrl(b,BIO_C_SET_FILENAME, \
-		BIO_CLOSE|BIO_FP_READ,name)
+		BIO_CLOSE|BIO_FP_READ,(char *)name)
 #define BIO_write_filename(b,name) BIO_ctrl(b,BIO_C_SET_FILENAME, \
 		BIO_CLOSE|BIO_FP_WRITE,name)
 #define BIO_append_filename(b,name) BIO_ctrl(b,BIO_C_SET_FILENAME, \
@@ -443,6 +438,14 @@ int BIO_get_ex_new_index(long argl, char *argp, int (*new_func)(),
 #endif
 
 #ifndef NOPROTO
+
+int BIO_get_ex_num(BIO *bio);
+int BIO_set_ex_data(BIO *bio,int idx,char *data);
+char *BIO_get_ex_data(BIO *bio,int idx);
+void BIO_set_ex_free_func(BIO *bio,int idx,void (*cb)());
+int BIO_get_ex_new_index(long argl, char *argp, int (*new_func)(),
+	int (*dup_func)(), void (*free_func)());
+
 #  if defined(WIN16) && defined(_WINDLL)
 BIO_METHOD *BIO_s_file_internal(void);
 BIO *BIO_new_file_internal(char *filename, char *mode);
@@ -459,6 +462,14 @@ BIO *BIO_new_fp(FILE *stream, int close_flag);
 #    define BIO_new_fp_internal		BIO_s_file
 #  endif /* FP_API */
 #else
+
+/* These two aren't currently implemented */
+/*int BIO_get_ex_num();*/
+/*void BIO_set_ex_free_func();*/
+int BIO_set_ex_data();
+char *BIO_get_ex_data();
+int BIO_get_ex_new_index();
+
 #  if defined(WIN16) && defined(_WINDLL)
 BIO_METHOD *BIO_s_file_internal();
 BIO *BIO_new_file_internal();
@@ -508,6 +519,7 @@ BIO_METHOD *BIO_s_socket(void);
 BIO_METHOD *BIO_s_connect(void);
 BIO_METHOD *BIO_s_accept(void);
 BIO_METHOD *BIO_s_fd(void);
+BIO_METHOD *BIO_s_log(void);
 BIO_METHOD *BIO_s_null(void);
 BIO_METHOD *BIO_f_null(void);
 BIO_METHOD *BIO_f_buffer(void);
@@ -574,6 +586,7 @@ BIO_METHOD *BIO_s_socket();
 BIO_METHOD *BIO_s_connect();
 BIO_METHOD *BIO_s_accept();
 BIO_METHOD *BIO_s_fd();
+BIO_METHOD *BIO_s_log();
 BIO_METHOD *BIO_s_null();
 BIO_METHOD *BIO_f_null();
 BIO_METHOD *BIO_f_buffer();

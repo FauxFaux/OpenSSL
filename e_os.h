@@ -102,6 +102,9 @@ extern "C" {
 #ifdef WIN32
 #define get_last_sys_error()	GetLastError()
 #define clear_sys_error()	SetLastError(0)
+#if !defined(WINNT)
+#define WIN_CONSOLE_BUG
+#endif
 #else
 #define get_last_sys_error()	errno
 #define clear_sys_error()	errno=0
@@ -143,6 +146,12 @@ extern "C" {
 
 #ifndef S_IFMT
 #define S_IFMT	_S_IFMT
+
+#if !defined(WINNT)
+#define NO_SYSLOG
+#endif
+#define NO_DIRENT
+
 #endif
 
 #define strncasecmp(a,b,c)	strnicmp((a),(b),(c))
@@ -172,7 +181,8 @@ extern "C" {
 #ifndef R_OK
 #  define R_OK	4
 #endif
-#  define SSLEAY_CONF	"ssleay.cnf"
+#  define OPENSSL_CONF	"openssl.cnf"
+#  define SSLEAY_CONF	OPENSSL_CONF
 #  define NUL_DEV	"nul"
 #  define RFILE		".rnd"
 
@@ -184,7 +194,8 @@ extern "C" {
 #    include <unistd.h>
 #  endif
 
-#  define SSLEAY_CONF	"ssleay.cnf"
+#  define OPENSSL_CONF	"openssl.cnf"
+#  define SSLEAY_CONF	OPENSSL_CONF
 #  define RFILE		".rnd"
 #  define LIST_SEPARATOR_CHAR ':'
 #  ifndef MONOLITH

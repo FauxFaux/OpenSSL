@@ -75,6 +75,7 @@
  */
 
 #ifndef NOPROTO
+static SSL_METHOD *ssl3_get_server_method(int ver);
 static int ssl3_get_client_hello(SSL *s);
 static int ssl3_send_server_hello(SSL *s);
 static int ssl3_send_server_key_exchange(SSL *s);
@@ -87,6 +88,7 @@ static int ssl3_send_hello_request(SSL *s);
 
 #else
 
+static SSL_METHOD *ssl3_get_server_method();
 static int ssl3_get_client_hello();
 static int ssl3_send_server_hello();
 static int ssl3_send_server_key_exchange();
@@ -133,10 +135,9 @@ SSL *s;
 	long num1;
 	int ret= -1;
 	CERT *ct;
-	BIO *under;
 	int new_state,state,skip=0;
 
-	RAND_seed((unsigned char *)&Time,sizeof(Time));
+	RAND_seed(&Time,sizeof(Time));
 	ERR_clear_error();
 	clear_sys_error();
 
@@ -176,6 +177,7 @@ SSL *s;
 		case SSL_ST_BEFORE|SSL_ST_ACCEPT:
 		case SSL_ST_OK|SSL_ST_ACCEPT:
 
+			s->server=1;
 			if (cb != NULL) cb(s,SSL_CB_HANDSHAKE_START,1);
 
 			if ((s->version>>8) != 3)
@@ -215,11 +217,11 @@ SSL *s;
 				{
 				s->state=SSL3_ST_SR_CLNT_HELLO_A;
 				ssl3_init_finished_mac(s);
-				s->ctx->sess_accept++;
+				s->ctx->stats.sess_accept++;
 				}
 			else
 				{
-				s->ctx->sess_accept_renegotiate++;
+				s->ctx->stats.sess_accept_renegotiate++;
 				s->state=SSL3_ST_SW_HELLO_REQ_A;
 				}
 			break;
@@ -238,15 +240,6 @@ SSL *s;
 			break;
 
 		case SSL3_ST_SW_HELLO_REQ_C:
-			/* remove buffering on output */
-			under=BIO_pop(s->wbio);
-			if (under != NULL)
-				s->wbio=under;
-			else
-				abort(); /* ok */
-			BIO_free(s->bbio);
-			s->bbio=NULL;
-
 			s->state=SSL_ST_OK;
 			ret=1;
 			goto end;
@@ -316,16 +309,16 @@ SSL *s;
 
 			/* only send if a DH key exchange, fortezza or
 			 * RSA but we have a sign only certificate */
-			if ( s->s3->tmp.use_rsa_tmp ||
-			    (l & (SSL_DH|SSL_kFZA)) ||
-			    ((l & SSL_kRSA) &&
-			     ((ct->pkeys[SSL_PKEY_RSA_ENC].privatekey == NULL)||
-			      ((l & SSL_EXPORT) &&
-			       (EVP_PKEY_size(ct->pkeys[SSL_PKEY_RSA_ENC].privatekey)*8 > 512)
-			      )
-			     )
+			if (s->s3->tmp.use_rsa_tmp
+			    || (l & (SSL_DH|SSL_kFZA))
+			    || ((l & SSL_kRSA)
+				&& (ct->pkeys[SSL_PKEY_RSA_ENC].privatekey == NULL
+				    || (SSL_IS_EXPORT(l)
+					&& EVP_PKEY_size(ct->pkeys[SSL_PKEY_RSA_ENC].privatekey)*8 > SSL_EXPORT_PKEYLENGTH(l)
+					)
+				    )
+				)
 			    )
-			   )
 				{
 				ret=ssl3_send_server_key_exchange(s);
 				if (ret <= 0) goto end;
@@ -478,20 +471,14 @@ SSL *s;
 			s->init_buf=NULL;
 
 			/* remove buffering on output */
-			under=BIO_pop(s->wbio);
-			if (under != NULL)
-				s->wbio=under;
-			else
-				abort(); /* ok */
-			BIO_free(s->bbio);
-			s->bbio=NULL;
+			ssl_free_wbio_buffer(s);
 
 			s->new_session=0;
 			s->init_num=0;
 
 			ssl_update_cache(s,SSL_SESS_CACHE_SERVER);
 
-			s->ctx->sess_accept_good++;
+			s->ctx->stats.sess_accept_good++;
 			/* s->server=1; */
 			s->handshake_func=ssl3_accept;
 			ret=1;
@@ -565,8 +552,9 @@ SSL *s;
 	int i,j,ok,al,ret= -1;
 	long n;
 	unsigned long id;
-	unsigned char *p,*d;
+	unsigned char *p,*d,*q;
 	SSL_CIPHER *c;
+	SSL_COMP *comp=NULL;
 	STACK *ciphers=NULL;
 
 	/* We do this so that we will respond with our native type.
@@ -593,6 +581,7 @@ SSL *s;
 	/* The version number has already been checked in ssl3_get_message.
 	 * I a native TLSv1/SSLv3 method, the match must be correct except
 	 * perhaps for the first message */
+/*	s->client_version=(((int)p[0])<<8)|(int)p[1]; */
 	p+=2;
 
 	/* load the client random */
@@ -651,9 +640,16 @@ SSL *s;
 		j=0;
 		id=s->session->cipher->id;
 
+#ifdef CIPHER_DEBUG
+		printf("client sent %d ciphers\n",sk_num(ciphers));
+#endif
 		for (i=0; i<sk_num(ciphers); i++)
 			{
 			c=(SSL_CIPHER *)sk_value(ciphers,i);
+#ifdef CIPHER_DEBUG
+			printf("client [%2d of %2d]:%s\n",
+				i,sk_num(ciphers),SSL_CIPHER_get_name(c));
+#endif
 			if (c->id == id)
 				{
 				j=1;
@@ -681,8 +677,11 @@ SSL *s;
 
 	/* compression */
 	i= *(p++);
+	q=p;
 	for (j=0; j<i; j++)
+		{
 		if (p[j] == 0) break;
+		}
 
 	p+=i;
 	if (j >= i)
@@ -691,6 +690,35 @@ SSL *s;
 		al=SSL_AD_DECODE_ERROR;
 		SSLerr(SSL_F_SSL3_GET_CLIENT_HELLO,SSL_R_NO_COMPRESSION_SPECIFIED);
 		goto f_err;
+		}
+
+	/* Worst case, we will use the NULL compression, but if we have other
+	 * options, we will now look for them.  We have i-1 compression
+	 * algorithms from the client, starting at q. */
+	s->s3->tmp.new_compression=NULL;
+	if (s->ctx->comp_methods != NULL)
+		{ /* See if we have a match */
+		int m,nn,o,v,done=0;
+
+		nn=sk_num(s->ctx->comp_methods);
+		for (m=0; m<nn; m++)
+			{
+			comp=(SSL_COMP *)sk_value(s->ctx->comp_methods,m);
+			v=comp->id;
+			for (o=0; o<i; o++)
+				{
+				if (v == q[o])
+					{
+					done=1;
+					break;
+					}
+				}
+			if (done) break;
+			}
+		if (done)
+			s->s3->tmp.new_compression=comp;
+		else
+			comp=NULL;
 		}
 
 	/* TLS does not mind if there is extra stuff */
@@ -706,13 +734,12 @@ SSL *s;
 			}
 		}
 
-	/* do nothing with compression */
-
 	/* Given s->session->ciphers and ssl_get_ciphers_by_id(s), we must
 	 * pick a cipher */
 
 	if (!s->hit)
 		{
+		s->session->compress_meth=(comp == NULL)?0:comp->id;
 		if (s->session->ciphers != NULL)
 			sk_free(s->session->ciphers);
 		s->session->ciphers=ciphers;
@@ -750,7 +777,7 @@ SSL *s;
 				c=(SSL_CIPHER *)sk_value(sk,i);
 				if (c->algorithms & SSL_eNULL)
 					nc=c;
-				if (c->algorithms & SSL_EXP)
+				if (SSL_C_IS_EXPORT(c))
 					ec=c;
 				}
 			if (nc != NULL)
@@ -833,7 +860,10 @@ SSL *s;
 		p+=i;
 
 		/* put the compression method */
-		*(p++)=0;
+		if (s->s3->tmp.new_compression == NULL)
+			*(p++)=0;
+		else
+			*(p++)=s->s3->tmp.new_compression->id;
 
 		/* do the header */
 		l=(p-d);
@@ -915,8 +945,8 @@ SSL *s;
 			if ((rsa == NULL) && (s->ctx->default_cert->rsa_tmp_cb != NULL))
 				{
 				rsa=s->ctx->default_cert->rsa_tmp_cb(s,
-					(s->s3->tmp.new_cipher->algorithms|
-					SSL_NOT_EXP)?0:1);
+				      SSL_C_IS_EXPORT(s->s3->tmp.new_cipher),
+				      SSL_C_EXPORT_PKEYLENGTH(s->s3->tmp.new_cipher));
 				CRYPTO_add(&rsa->references,1,CRYPTO_LOCK_RSA);
 				cert->rsa_tmp=rsa;
 				}
@@ -938,8 +968,8 @@ SSL *s;
 			dhp=cert->dh_tmp;
 			if ((dhp == NULL) && (cert->dh_tmp_cb != NULL))
 				dhp=cert->dh_tmp_cb(s,
-					(s->s3->tmp.new_cipher->algorithms|
-					SSL_NOT_EXP)?0:1);
+				      !SSL_C_IS_EXPORT(s->s3->tmp.new_cipher),
+				      SSL_C_EXPORT_PKEYLENGTH(s->s3->tmp.new_cipher));
 			if (dhp == NULL)
 				{
 				al=SSL_AD_HANDSHAKE_FAILURE;
@@ -953,13 +983,16 @@ SSL *s;
 				}
 
 			s->s3->tmp.dh=dh;
-			if (((dhp->pub_key == NULL) ||
-			     (dhp->priv_key == NULL) ||
-			     (s->options & SSL_OP_SINGLE_DH_USE)) &&
-			    (!DH_generate_key(dh)))
+			if ((dhp->pub_key == NULL ||
+			     dhp->priv_key == NULL ||
+			     (s->options & SSL_OP_SINGLE_DH_USE)))
 				{
-				SSLerr(SSL_F_SSL3_SEND_SERVER_KEY_EXCHANGE,ERR_R_DH_LIB);
-				goto err;
+				if(!DH_generate_key(dh))
+				    {
+				    SSLerr(SSL_F_SSL3_SEND_SERVER_KEY_EXCHANGE,
+					   ERR_R_DH_LIB);
+				    goto err;
+				    }
 				}
 			else
 				{
@@ -1261,13 +1294,26 @@ SSL *s;
 #if 1
 		/* If a bad decrypt, use a random master key */
 		if ((i != SSL_MAX_MASTER_KEY_LENGTH) ||
-			((p[0] != (s->version>>8)) ||
-			 (p[1] != (s->version & 0xff))))
+			((p[0] != (s->client_version>>8)) ||
+			 (p[1] != (s->client_version & 0xff))))
 			{
-			p[0]=(s->version>>8);
-			p[1]=(s->version & 0xff);
-			RAND_bytes(&(p[2]),SSL_MAX_MASTER_KEY_LENGTH-2);
-			i=SSL_MAX_MASTER_KEY_LENGTH;
+			int bad=1;
+
+			if ((i == SSL_MAX_MASTER_KEY_LENGTH) &&
+				(p[0] == (s->version>>8)) &&
+				(p[1] == 0))
+				{
+				if (s->options & SSL_OP_TLS_ROLLBACK_BUG)
+					bad=0;
+				}
+			if (bad)
+				{
+				p[0]=(s->version>>8);
+				p[1]=(s->version & 0xff);
+				RAND_bytes(&(p[2]),SSL_MAX_MASTER_KEY_LENGTH-2);
+				i=SSL_MAX_MASTER_KEY_LENGTH;
+				}
+			/* else, an SSLeay bug, ssl only server, tls client */
 			}
 #else
 		if (i != SSL_MAX_MASTER_KEY_LENGTH)
@@ -1505,6 +1551,7 @@ f_err:
 		ssl3_send_alert(s,SSL3_AL_FATAL,al);
 		}
 end:
+	EVP_PKEY_free(pkey);
 	return(ret);
 	}
 
@@ -1636,6 +1683,8 @@ SSL *s;
 	if (s->session->peer != NULL)
 		X509_free(s->session->peer);
 	s->session->peer=(X509 *)sk_shift(sk);
+	s->session->cert->cert_chain=sk;
+	sk=NULL;
 
 	ret=1;
 	if (0)

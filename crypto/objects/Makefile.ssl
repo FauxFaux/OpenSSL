@@ -9,7 +9,7 @@ INCLUDES= -I.. -I../../include
 CFLAG=-g
 INSTALLTOP=/usr/local/ssl
 MAKE=		make -f Makefile.ssl
-MAKEDEPEND=	makedepend -f Makefile.ssl
+MAKEDEPEND=	$(TOP)/util/domd $(TOP)
 MAKEFILE=	Makefile.ssl
 AR=		ar r
 
@@ -49,11 +49,10 @@ files:
 	perl $(TOP)/util/files.pl Makefile.ssl >> $(TOP)/MINFO
 
 links:
-	/bin/rm -f Makefile
-	$(TOP)/util/point.sh Makefile.ssl Makefile ;
-	$(TOP)/util/mklink.sh ../../include $(EXHEADER)
-	$(TOP)/util/mklink.sh ../../test $(TEST)
-	$(TOP)/util/mklink.sh ../../apps $(APPS)
+	@$(TOP)/util/point.sh Makefile.ssl Makefile
+	@$(TOP)/util/mklink.sh ../../include $(EXHEADER)
+	@$(TOP)/util/mklink.sh ../../test $(TEST)
+	@$(TOP)/util/mklink.sh ../../apps $(APPS)
 
 install:
 	@for i in $(EXHEADER) ; \
@@ -78,10 +77,27 @@ dclean:
 	mv -f Makefile.new $(MAKEFILE)
 
 clean:
-	/bin/rm -f *.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
+	rm -f *.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
 
-errors:
+errors: $(ERRC).c
+
+$(ERRC).c: $(ERR).err
 	perl $(TOP)/util/err-ins.pl $(ERR).err $(ERR).h
 	perl ../err/err_genc.pl -s $(ERR).h $(ERRC).c
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
+
+o_names.o: ../../include/asn1.h ../../include/bio.h ../../include/bn.h
+o_names.o: ../../include/crypto.h ../../include/lhash.h
+o_names.o: ../../include/opensslv.h ../../include/stack.h objects.h
+obj_dat.o: ../../include/asn1.h ../../include/bio.h ../../include/bn.h
+obj_dat.o: ../../include/buffer.h ../../include/crypto.h ../../include/e_os.h
+obj_dat.o: ../../include/err.h ../../include/lhash.h ../../include/opensslv.h
+obj_dat.o: ../../include/stack.h ../cryptlib.h obj_dat.h objects.h
+obj_err.o: ../../include/asn1.h ../../include/bio.h ../../include/bn.h
+obj_err.o: ../../include/crypto.h ../../include/err.h ../../include/opensslv.h
+obj_err.o: ../../include/stack.h objects.h
+obj_lib.o: ../../include/asn1.h ../../include/bio.h ../../include/bn.h
+obj_lib.o: ../../include/buffer.h ../../include/crypto.h ../../include/e_os.h
+obj_lib.o: ../../include/err.h ../../include/lhash.h ../../include/opensslv.h
+obj_lib.o: ../../include/stack.h ../cryptlib.h objects.h

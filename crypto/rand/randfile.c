@@ -57,10 +57,12 @@
  */
 
 #include <stdio.h>
-#include "cryptlib.h"
+#include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include "e_os.h"
 #include "rand.h"
 
 #undef BUFSIZE
@@ -70,7 +72,7 @@
 /* #define RFILE ".rand" - defined in ../../e_os.h */
 
 int RAND_load_file(file,bytes)
-char *file;
+const char *file;
 long bytes;
 	{
 	MS_STATIC unsigned char buf[BUFSIZE];
@@ -82,12 +84,12 @@ long bytes;
 
 	i=stat(file,&sb);
 	/* If the state fails, put some crap in anyway */
-	RAND_seed((unsigned char *)&sb,sizeof(sb));
+	RAND_seed(&sb,sizeof(sb));
 	ret+=sizeof(sb);
 	if (i < 0) return(0);
 	if (bytes <= 0) return(ret);
 
-	in=fopen(file,"br");
+	in=fopen(file,"rb");
 	if (in == NULL) goto err;
 	for (;;)
 		{
@@ -107,7 +109,7 @@ err:
 	}
 
 int RAND_write_file(file)
-char *file;
+const char *file;
 	{
 	unsigned char buf[BUFSIZE];
 	int i,ret=0;

@@ -58,6 +58,7 @@
 
 #include <stdio.h>
 #include <errno.h>
+#include "cryptlib.h"
 #include "des_locl.h"
 
 /* This has some uglies in it but it works - even over sockets. */
@@ -69,7 +70,7 @@ int fd;
 char *buf;
 int len;
 des_key_schedule sched;
-des_cblock (*iv);
+des_cblock iv;
 	{
 	/* data to be unencrypted */
 	int net_num=0;
@@ -87,17 +88,17 @@ des_cblock (*iv);
 
 	if (tmpbuf == NULL)
 		{
-		tmpbuf=(char *)malloc(BSIZE);
+		tmpbuf=(char *)Malloc(BSIZE);
 		if (tmpbuf == NULL) return(-1);
 		}
 	if (net == NULL)
 		{
-		net=(unsigned char *)malloc(BSIZE);
+		net=(unsigned char *)Malloc(BSIZE);
 		if (net == NULL) return(-1);
 		}
 	if (unnet == NULL)
 		{
-		unnet=(char *)malloc(BSIZE);
+		unnet=(char *)Malloc(BSIZE);
 		if (unnet == NULL) return(-1);
 		}
 	/* left over data from last decrypt */
@@ -165,11 +166,9 @@ des_cblock (*iv);
 	if (len < num)
 		{
 		if (des_rw_mode & DES_PCBC_MODE)
-			des_pcbc_encrypt((des_cblock *)net,(des_cblock *)unnet,
-				num,sched,iv,DES_DECRYPT);
+			des_pcbc_encrypt(net,unnet,num,sched,iv,DES_DECRYPT);
 		else
-			des_cbc_encrypt((des_cblock *)net,(des_cblock *)unnet,
-				num,sched,iv,DES_DECRYPT);
+			des_cbc_encrypt(net,unnet,num,sched,iv,DES_DECRYPT);
 		memcpy(buf,unnet,(unsigned int)len);
 		unnet_start=len;
 		unnet_left=(int)num-len;
@@ -189,13 +188,11 @@ des_cblock (*iv);
 			{
 
 			if (des_rw_mode & DES_PCBC_MODE)
-				des_pcbc_encrypt((des_cblock *)net,
-					(des_cblock *)tmpbuf,
-					num,sched,iv,DES_DECRYPT);
+				des_pcbc_encrypt(net,tmpbuf,num,sched,iv,
+						 DES_DECRYPT);
 			else
-				des_cbc_encrypt((des_cblock *)net,
-					(des_cblock *)tmpbuf,
-					num,sched,iv,DES_DECRYPT);
+				des_cbc_encrypt(net,tmpbuf,num,sched,iv,
+						DES_DECRYPT);
 
 			/* eay 26/08/92 fix a bug that returned more
 			 * bytes than you asked for (returned len bytes :-( */
@@ -204,13 +201,11 @@ des_cblock (*iv);
 		else
 			{
 			if (des_rw_mode & DES_PCBC_MODE)
-				des_pcbc_encrypt((des_cblock *)net,
-					(des_cblock *)buf,num,sched,iv,
-					DES_DECRYPT);
+				des_pcbc_encrypt(net,buf,num,sched,iv,
+						 DES_DECRYPT);
 			else
-				des_cbc_encrypt((des_cblock *)net,
-					(des_cblock *)buf,num,sched,iv,
-					DES_DECRYPT);
+				des_cbc_encrypt(net,buf,num,sched,iv,
+						DES_DECRYPT);
 			}
 		}
 	return((int)num);

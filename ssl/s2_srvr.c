@@ -64,6 +64,7 @@
 #include "evp.h"
 
 #ifndef NOPROTO
+static SSL_METHOD *ssl2_get_server_method(int ver);
 static int get_client_master_key(SSL *s);
 static int get_client_hello(SSL *s);
 static int server_hello(SSL *s); 
@@ -74,6 +75,7 @@ static int request_certificate(SSL *s);
 static int ssl_rsa_private_decrypt(CERT *c, int len, unsigned char *from,
 	unsigned char *to,int padding);
 #else
+static SSL_METHOD *ssl2_get_server_method();
 static int get_client_master_key();
 static int get_client_hello();
 static int server_hello(); 
@@ -121,7 +123,7 @@ SSL *s;
 	void (*cb)()=NULL;
 	int new_state,state;
 
-	RAND_seed((unsigned char *)&l,sizeof(l));
+	RAND_seed(&l,sizeof(l));
 	ERR_clear_error();
 	clear_sys_error();
 
@@ -153,6 +155,7 @@ SSL *s;
 		case SSL_ST_BEFORE|SSL_ST_ACCEPT:
 		case SSL_ST_OK|SSL_ST_ACCEPT:
 
+			s->server=1;
 			if (cb != NULL) cb(s,SSL_CB_HANDSHAKE_START,1);
 
 			s->version=SSL2_VERSION;
@@ -166,7 +169,7 @@ SSL *s;
 				{ ret= -1; goto end; }
 			s->init_buf=buf;
 			s->init_num=0;
-			s->ctx->sess_accept++;
+			s->ctx->stats.sess_accept++;
 			s->handshake_func=ssl2_accept;
 			s->state=SSL2_ST_GET_CLIENT_HELLO_A;
 			BREAK;
@@ -293,13 +296,14 @@ SSL *s;
 
 		case SSL_ST_OK:
 			BUF_MEM_free(s->init_buf);
+			ssl_free_wbio_buffer(s);
 			s->init_buf=NULL;
 			s->init_num=0;
 		/*	ERR_clear_error();*/
 
 			ssl_update_cache(s,SSL_SESS_CACHE_SERVER);
 
-			s->ctx->sess_accept_good++;
+			s->ctx->stats.sess_accept_good++;
 			/* s->server=1; */
 			ret=1;
 
@@ -334,9 +338,6 @@ static int get_client_master_key(s)
 SSL *s;
 	{
 	int export,i,n,keya,ek;
-#if 0
-	int error=0;
-#endif
 	unsigned char *p;
 	SSL_CIPHER *cp;
 	EVP_CIPHER *c;
@@ -400,9 +401,9 @@ SSL *s;
 		&(p[s->s2->tmp.clear]),&(p[s->s2->tmp.clear]),
 		(s->s2->ssl2_rollback)?RSA_SSLV23_PADDING:RSA_PKCS1_PADDING);
 
-	export=(s->session->cipher->algorithms & SSL_EXP)?1:0;
+	export=SSL_C_IS_EXPORT(s->session->cipher);
 	
-	if (!ssl_cipher_get_evp(s->session->cipher,&c,&md))
+	if (!ssl_cipher_get_evp(s->session,&c,&md,NULL))
 		{
 		ssl2_return_error(s,SSL2_PE_NO_CIPHER);
 		SSLerr(SSL_F_GET_CLIENT_MASTER_KEY,SSL_R_PROBLEMS_MAPPING_CIPHER_FUNCTIONS);
@@ -908,6 +909,7 @@ SSL *s;
 		pkey=X509_get_pubkey(x509);
 		if (pkey == NULL) goto end;
 		i=EVP_VerifyFinal(&ctx,p,s->s2->tmp.rlen,pkey);
+		EVP_PKEY_free(pkey);
 		memset(&ctx,0,sizeof(ctx));
 
 		if (i) 
@@ -931,8 +933,8 @@ msg_end:
 		ssl2_return_error(s,SSL2_PE_BAD_CERTIFICATE);
 		}
 end:
-	if (sk != NULL) sk_free(sk);
-	if (x509 != NULL) X509_free(x509);
+	sk_free(sk);
+	X509_free(x509);
 	return(ret);
 	}
 

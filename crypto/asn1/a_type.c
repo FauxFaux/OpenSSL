@@ -89,6 +89,10 @@ unsigned char **pp;
 	case V_ASN1_NEG_INTEGER:
 		r=i2d_ASN1_INTEGER(a->value.integer,pp);
 		break;
+	case V_ASN1_ENUMERATED:
+	case V_ASN1_NEG_ENUMERATED:
+		r=i2d_ASN1_ENUMERATED(a->value.enumerated,pp);
+		break;
 	case V_ASN1_BIT_STRING:
 		r=i2d_ASN1_BIT_STRING(a->value.bit_string,pp);
 		break;
@@ -118,6 +122,9 @@ unsigned char **pp;
 		break;
 	case V_ASN1_UTCTIME:
 		r=i2d_ASN1_UTCTIME(a->value.utctime,pp);
+		break;
+	case V_ASN1_GENERALIZEDTIME:
+		r=i2d_ASN1_GENERALIZEDTIME(a->value.generalizedtime,pp);
 		break;
 	case V_ASN1_SET:
 	case V_ASN1_SEQUENCE:
@@ -174,6 +181,11 @@ long length;
 			d2i_ASN1_INTEGER(NULL,&p,max-p)) == NULL)
 			goto err;
 		break;
+	case V_ASN1_ENUMERATED:
+		if ((ret->value.enumerated=
+			d2i_ASN1_ENUMERATED(NULL,&p,max-p)) == NULL)
+			goto err;
+		break;
 	case V_ASN1_BIT_STRING:
 		if ((ret->value.bit_string=
 			d2i_ASN1_BIT_STRING(NULL,&p,max-p)) == NULL)
@@ -222,6 +234,11 @@ long length;
 	case V_ASN1_UTCTIME:
 		if ((ret->value.utctime=
 			d2i_ASN1_UTCTIME(NULL,&p,max-p)) == NULL)
+			goto err;
+		break;
+	case V_ASN1_GENERALIZEDTIME:
+		if ((ret->value.generalizedtime=
+			d2i_ASN1_GENERALIZEDTIME(NULL,&p,max-p)) == NULL)
 			goto err;
 		break;
 	case V_ASN1_SET:
@@ -301,6 +318,8 @@ ASN1_TYPE *a;
 			break;
 		case V_ASN1_INTEGER:
 		case V_ASN1_NEG_INTEGER:
+		case V_ASN1_ENUMERATED:
+		case V_ASN1_NEG_ENUMERATED:
 		case V_ASN1_BIT_STRING:
 		case V_ASN1_OCTET_STRING:
 		case V_ASN1_SEQUENCE:

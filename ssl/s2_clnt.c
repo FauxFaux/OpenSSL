@@ -64,6 +64,7 @@
 #include "evp.h"
 
 #ifndef NOPROTO
+static SSL_METHOD *ssl2_get_client_method(int ver);
 static int get_server_finished(SSL *s);
 static int get_server_verify(SSL *s);
 static int get_server_hello(SSL *s);
@@ -74,6 +75,7 @@ static int client_certificate(SSL *s);
 static int ssl_rsa_public_encrypt(CERT *c, int len, unsigned char *from,
 	unsigned char *to,int padding);
 #else
+static SSL_METHOD *ssl2_get_client_method();
 static int get_server_finished();
 static int get_server_verify();
 static int get_server_hello();
@@ -120,7 +122,7 @@ SSL *s;
 	void (*cb)()=NULL;
 	int new_state,state;
 
-	RAND_seed((unsigned char *)&l,sizeof(l));
+	RAND_seed(&l,sizeof(l));
 	ERR_clear_error();
 	clear_sys_error();
 
@@ -144,6 +146,7 @@ SSL *s;
 		case SSL_ST_BEFORE|SSL_ST_CONNECT:
 		case SSL_ST_OK|SSL_ST_CONNECT:
 
+			s->server=0;
 			if (cb != NULL) cb(s,SSL_CB_HANDSHAKE_START,1);
 
 			s->version=SSL2_VERSION;
@@ -164,7 +167,7 @@ SSL *s;
 			s->init_buf=buf;
 			s->init_num=0;
 			s->state=SSL2_ST_SEND_CLIENT_HELLO_A;
-			s->ctx->sess_connect++;
+			s->ctx->stats.sess_connect++;
 			s->handshake_func=ssl2_connect;
 			BREAK;
 
@@ -247,8 +250,11 @@ SSL *s;
 			break;
 
 		case SSL_ST_OK:
-			BUF_MEM_free(s->init_buf);
-			s->init_buf=NULL;
+			if (s->init_buf != NULL)
+				{
+				BUF_MEM_free(s->init_buf);
+				s->init_buf=NULL;
+				}
 			s->init_num=0;
 		/*	ERR_clear_error();*/
 
@@ -259,11 +265,11 @@ SSL *s;
 			 */
 
 			ssl_update_cache(s,SSL_SESS_CACHE_CLIENT);
-			if (s->hit) s->ctx->sess_hit++;
+			if (s->hit) s->ctx->stats.sess_hit++;
 
 			ret=1;
 			/* s->server=0; */
-			s->ctx->sess_connect_good++;
+			s->ctx->stats.sess_connect_good++;
 
 			if (cb != NULL) cb(s,SSL_CB_HANDSHAKE_DONE,1);
 
@@ -536,7 +542,7 @@ SSL *s;
 	if (s->state == SSL2_ST_SEND_CLIENT_MASTER_KEY_A)
 		{
 
-		if (!ssl_cipher_get_evp(s->session->cipher,&c,&md))
+		if (!ssl_cipher_get_evp(s->session,&c,&md,NULL))
 			{
 			ssl2_return_error(s,SSL2_PE_NO_CIPHER);
 			SSLerr(SSL_F_CLIENT_MASTER_KEY,SSL_R_PROBLEMS_MAPPING_CIPHER_FUNCTIONS);
@@ -562,7 +568,7 @@ SSL *s;
 
 		if (sess->cipher->algorithm2 & SSL2_CF_8_BYTE_ENC)
 			enc=8;
-		else if (sess->cipher->algorithms & SSL_EXP)
+		else if (SSL_C_IS_EXPORT(sess->cipher))
 			enc=5;
 		else
 			enc=i;
@@ -951,8 +957,9 @@ unsigned char *data;
 		goto err;
 	ret=1;
 err:
-	if (sk != NULL) sk_free(sk);
-	if (x509 != NULL) X509_free(x509);
+	sk_free(sk);
+	X509_free(x509);
+	EVP_PKEY_free(pkey);
 	return(ret);
 	}
 
@@ -983,6 +990,7 @@ int padding;
 	if (i < 0)
 		SSLerr(SSL_F_SSL_RSA_PUBLIC_ENCRYPT,ERR_R_RSA_LIB);
 end:
+	EVP_PKEY_free(pkey);
 	return(i);
 	}
 

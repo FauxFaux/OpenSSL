@@ -7,7 +7,7 @@ $crypto="libeay32";
 $RSAref="RSAref32";
 
 $o='\\';
-$cp='"copy /b nul+ "';	# Timestamps get stuffed otherwise
+$cp='copy nul+';	# Timestamps get stuffed otherwise
 $rm='del';
 
 # C compiler stuff
@@ -26,6 +26,7 @@ if ($debug)
 	$lflags.=" /debug";
 	$mlflags.=' /debug';
 	}
+$cflags .= " -DWINNT" if $NT == 1;
 
 $obj='.obj';
 $ofile="/Fo";
@@ -112,7 +113,7 @@ sub do_lib_rule
 	else
 		{
 		local($ex)=($target =~ /O_SSL/)?' $(L_CRYPTO)':'';
-		$ex.=' wsock32.lib gdi32.lib';
+		$ex.=' wsock32.lib gdi32.lib advapi32.lib';
 		$ret.="\t\$(LINK) \$(MLFLAGS) $efile$target /def:ms/${Name}.def @<<\n  \$(SHLIB_EX_OBJ) $objs $ex\n<<\n";
 		}
 	$ret.="\n";

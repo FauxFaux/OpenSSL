@@ -68,6 +68,7 @@
 #endif
 #include "objects.h"
 #include "x509.h"
+#include "x509v3.h"
 
 #ifndef NO_FP_API
 int X509_print_fp(fp,x)
@@ -146,9 +147,9 @@ X509 *x;
 	if (!X509_NAME_print(bp,X509_get_issuer_name(x),16)) goto err;
 	if (BIO_write(bp,"\n        Validity\n",18) <= 0) goto err;
 	if (BIO_write(bp,"            Not Before: ",24) <= 0) goto err;
-	if (!ASN1_UTCTIME_print(bp,X509_get_notBefore(x))) goto err;
+	if (!ASN1_TIME_print(bp,X509_get_notBefore(x))) goto err;
 	if (BIO_write(bp,"\n            Not After : ",25) <= 0) goto err;
-	if (!ASN1_UTCTIME_print(bp,X509_get_notAfter(x))) goto err;
+	if (!ASN1_TIME_print(bp,X509_get_notAfter(x))) goto err;
 	if (BIO_write(bp,"\n        Subject: ",18) <= 0) goto err;
 	if (!X509_NAME_print(bp,X509_get_subject_name(x),16)) goto err;
 	if (BIO_write(bp,"\n        Subject Public Key Info:\n",34) <= 0)
@@ -182,13 +183,17 @@ X509 *x;
 #endif
 		BIO_printf(bp,"%12sUnknown Public Key:\n","");
 
+	EVP_PKEY_free(pkey);
+
 	n=X509_get_ext_count(x);
 	if (n > 0)
 		{
 		BIO_printf(bp,"%8sX509v3 extensions:\n","");
 		for (i=0; i<n; i++)
 			{
+#if 0
 			int data_type,pack_type;
+#endif
 			ASN1_OBJECT *obj;
 
 			ex=X509_get_ext(x,i);
@@ -198,7 +203,7 @@ X509 *x;
 			j=X509_EXTENSION_get_critical(ex);
 			if (BIO_printf(bp,": %s\n%16s",j?"critical":"","") <= 0)
 				goto err;
-
+#if 0
 			pack_type=X509v3_pack_type_by_OBJ(obj);
 			data_type=X509v3_data_type_by_OBJ(obj);
 			
@@ -229,7 +234,8 @@ X509 *x;
 						}
 					}
 				}
-			else
+#endif
+			if(!X509V3_EXT_print(bp, ex, 0))
 				{
 				ASN1_OCTET_STRING_print(bp,ex->value);
 				}
@@ -287,6 +293,57 @@ ASN1_STRING *v;
 		if (BIO_write(bp,buf,n) <= 0)
 			return(0);
 	return(1);
+	}
+
+int ASN1_TIME_print(bp, tm)
+BIO *bp;
+ASN1_TIME *tm;
+{
+	if(tm->type == V_ASN1_UTCTIME) return ASN1_UTCTIME_print(bp, tm);
+	if(tm->type == V_ASN1_GENERALIZEDTIME)
+				return ASN1_GENERALIZEDTIME_print(bp, tm);
+	BIO_write(bp,"Bad time value",14);
+	return(0);
+}
+
+
+int ASN1_GENERALIZEDTIME_print(bp,tm)
+BIO *bp;
+ASN1_GENERALIZEDTIME *tm;
+	{
+	char *v;
+	int gmt=0;
+	static char *mon[12]={
+		"Jan","Feb","Mar","Apr","May","Jun",
+		"Jul","Aug","Sep","Oct","Nov","Dec"};
+	int i;
+	int y=0,M=0,d=0,h=0,m=0,s=0;
+
+	i=tm->length;
+	v=(char *)tm->data;
+
+	if (i < 12) goto err;
+	if (v[i-1] == 'Z') gmt=1;
+	for (i=0; i<12; i++)
+		if ((v[i] > '9') || (v[i] < '0')) goto err;
+	y= (v[0]-'0')*1000+(v[1]-'0')*100 + (v[2]-'0')*10+(v[3]-'0');
+	M= (v[4]-'0')*10+(v[5]-'0');
+	if ((M > 12) || (M < 1)) goto err;
+	d= (v[6]-'0')*10+(v[7]-'0');
+	h= (v[8]-'0')*10+(v[9]-'0');
+	m=  (v[10]-'0')*10+(v[11]-'0');
+	if (	(v[12] >= '0') && (v[12] <= '9') &&
+		(v[13] >= '0') && (v[13] <= '9'))
+		s=  (v[12]-'0')*10+(v[13]-'0');
+
+	if (BIO_printf(bp,"%s %2d %02d:%02d:%02d %d%s",
+		mon[M-1],d,h,m,s,y,(gmt)?" GMT":"") <= 0)
+		return(0);
+	else
+		return(1);
+err:
+	BIO_write(bp,"Bad time value",14);
+	return(0);
 	}
 
 int ASN1_UTCTIME_print(bp,tm)

@@ -75,8 +75,9 @@
 #endif
 #include "evp.h"
 #include "objects.h"
-#include "pem.h"
+#include "pem2.h"
 #include "x509.h"
+#include "x509v3.h"
 #include "conf.h"
 #include "err.h"
 
@@ -110,6 +111,7 @@ void ERR_load_crypto_strings()
 	ERR_load_OBJ_strings();
 	ERR_load_PEM_strings();
 	ERR_load_X509_strings();
+	ERR_load_X509V3_strings();
 	ERR_load_CRYPTO_strings();
 	ERR_load_PKCS7_strings();
 #endif

@@ -14,6 +14,7 @@ extern int dsa_main(int argc,char *argv[]);
 extern int dsaparam_main(int argc,char *argv[]);
 extern int x509_main(int argc,char *argv[]);
 extern int genrsa_main(int argc,char *argv[]);
+extern int gendsa_main(int argc,char *argv[]);
 extern int s_server_main(int argc,char *argv[]);
 extern int s_client_main(int argc,char *argv[]);
 extern int speed_main(int argc,char *argv[]);
@@ -23,6 +24,7 @@ extern int pkcs7_main(int argc,char *argv[]);
 extern int crl2pkcs7_main(int argc,char *argv[]);
 extern int sess_id_main(int argc,char *argv[]);
 extern int ciphers_main(int argc,char *argv[]);
+extern int nseq_main(int argc,char *argv[]);
 #else
 extern int verify_main();
 extern int asn1parse_main();
@@ -39,6 +41,7 @@ extern int dsa_main();
 extern int dsaparam_main();
 extern int x509_main();
 extern int genrsa_main();
+extern int gendsa_main();
 extern int s_server_main();
 extern int s_client_main();
 extern int speed_main();
@@ -48,6 +51,7 @@ extern int pkcs7_main();
 extern int crl2pkcs7_main();
 extern int sess_id_main();
 extern int ciphers_main();
+extern int nseq_main();
 #endif
 
 #ifdef SSLEAY_SRC
@@ -90,6 +94,9 @@ FUNCTION functions[] = {
 #ifndef NO_RSA
 	{FUNC_TYPE_GENERAL,"genrsa",genrsa_main},
 #endif
+#ifndef NO_DSA
+	{FUNC_TYPE_GENERAL,"gendsa",gendsa_main},
+#endif
 #if !defined(NO_SOCK) && !(defined(NO_SSL2) && defined(O_SSL3))
 	{FUNC_TYPE_GENERAL,"s_server",s_server_main},
 #endif
@@ -107,6 +114,7 @@ FUNCTION functions[] = {
 #if !defined(NO_SOCK) && !(defined(NO_SSL2) && defined(O_SSL3))
 	{FUNC_TYPE_GENERAL,"ciphers",ciphers_main},
 #endif
+	{FUNC_TYPE_GENERAL,"nseq",nseq_main},
 	{FUNC_TYPE_MD,"md2",dgst_main},
 	{FUNC_TYPE_MD,"md5",dgst_main},
 	{FUNC_TYPE_MD,"sha",dgst_main},

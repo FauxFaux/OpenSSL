@@ -9,7 +9,7 @@ INCLUDES= -I../crypto -I../include
 CFLAG=-g
 INSTALLTOP=/usr/local/ssl
 MAKE=		make -f Makefile.ssl
-MAKEDEPEND=	makedepend -f Makefile.ssl
+MAKEDEPEND=	$(TOP)/util/domd $(TOP)
 MAKEFILE=	Makefile.ssl
 AR=		ar r
 
@@ -46,11 +46,10 @@ files:
 	perl $(TOP)/util/files.pl Makefile.ssl >> $(TOP)/MINFO
 
 links:
-	/bin/rm -f Makefile
-	$(TOP)/util/point.sh Makefile.ssl Makefile ;
-	$(TOP)/util/mklink.sh ../include $(EXHEADER)
-	$(TOP)/util/mklink.sh ../test $(TEST)
-	$(TOP)/util/mklink.sh ../apps $(APPS)
+	@$(TOP)/util/point.sh Makefile.ssl Makefile
+	@$(TOP)/util/mklink.sh ../include $(EXHEADER)
+	@$(TOP)/util/mklink.sh ../test $(TEST)
+	@$(TOP)/util/mklink.sh ../apps $(APPS)
 
 install:
 
@@ -76,10 +75,19 @@ dclean:
 	mv -f Makefile.new $(MAKEFILE)
 
 clean:
-	/bin/rm -f *.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
+	rm -f *.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
 
-errors:
+errors: $(ERRC).c
+
+$(ERRC).c: $(ERR).err
 	perl $(TOP)/util/err-ins.pl $(ERR).err $(ERR).h
 	perl ../crypto/err/err_genc.pl -s $(ERR).h $(ERRC).c
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
+
+rsar_err.o: ../crypto/crypto.h ../crypto/opensslv.h ../include/bn.h
+rsar_err.o: ../include/err.h ../include/rsa.h ../include/stack.h rsaref.h
+rsaref.o: ../crypto/cryptlib.h ../crypto/crypto.h ../crypto/opensslv.h
+rsaref.o: ../include/bio.h ../include/bn.h ../include/buffer.h
+rsaref.o: ../include/e_os.h ../include/err.h ../include/rand.h ../include/rsa.h
+rsaref.o: ../include/stack.h rsaref.h

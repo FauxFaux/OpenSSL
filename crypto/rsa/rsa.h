@@ -66,9 +66,26 @@ extern "C" {
 #include "bn.h"
 #include "crypto.h"
 
+typedef struct rsa_st RSA;
+
 typedef struct rsa_meth_st
 	{
 	char *name;
+#ifndef NOPROTO
+	int (*rsa_pub_enc)(int flen,unsigned char *from,unsigned char *to,
+			   RSA *rsa,int padding);
+	int (*rsa_pub_dec)(int flen,unsigned char *from,unsigned char *to,
+			   RSA *rsa,int padding);
+	int (*rsa_priv_enc)(int flen,unsigned char *from,unsigned char *to,
+			    RSA *rsa,int padding);
+	int (*rsa_priv_dec)(int flen,unsigned char *from,unsigned char *to,
+			    RSA *rsa,int padding);
+	int (*rsa_mod_exp)(BIGNUM *r0,BIGNUM *I,RSA *rsa); /* Can be null */
+	int (*bn_mod_exp)(BIGNUM *r, BIGNUM *a, BIGNUM *p, BIGNUM *m,
+			  BN_CTX *ctx,BN_MONT_CTX *m_ctx); /* Can be null */
+	int (*init)(RSA *rsa);		/* called at new */
+	int (*finish)(RSA *rsa);	/* called at free */
+#else
 	int (*rsa_pub_enc)();
 	int (*rsa_pub_dec)();
 	int (*rsa_priv_enc)();
@@ -77,12 +94,12 @@ typedef struct rsa_meth_st
 	int (*bn_mod_exp)();		/* Can be null */
 	int (*init)(/* RSA * */);	/* called at new */
 	int (*finish)(/* RSA * */);	/* called at free */
-
+#endif
 	int flags;			/* RSA_METHOD_FLAG_* things */
 	char *app_data;			/* may be needed! */
 	} RSA_METHOD;
 
-typedef struct rsa_st
+struct rsa_st
 	{
 	/* The first parameter is used to pickup errors where
 	 * this is passed instead of aEVP_PKEY, it is set to 0 */
@@ -102,16 +119,16 @@ typedef struct rsa_st
 	int references;
 	int flags;
 
-	/* Normally used to cache montgomery values */
-	char *method_mod_n;
-	char *method_mod_p;
-	char *method_mod_q;
+	/* Used to cache montgomery values */
+	BN_MONT_CTX *_method_mod_n;
+	BN_MONT_CTX *_method_mod_p;
+	BN_MONT_CTX *_method_mod_q;
 
 	/* all BIGNUM values are actually in the following data, if it is not
 	 * NULL */
 	char *bignum_data;
 	BN_BLINDING *blinding;
-	} RSA;
+	};
 
 #define RSA_3	0x3L
 #define RSA_F4	0x10001L
@@ -126,6 +143,7 @@ typedef struct rsa_st
 #define RSA_PKCS1_PADDING	1
 #define RSA_SSLV23_PADDING	2
 #define RSA_NO_PADDING		3
+#define RSA_PKCS1_OAEP_PADDING	4
 
 #define RSA_set_app_data(s,arg)         RSA_set_ex_data(s,0,(char *)arg)
 #define RSA_get_app_data(s)             RSA_get_ex_data(s,0)
@@ -205,6 +223,12 @@ int RSA_padding_add_PKCS1_type_2(unsigned char *to,int tlen,
 	unsigned char *f,int fl);
 int RSA_padding_check_PKCS1_type_2(unsigned char *to,int tlen,
 	unsigned char *f,int fl,int rsa_len);
+int RSA_padding_add_PKCS1_OAEP(unsigned char *to,int tlen,
+			       unsigned char *f,int fl,unsigned char *p,
+			       int pl);
+int RSA_padding_check_PKCS1_OAEP(unsigned char *to,int tlen,
+				 unsigned char *f,int fl,int rsa_len,
+				 unsigned char *p,int pl);
 int RSA_padding_add_SSLv23(unsigned char *to,int tlen,
 	unsigned char *f,int fl);
 int RSA_padding_check_SSLv23(unsigned char *to,int tlen,
@@ -267,6 +291,8 @@ int RSA_padding_add_PKCS1_type_1();
 int RSA_padding_check_PKCS1_type_1();
 int RSA_padding_add_PKCS1_type_2();
 int RSA_padding_check_PKCS1_type_2();
+int RSA_padding_add_PKCS1_OAEP();
+int RSA_padding_check_PKCS1_OAEP();
 int RSA_padding_add_SSLv23();
 int RSA_padding_check_SSLv23();
 int RSA_padding_add_none();
@@ -290,10 +316,12 @@ char *RSA_get_ex_data();
 #define RSA_F_RSA_GENERATE_KEY				 105
 #define RSA_F_RSA_NEW_METHOD				 106
 #define RSA_F_RSA_PADDING_ADD_NONE			 107
+#define RSA_F_RSA_PADDING_ADD_PKCS1_OAEP		 121
 #define RSA_F_RSA_PADDING_ADD_PKCS1_TYPE_1		 108
 #define RSA_F_RSA_PADDING_ADD_PKCS1_TYPE_2		 109
 #define RSA_F_RSA_PADDING_ADD_SSLV23			 110
 #define RSA_F_RSA_PADDING_CHECK_NONE			 111
+#define RSA_F_RSA_PADDING_CHECK_PKCS1_OAEP		 122
 #define RSA_F_RSA_PADDING_CHECK_PKCS1_TYPE_1		 112
 #define RSA_F_RSA_PADDING_CHECK_PKCS1_TYPE_2		 113
 #define RSA_F_RSA_PADDING_CHECK_SSLV23			 114
@@ -310,15 +338,17 @@ char *RSA_get_ex_data();
 #define RSA_R_BAD_FIXED_HEADER_DECRYPT			 102
 #define RSA_R_BAD_PAD_BYTE_COUNT			 103
 #define RSA_R_BAD_SIGNATURE				 104
-#define RSA_R_BAD_ZERO_BYTE				 105
 #define RSA_R_BLOCK_TYPE_IS_NOT_01			 106
 #define RSA_R_BLOCK_TYPE_IS_NOT_02			 107
 #define RSA_R_DATA_GREATER_THAN_MOD_LEN			 108
 #define RSA_R_DATA_TOO_LARGE				 109
 #define RSA_R_DATA_TOO_LARGE_FOR_KEY_SIZE		 110
 #define RSA_R_DATA_TOO_SMALL				 111
+#define RSA_R_DATA_TOO_SMALL_FOR_KEY_SIZE		 122
 #define RSA_R_DIGEST_TOO_BIG_FOR_RSA_KEY		 112
+#define RSA_R_KEY_SIZE_TOO_SMALL			 120
 #define RSA_R_NULL_BEFORE_BLOCK_MISSING			 113
+#define RSA_R_OAEP_DECODING_ERROR			 121
 #define RSA_R_PADDING_CHECK_FAILED			 114
 #define RSA_R_SSLV3_ROLLBACK_ATTACK			 115
 #define RSA_R_THE_ASN1_OBJECT_IDENTIFIER_IS_NOT_KNOWN_FOR_THIS_MD 116

@@ -57,6 +57,7 @@
  */
 
 #include <stdio.h>
+#include "comp.h"
 #include "evp.h"
 #include "hmac.h"
 #include "ssl_locl.h"
@@ -175,11 +176,11 @@ int which;
 	int client_write;
 	EVP_CIPHER_CTX *dd;
 	EVP_CIPHER *c;
-	COMP_METHOD *comp;
+	SSL_COMP *comp;
 	EVP_MD *m;
-	int exp,n,i,j,k,exp_label_len;
+	int _exp,n,i,j,k,exp_label_len,cl;
 
-	exp=(s->s3->tmp.new_cipher->algorithms & SSL_EXPORT)?1:0;
+	_exp=SSL_C_IS_EXPORT(s->s3->tmp.new_cipher);
 	c=s->s3->tmp.new_sym_enc;
 	m=s->s3->tmp.new_hash;
 	comp=s->s3->tmp.new_compression;
@@ -200,14 +201,15 @@ int which;
 			}
 		if (comp != NULL)
 			{
-			s->expand=COMP_CTX_new(comp);
+			s->expand=COMP_CTX_new(comp->method);
 			if (s->expand == NULL)
 				{
 				SSLerr(SSL_F_TLS1_CHANGE_CIPHER_STATE,SSL_R_COMPRESSION_LIBRARY_ERROR);
 				goto err2;
 				}
-			s->s3->rrec.comp=(unsigned char *)
-				Malloc(SSL3_RT_MAX_ENCRYPTED_LENGTH);
+			if (s->s3->rrec.comp == NULL)
+				s->s3->rrec.comp=(unsigned char *)
+					Malloc(SSL3_RT_MAX_ENCRYPTED_LENGTH);
 			if (s->s3->rrec.comp == NULL)
 				goto err;
 			}
@@ -229,7 +231,7 @@ int which;
 			}
 		if (comp != NULL)
 			{
-			s->compress=COMP_CTX_new(comp);
+			s->compress=COMP_CTX_new(comp->method);
 			if (s->compress == NULL)
 				{
 				SSLerr(SSL_F_TLS1_CHANGE_CIPHER_STATE,SSL_R_COMPRESSION_LIBRARY_ERROR);
@@ -244,7 +246,10 @@ int which;
 
 	p=s->s3->tmp.key_block;
 	i=EVP_MD_size(m);
-	j=(exp)?5:EVP_CIPHER_key_length(c);
+	cl=EVP_CIPHER_key_length(c);
+	j=_exp ? (cl < SSL_C_EXPORT_KEYLENGTH(s->s3->tmp.new_cipher) ?
+		  cl : SSL_C_EXPORT_KEYLENGTH(s->s3->tmp.new_cipher)) : cl;
+	/* Was j=(exp)?5:EVP_CIPHER_key_length(c); */
 	k=EVP_CIPHER_iv_length(c);
 	er1= &(s->s3->client_random[0]);
 	er2= &(s->s3->server_random[0]);
@@ -280,7 +285,7 @@ int which;
 printf("which = %04X\nmac key=",which);
 { int z; for (z=0; z<i; z++) printf("%02X%c",ms[z],((z+1)%16)?' ':'\n'); }
 #endif
-	if (exp)
+	if (_exp)
 		{
 		/* In here I set both the read and write key/iv to the
 		 * same value since only the correct one will be used :-).
@@ -293,7 +298,7 @@ printf("which = %04X\nmac key=",which);
 		memcpy(p,s->s3->server_random,SSL3_RANDOM_SIZE);
 		p+=SSL3_RANDOM_SIZE;
 		tls1_PRF(s->ctx->md5,s->ctx->sha1,buf,(int)(p-buf),key,j,
-			tmp1,tmp2,EVP_CIPHER_key_length(c));
+			 tmp1,tmp2,EVP_CIPHER_key_length(c));
 		key=tmp1;
 
 		if (k > 0)
@@ -343,12 +348,13 @@ SSL *s;
 	unsigned char *p1,*p2;
 	EVP_CIPHER *c;
 	EVP_MD *hash;
-	int num,exp;
+	int num;
+	SSL_COMP *comp;
 
 	if (s->s3->tmp.key_block_length != 0)
 		return(1);
 
-	if (!ssl_cipher_get_evp(s->session->cipher,&c,&hash))
+	if (!ssl_cipher_get_evp(s->session,&c,&hash,&comp))
 		{
 		SSLerr(SSL_F_TLS1_SETUP_KEY_BLOCK,SSL_R_CIPHER_OR_HASH_UNAVAILABLE);
 		return(0);
@@ -356,8 +362,6 @@ SSL *s;
 
 	s->s3->tmp.new_sym_enc=c;
 	s->s3->tmp.new_hash=hash;
-
-	exp=(s->session->cipher->algorithms & SSL_EXPORT)?1:0;
 
 	num=EVP_CIPHER_key_length(c)+EVP_MD_size(hash)+EVP_CIPHER_iv_length(c);
 	num*=2;
@@ -502,7 +506,7 @@ unsigned char *out;
 	unsigned int ret;
 	EVP_MD_CTX ctx;
 
-	memcpy(&ctx,in_ctx,sizeof(EVP_MD_CTX));
+	EVP_MD_CTX_copy(&ctx,in_ctx);
 	EVP_DigestFinal(&ctx,out,&ret);
 	return((int)ret);
 	}
@@ -523,10 +527,10 @@ unsigned char *out;
 	memcpy(q,str,slen);
 	q+=slen;
 
-	memcpy(&ctx,in1_ctx,sizeof(EVP_MD_CTX));
+	EVP_MD_CTX_copy(&ctx,in1_ctx);
 	EVP_DigestFinal(&ctx,q,&i);
 	q+=i;
-	memcpy(&ctx,in2_ctx,sizeof(EVP_MD_CTX));
+	EVP_MD_CTX_copy(&ctx,in2_ctx);
 	EVP_DigestFinal(&ctx,q,&i);
 	q+=i;
 

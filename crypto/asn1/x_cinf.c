@@ -81,7 +81,7 @@ unsigned char **pp;
 	M_ASN1_I2D_len(a->key,			i2d_X509_PUBKEY);
 	M_ASN1_I2D_len_IMP_opt(a->issuerUID,	i2d_ASN1_BIT_STRING);
 	M_ASN1_I2D_len_IMP_opt(a->subjectUID,	i2d_ASN1_BIT_STRING);
-	M_ASN1_I2D_len_EXP_set_opt(a->extensions,i2d_X509_EXTENSION,3,V_ASN1_SEQUENCE,v2);
+	M_ASN1_I2D_len_EXP_SEQUENCE_opt(a->extensions,i2d_X509_EXTENSION,3,V_ASN1_SEQUENCE,v2);
 
 	M_ASN1_I2D_seq_total();
 
@@ -94,7 +94,7 @@ unsigned char **pp;
 	M_ASN1_I2D_put(a->key,			i2d_X509_PUBKEY);
 	M_ASN1_I2D_put_IMP_opt(a->issuerUID,	i2d_ASN1_BIT_STRING,1);
 	M_ASN1_I2D_put_IMP_opt(a->subjectUID,	i2d_ASN1_BIT_STRING,2);
-	M_ASN1_I2D_put_EXP_set_opt(a->extensions,i2d_X509_EXTENSION,3,V_ASN1_SEQUENCE,v2);
+	M_ASN1_I2D_put_EXP_SEQUENCE_opt(a->extensions,i2d_X509_EXTENSION,3,V_ASN1_SEQUENCE,v2);
 
 	M_ASN1_I2D_finish();
 	}
@@ -147,7 +147,14 @@ long length;
 		M_ASN1_D2I_get_IMP_opt(ret->subjectUID,d2i_ASN1_BIT_STRING, 2,
 			V_ASN1_BIT_STRING);
 		}
+/* Note: some broken certificates include extensions but don't set
+ * the version number properly. By bypassing this check they can
+ * be parsed.
+ */
+
+#ifdef VERSION_EXT_CHECK
 	if (ver >= 2) /* version 3 extensions */
+#endif
 		{
 		if (ret->extensions != NULL)
 			while (sk_num(ret->extensions))

@@ -61,7 +61,7 @@
 #include "bn.h"
 #include "dh.h"
 
-char *DH_version="Diffie-Hellman part of OpenSSL 0.9.1c 23-Dec-1998";
+char *DH_version="Diffie-Hellman" OPENSSL_VERSION_PTEXT;
 
 DH *DH_new()
 	{
@@ -88,6 +88,7 @@ DH *DH_new()
 void DH_free(r)
 DH *r;
 	{
+	if(r == NULL) return;
 	if (r->p != NULL) BN_clear_free(r->p);
 	if (r->g != NULL) BN_clear_free(r->g);
 	if (r->pub_key != NULL) BN_clear_free(r->pub_key);

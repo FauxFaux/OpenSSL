@@ -161,7 +161,7 @@ bad:
 		BIO_printf(bio_err,"where options are\n");
 		BIO_printf(bio_err," -inform arg   input format - one of DER TXT PEM\n");
 		BIO_printf(bio_err," -outform arg  output format - one of DER TXT PEM\n");
-		BIO_printf(bio_err," -in arg       inout file\n");
+		BIO_printf(bio_err," -in arg       input file\n");
 		BIO_printf(bio_err," -out arg      output file\n");
 		BIO_printf(bio_err," -print_certs  print any certs or crl in the input\n");
 		BIO_printf(bio_err," -des          encrypt PEM output with cbc des\n");
@@ -277,9 +277,9 @@ bad:
 				BIO_puts(out,buf);
 
 				BIO_puts(out,"\nlast update=");
-				ASN1_UTCTIME_print(out,crl->crl->lastUpdate);
+				ASN1_TIME_print(out,crl->crl->lastUpdate);
 				BIO_puts(out,"\nnext update=");
-				ASN1_UTCTIME_print(out,crl->crl->nextUpdate);
+				ASN1_TIME_print(out,crl->crl->nextUpdate);
 				BIO_puts(out,"\n");
 
 				PEM_write_bio_X509_CRL(out,crl);
