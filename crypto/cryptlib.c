@@ -89,6 +89,7 @@ static const char* lock_names[CRYPTO_NUM_LOCKS] =
 	"ssl_session",
 	"ssl_sess_cert",
 	"ssl",
+	/* "ssl_method", */
 	"rand",
 	"rand2",
 	"debug_malloc",
@@ -459,7 +460,7 @@ const char *CRYPTO_get_lock_name(int type)
 		return("dynamic");
 	else if (type < CRYPTO_NUM_LOCKS)
 		return(lock_names[type]);
-	else if (type-CRYPTO_NUM_LOCKS >= sk_num(app_locks))
+	else if (type-CRYPTO_NUM_LOCKS > sk_num(app_locks))
 		return("ERROR");
 	else
 		return(sk_value(app_locks,type-CRYPTO_NUM_LOCKS));

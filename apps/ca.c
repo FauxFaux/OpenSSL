@@ -570,7 +570,7 @@ bad:
 		goto err;
 		}
 		pkey=PEM_read_bio_PrivateKey(in,NULL,NULL,key);
-		if(key) memset(key,0,strlen(key));
+		if(key) OPENSSL_cleanse(key,strlen(key));
 	if (pkey == NULL)
 		{
 		BIO_printf(bio_err,"unable to load CA private key\n");
@@ -633,12 +633,14 @@ bad:
 	       that to access().  However, time's too short to do that just
 	       now.
             */
+#ifndef VXWORKS
 		if (access(outdir,R_OK|W_OK|X_OK) != 0)
 			{
 			BIO_printf(bio_err,"I am unable to access the %s directory\n",outdir);
 			perror(outdir);
 			goto err;
 			}
+#endif
 
 		if (stat(outdir,&sb) != 0)
 			{
@@ -856,9 +858,14 @@ bad:
 			}
 		if (verbose)
 			{
-			if ((f=BN_bn2hex(serial)) == NULL) goto err;
-			BIO_printf(bio_err,"next serial number is %s\n",f);
-			OPENSSL_free(f);
+			if (BN_is_zero(serial))
+				BIO_printf(bio_err,"next serial number is 00\n");
+			else
+				{
+				if ((f=BN_bn2hex(serial)) == NULL) goto err;
+				BIO_printf(bio_err,"next serial number is %s\n",f);
+				OPENSSL_free(f);
+				}
 			}
 
 		if ((attribs=CONF_get_section(conf,policy)) == NULL)
@@ -1302,7 +1309,7 @@ err:
 	X509_CRL_free(crl);
 	CONF_free(conf);
 	OBJ_cleanup();
-	EXIT(ret);
+	OPENSSL_EXIT(ret);
 	}
 
 static void lookup_fail(char *name, char *tag)
@@ -1367,7 +1374,7 @@ static BIGNUM *load_serial(char *serialfile)
 	ret=ASN1_INTEGER_to_BN(ai,NULL);
 	if (ret == NULL)
 		{
-		BIO_printf(bio_err,"error converting number from bin to BIGNUM");
+		BIO_printf(bio_err,"error converting number from bin to BIGNUM\n");
 		goto err;
 		}
 err:
@@ -1755,7 +1762,10 @@ again2:
 		BIO_printf(bio_err,"The subject name appears to be ok, checking data base for clashes\n");
 
 	row[DB_name]=X509_NAME_oneline(subject,NULL,0);
-	row[DB_serial]=BN_bn2hex(serial);
+	if (BN_is_zero(serial))
+		row[DB_serial]=BUF_strdup("00");
+	else
+		row[DB_serial]=BN_bn2hex(serial);
 	if ((row[DB_name] == NULL) || (row[DB_serial] == NULL))
 		{
 		BIO_printf(bio_err,"Memory allocation failure\n");
@@ -2169,7 +2179,10 @@ static int do_revoke(X509 *x509, TXT_DB *db)
 		row[i]=NULL;
 	row[DB_name]=X509_NAME_oneline(X509_get_subject_name(x509),NULL,0);
 	bn = ASN1_INTEGER_to_BN(X509_get_serialNumber(x509),NULL);
-	row[DB_serial]=BN_bn2hex(bn);
+	if (BN_is_zero(bn))
+		row[DB_serial]=BUF_strdup("00");
+	else
+		row[DB_serial]=BN_bn2hex(bn);
 	BN_free(bn);
 	if ((row[DB_name] == NULL) || (row[DB_serial] == NULL))
 		{

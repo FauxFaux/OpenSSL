@@ -51,7 +51,7 @@ int MAIN(int argc, char **argv)
 			else
 				badopt = 1;
 			}
-		if (strcmp(argv[i], "-engine") == 0)
+		else if (strcmp(argv[i], "-engine") == 0)
 			{
 			if ((argv[i+1] != NULL) && (engine == NULL))
 				engine = argv[++i];
@@ -173,5 +173,5 @@ err:
 	ERR_print_errors(bio_err);
 	if (out)
 		BIO_free_all(out);
-	EXIT(ret);
+	OPENSSL_EXIT(ret);
 	}

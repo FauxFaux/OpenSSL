@@ -122,7 +122,7 @@ static char *x509_usage[]={
 " -CAkey arg      - set the CA key, must be PEM format\n",
 "                   missing, it is assumed to be in the CA file.\n",
 " -CAcreateserial - create serial number file if it does not exist\n",
-" -CAserial       - serial file\n",
+" -CAserial arg   - serial file\n",
 " -text           - print the certificate in text form\n",
 " -C              - print out C code forms\n",
 " -md2/-md5/-sha1/-mdc2 - digest to use\n",
@@ -474,7 +474,7 @@ bad:
 
 	if (extfile)
 		{
-		long errorline;
+		long errorline = -1;
 		X509V3_CTX ctx2;
 		if (!(extconf=CONF_load(NULL,extfile,&errorline)))
 			{
@@ -988,7 +988,7 @@ end:
 	sk_ASN1_OBJECT_pop_free(trust, ASN1_OBJECT_free);
 	sk_ASN1_OBJECT_pop_free(reject, ASN1_OBJECT_free);
 	if (passin) OPENSSL_free(passin);
-	EXIT(ret);
+	OPENSSL_EXIT(ret);
 	}
 
 static int x509_certify(X509_STORE *ctx, char *CAfile, const EVP_MD *digest,
