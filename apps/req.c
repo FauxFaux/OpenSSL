@@ -113,7 +113,7 @@ static int add_attribute_object(STACK_OF(X509_ATTRIBUTE) *n, char *text,
 				int max);
 static int add_DN_object(X509_NAME *n, char *text, char *def, char *value,
 	int nid,int min,int max);
-static void MS_CALLBACK req_cb(int p,int n,char *arg);
+static void MS_CALLBACK req_cb(int p,int n,void *arg);
 static int req_fix_data(int nid,int *type,int len,int min,int max);
 static int check_end(char *str, char *end);
 static int add_oid_section(LHASH *conf);
@@ -242,11 +242,11 @@ int MAIN(int argc, char **argv)
 					perror(p);
 					goto end;
 					}
-				if ((dsa_params=PEM_read_bio_DSAparams(in,NULL,NULL)) == NULL)
+				if ((dsa_params=PEM_read_bio_DSAparams(in,NULL,NULL,NULL)) == NULL)
 					{
 					ERR_clear_error();
-					BIO_reset(in);
-					if ((xtmp=PEM_read_bio_X509(in,NULL,NULL)) == NULL)
+					(void)BIO_reset(in);
+					if ((xtmp=PEM_read_bio_X509(in,NULL,NULL,NULL)) == NULL)
 						{
 						BIO_printf(bio_err,"unable to load DSA parameters from file\n");
 						goto end;
@@ -455,7 +455,7 @@ bad:
 			rsa=d2i_RSAPrivateKey_bio(in,NULL);
 		else */
 		if (keyform == FORMAT_PEM)
-			pkey=PEM_read_bio_PrivateKey(in,NULL,NULL);
+			pkey=PEM_read_bio_PrivateKey(in,NULL,NULL,NULL);
 		else
 			{
 			BIO_printf(bio_err,"bad input format specified for X509 request\n");
@@ -513,7 +513,7 @@ bad:
 			{
 			if (!EVP_PKEY_assign_RSA(pkey,
 				RSA_generate_key(newkey,0x10001,
-					req_cb,(char *)bio_err)))
+					req_cb,bio_err)))
 				goto end;
 			}
 		else
@@ -560,7 +560,7 @@ bad:
 		i=0;
 loop:
 		if (!PEM_write_bio_PrivateKey(out,pkey,cipher,
-			NULL,0,NULL))
+			NULL,0,NULL,NULL))
 			{
 			if ((ERR_GET_REASON(ERR_peek_error()) ==
 				PEM_R_PROBLEMS_GETTING_PASSWORD) && (i < 3))
@@ -594,7 +594,7 @@ loop:
 		if	(informat == FORMAT_ASN1)
 			req=d2i_X509_REQ_bio(in,NULL);
 		else if (informat == FORMAT_PEM)
-			req=PEM_read_bio_X509_REQ(in,NULL,NULL);
+			req=PEM_read_bio_X509_REQ(in,NULL,NULL,NULL);
 		else
 			{
 			BIO_printf(bio_err,"bad input format specified for X509 request\n");
@@ -823,7 +823,7 @@ static int make_REQ(X509_REQ *req, EVP_PKEY *pkey, int attribs)
 	char buf[100];
 	int nid,min,max;
 	char *type,*def,*tmp,*value,*tmp_attr;
-	STACK *sk,*attr=NULL;
+	STACK_OF(CONF_VALUE) *sk, *attr=NULL;
 	CONF_VALUE *v;
 	
 	tmp=CONF_get_string(req_conf,SECTION,DISTINGUISHED_NAME);
@@ -866,15 +866,15 @@ static int make_REQ(X509_REQ *req, EVP_PKEY *pkey, int attribs)
 	/* setup version number */
 	if (!ASN1_INTEGER_set(ri->version,0L)) goto err; /* version 1 */
 
-	if (sk_num(sk))
+	if (sk_CONF_VALUE_num(sk))
 		{
 		i= -1;
 start:		for (;;)
 			{
 			i++;
-			if ((int)sk_num(sk) <= i) break;
+			if (sk_CONF_VALUE_num(sk) <= i) break;
 
-			v=(CONF_VALUE *)sk_value(sk,i);
+			v=sk_CONF_VALUE_value(sk,i);
 			p=q=NULL;
 			type=v->name;
 			if(!check_end(type,"_min") || !check_end(type,"_max") ||
@@ -918,7 +918,7 @@ start:		for (;;)
 
 		if (attribs)
 			{
-			if ((attr != NULL) && (sk_num(attr) > 0))
+			if ((attr != NULL) && (sk_CONF_VALUE_num(attr) > 0))
 				{
 				BIO_printf(bio_err,"\nPlease enter the following 'extra' attributes\n");
 				BIO_printf(bio_err,"to be sent with your certificate request\n");
@@ -928,10 +928,11 @@ start:		for (;;)
 start2:			for (;;)
 				{
 				i++;
-				if ((attr == NULL) || ((int)sk_num(attr) <= i))
+				if ((attr == NULL) ||
+					    (sk_CONF_VALUE_num(attr) <= i))
 					break;
 
-				v=(CONF_VALUE *)sk_value(attr,i);
+				v=sk_CONF_VALUE_value(attr,i);
 				type=v->name;
 				if ((nid=OBJ_txt2nid(type)) == NID_undef)
 					goto start2;
@@ -979,7 +980,7 @@ static int add_DN_object(X509_NAME *n, char *text, char *def, char *value,
 	MS_STATIC char buf[1024];
 
 	BIO_printf(bio_err,"%s [%s]:",text,def);
-	BIO_flush(bio_err);
+	(void)BIO_flush(bio_err);
 	if (value != NULL)
 		{
 		strcpy(buf,value);
@@ -1013,6 +1014,9 @@ static int add_DN_object(X509_NAME *n, char *text, char *def, char *value,
 	j=ASN1_PRINTABLE_type((unsigned char *)buf,-1);
 	if (req_fix_data(nid,&j,i,min,max) == 0)
 		goto err;
+#ifdef CHARSET_EBCDIC
+	ebcdic2ascii(buf, buf, i);
+#endif
 	if ((ne=X509_NAME_ENTRY_create_by_NID(NULL,nid,j,(unsigned char *)buf,
 		strlen(buf)))
 		== NULL) goto err;
@@ -1037,7 +1041,7 @@ static int add_attribute_object(STACK_OF(X509_ATTRIBUTE) *n, char *text,
 
 start:
 	BIO_printf(bio_err,"%s [%s]:",text,def);
-	BIO_flush(bio_err);
+	(void)BIO_flush(bio_err);
 	if (value != NULL)
 		{
 		strcpy(buf,value);
@@ -1111,7 +1115,7 @@ err:
 	return(0);
 	}
 
-static void MS_CALLBACK req_cb(int p, int n, char *arg)
+static void MS_CALLBACK req_cb(int p, int n, void *arg)
 	{
 	char c='*';
 
@@ -1120,7 +1124,7 @@ static void MS_CALLBACK req_cb(int p, int n, char *arg)
 	if (p == 2) c='*';
 	if (p == 3) c='\n';
 	BIO_write((BIO *)arg,&c,1);
-	BIO_flush((BIO *)arg);
+	(void)BIO_flush((BIO *)arg);
 #ifdef LINT
 	p=n;
 #endif
@@ -1173,7 +1177,7 @@ static int check_end(char *str, char *end)
 static int add_oid_section(LHASH *conf)
 {	
 	char *p;
-	STACK *sktmp;
+	STACK_OF(CONF_VALUE) *sktmp;
 	CONF_VALUE *cnf;
 	int i;
 	if(!(p=CONF_get_string(conf,NULL,"oid_section"))) return 1;
@@ -1181,8 +1185,8 @@ static int add_oid_section(LHASH *conf)
 		BIO_printf(bio_err, "problem loading oid section %s\n", p);
 		return 0;
 	}
-	for(i = 0; i < sk_num(sktmp); i++) {
-		cnf = (CONF_VALUE *)sk_value(sktmp, i);
+	for(i = 0; i < sk_CONF_VALUE_num(sktmp); i++) {
+		cnf = sk_CONF_VALUE_value(sktmp, i);
 		if(OBJ_create(cnf->value, cnf->name, cnf->name) == NID_undef) {
 			BIO_printf(bio_err, "problem creating object %s=%s\n",
 							 cnf->name, cnf->value);

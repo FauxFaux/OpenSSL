@@ -254,6 +254,7 @@ int ssl3_connect(SSL *s)
 		case SSL3_ST_CW_CERT_A:
 		case SSL3_ST_CW_CERT_B:
 		case SSL3_ST_CW_CERT_C:
+		case SSL3_ST_CW_CERT_D:
 			ret=ssl3_send_client_certificate(s);
 			if (ret <= 0) goto end;
 			s->state=SSL3_ST_CW_KEY_EXCH_A;
@@ -757,7 +758,7 @@ static int ssl3_get_server_certificate(SSL *s)
 		}
 
 	i=ssl_verify_cert_chain(s,sk);
-        if ((s->verify_mode != SSL_VERIFY_NONE) && (!i))
+	if ((s->verify_mode != SSL_VERIFY_NONE) && (!i))
 		{
 		al=ssl_verify_alarm_type(s->verify_result);
 		SSLerr(SSL_F_SSL3_GET_SERVER_CERTIFICATE,SSL_R_CERTIFICATE_VERIFY_FAILED);
@@ -929,6 +930,7 @@ static int ssl3_get_key_exchange(SSL *s)
 			goto err;
 			}
 		s->session->sess_cert->peer_rsa_tmp=rsa;
+		rsa=NULL;
 		}
 	else
 #endif
@@ -1113,6 +1115,14 @@ f_err:
 	ssl3_send_alert(s,SSL3_AL_FATAL,al);
 err:
 	EVP_PKEY_free(pkey);
+#ifndef NO_RSA
+	if (rsa != NULL)
+		RSA_free(rsa);
+#endif
+#ifndef NO_DH
+	if (dh != NULL)
+		DH_free(dh);
+#endif
 	return(-1);
 	}
 
@@ -1326,6 +1336,7 @@ static int ssl3_send_client_key_exchange(SSL *s)
 					goto err;
 					}
 				rsa=pkey->pkey.rsa;
+				EVP_PKEY_free(pkey);
 				}
 				
 			tmp_buf[0]=s->client_version>>8;

@@ -99,9 +99,9 @@ int MAIN(int argc, char **argv)
 		BIO_printf (bio_err, "Netscape certificate sequence utility\n");
 		BIO_printf (bio_err, "Usage nseq [options]\n");
 		BIO_printf (bio_err, "where options are\n");
-                BIO_printf (bio_err, "-in file  input file\n");
-                BIO_printf (bio_err, "-out file output file\n");
-                BIO_printf (bio_err, "-toseq    output NS Sequence file\n");
+		BIO_printf (bio_err, "-in file  input file\n");
+		BIO_printf (bio_err, "-out file output file\n");
+		BIO_printf (bio_err, "-toseq    output NS Sequence file\n");
 		EXIT(1);
 	}
 
@@ -123,11 +123,11 @@ int MAIN(int argc, char **argv)
 
 	if (toseq) {
 		seq = NETSCAPE_CERT_SEQUENCE_new();
-		seq->certs = sk_new(NULL);
-		while((x509 = PEM_read_bio_X509(in, NULL, NULL))) 
-					sk_push(seq->certs, (char *)x509);
+		seq->certs = sk_X509_new(NULL);
+		while((x509 = PEM_read_bio_X509(in, NULL, NULL, NULL))) 
+		    sk_X509_push(seq->certs,x509);
 
-		if(!sk_num(seq->certs))
+		if(!sk_X509_num(seq->certs))
 		{
 			BIO_printf (bio_err, "Error reading certs file %s\n", infile);
 			ERR_print_errors(bio_err);
@@ -138,14 +138,14 @@ int MAIN(int argc, char **argv)
 		goto end;
 	}
 
-	if (!(seq = PEM_read_bio_NETSCAPE_CERT_SEQUENCE(in, NULL, NULL))) {
+	if (!(seq = PEM_read_bio_NETSCAPE_CERT_SEQUENCE(in, NULL, NULL, NULL))) {
 		BIO_printf (bio_err, "Error reading sequence file %s\n", infile);
 		ERR_print_errors(bio_err);
 		goto end;
 	}
 
-	for(i = 0; i < sk_num(seq->certs); i++) {
-		x509 = (X509 *) sk_value(seq->certs, i);
+	for(i = 0; i < sk_X509_num(seq->certs); i++) {
+		x509 = sk_X509_value(seq->certs, i);
 		dump_cert_text(out, x509);
 		PEM_write_bio_X509(out, x509);
 	}
@@ -160,15 +160,15 @@ end:
 
 static int dump_cert_text(BIO *out, X509 *x)
 {
-        char buf[256];
-        X509_NAME_oneline(X509_get_subject_name(x),buf,256);
-        BIO_puts(out,"subject=");
-        BIO_puts(out,buf);
+	char buf[256];
+	X509_NAME_oneline(X509_get_subject_name(x),buf,256);
+	BIO_puts(out,"subject=");
+	BIO_puts(out,buf);
 
-        X509_NAME_oneline(X509_get_issuer_name(x),buf,256);
-        BIO_puts(out,"\nissuer= ");
-        BIO_puts(out,buf);
-        BIO_puts(out,"\n");
-        return 0;
+	X509_NAME_oneline(X509_get_issuer_name(x),buf,256);
+	BIO_puts(out,"\nissuer= ");
+	BIO_puts(out,buf);
+	BIO_puts(out,"\n");
+	return 0;
 }
 

@@ -2,6 +2,364 @@
  OpenSSL CHANGES
  _______________
 
+ Changes between 0.9.3a and 0.9.4  [09 Aug 1999]
+  
+  *) Install libRSAglue.a when OpenSSL is built with RSAref.
+     [Ralf S. Engelschall]
+
+  *) A few more ``#ifndef NO_FP_API / #endif'' pairs for consistency.
+     [Andrija Antonijevic <TheAntony2@bigfoot.com>]
+
+  *) Fix -startdate and -enddate (which was missing) arguments to 'ca'
+     program.
+     [Steve Henson]
+
+  *) New function DSA_dup_DH, which duplicates DSA parameters/keys as
+     DH parameters/keys (q is lost during that conversion, but the resulting
+     DH parameters contain its length).
+
+     For 1024-bit p, DSA_generate_parameters followed by DSA_dup_DH is
+     much faster than DH_generate_parameters (which creates parameters
+     where p = 2*q + 1), and also the smaller q makes DH computations
+     much more efficient (160-bit exponentiation instead of 1024-bit
+     exponentiation); so this provides a convenient way to support DHE
+     ciphersuites in SSL/TLS servers (see ssl/ssltest.c).  It is of
+     utter importance to use
+         SSL_CTX_set_options(s_ctx, SSL_OP_SINGLE_DH_USE);
+     or
+         SSL_set_options(s_ctx, SSL_OP_SINGLE_DH_USE);
+     when such DH parameters are used, because otherwise small subgroup
+     attacks may become possible!
+     [Bodo Moeller]
+
+  *) Avoid memory leak in i2d_DHparams.
+     [Bodo Moeller]
+
+  *) Allow the -k option to be used more than once in the enc program:
+     this allows the same encrypted message to be read by multiple recipients.
+     [Steve Henson]
+
+  *) New function OBJ_obj2txt(buf, buf_len, a, no_name), this converts
+     an ASN1_OBJECT to a text string. If the "no_name" parameter is set then
+     it will always use the numerical form of the OID, even if it has a short
+     or long name.
+     [Steve Henson]
+
+  *) Added an extra RSA flag: RSA_FLAG_EXT_PKEY. Previously the rsa_mod_exp
+     method only got called if p,q,dmp1,dmq1,iqmp components were present,
+     otherwise bn_mod_exp was called. In the case of hardware keys for example
+     no private key components need be present and it might store extra data
+     in the RSA structure, which cannot be accessed from bn_mod_exp. By setting
+     RSA_FLAG_EXT_PKEY rsa_mod_exp will always be called for private key
+     operations.
+     [Steve Henson]
+
+  *) Added support for SPARC Linux.
+     [Andy Polyakov]
+
+  *) pem_password_cb function type incompatibly changed from
+          typedef int pem_password_cb(char *buf, int size, int rwflag);
+     to
+          ....(char *buf, int size, int rwflag, void *userdata);
+     so that applications can pass data to their callbacks:
+     The PEM[_ASN1]_{read,write}... functions and macros now take an
+     additional void * argument, which is just handed through whenever
+     the password callback is called.
+     [Damien Miller <dmiller@ilogic.com.au>, with tiny changes by Bodo Moeller]
+
+     New function SSL_CTX_set_default_passwd_cb_userdata.
+
+     Compatibility note: As many C implementations push function arguments
+     onto the stack in reverse order, the new library version is likely to
+     interoperate with programs that have been compiled with the old
+     pem_password_cb definition (PEM_whatever takes some data that
+     happens to be on the stack as its last argument, and the callback
+     just ignores this garbage); but there is no guarantee whatsoever that
+     this will work.
+
+  *) The -DPLATFORM="\"$(PLATFORM)\"" definition and the similar -DCFLAGS=...
+     (both in crypto/Makefile.ssl for use by crypto/cversion.c) caused
+     problems not only on Windows, but also on some Unix platforms.
+     To avoid problematic command lines, these definitions are now in an
+     auto-generated file crypto/buildinf.h (created by crypto/Makefile.ssl
+     for standard "make" builds, by util/mk1mf.pl for "mk1mf" builds).
+     [Bodo Moeller]
+
+  *) MIPS III/IV assembler module is reimplemented.
+     [Andy Polyakov]
+
+  *) More DES library cleanups: remove references to srand/rand and
+     delete an unused file.
+     [Ulf Möller]
+
+  *) Add support for the the free Netwide assembler (NASM) under Win32,
+     since not many people have MASM (ml) and it can be hard to obtain.
+     This is currently experimental but it seems to work OK and pass all
+     the tests. Check out INSTALL.W32 for info.
+     [Steve Henson]
+
+  *) Fix memory leaks in s3_clnt.c: All non-anonymous SSL3/TLS1 connections
+     without temporary keys kept an extra copy of the server key,
+     and connections with temporary keys did not free everything in case
+     of an error.
+     [Bodo Moeller]
+
+  *) New function RSA_check_key and new openssl rsa option -check
+     for verifying the consistency of RSA keys.
+     [Ulf Moeller, Bodo Moeller]
+
+  *) Various changes to make Win32 compile work: 
+     1. Casts to avoid "loss of data" warnings in p5_crpt2.c
+     2. Change unsigned int to int in b_dump.c to avoid "signed/unsigned
+        comparison" warnings.
+     3. Add sk_<TYPE>_sort to DEF file generator and do make update.
+     [Steve Henson]
+
+  *) Add a debugging option to PKCS#5 v2 key generation function: when
+     you #define DEBUG_PKCS5V2 passwords, salts, iteration counts and
+     derived keys are printed to stderr.
+     [Steve Henson]
+
+  *) Copy the flags in ASN1_STRING_dup().
+     [Roman E. Pavlov <pre@mo.msk.ru>]
+
+  *) The x509 application mishandled signing requests containing DSA
+     keys when the signing key was also DSA and the parameters didn't match.
+
+     It was supposed to omit the parameters when they matched the signing key:
+     the verifying software was then supposed to automatically use the CA's
+     parameters if they were absent from the end user certificate.
+
+     Omitting parameters is no longer recommended. The test was also
+     the wrong way round! This was probably due to unusual behaviour in
+     EVP_cmp_parameters() which returns 1 if the parameters match. 
+     This meant that parameters were omitted when they *didn't* match and
+     the certificate was useless. Certificates signed with 'ca' didn't have
+     this bug.
+     [Steve Henson, reported by Doug Erickson <Doug.Erickson@Part.NET>]
+
+  *) Memory leak checking (-DCRYPTO_MDEBUG) had some problems.
+     The interface is as follows:
+     Applications can use
+         CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ON) aka MemCheck_start(),
+         CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_OFF) aka MemCheck_stop();
+     "off" is now the default.
+     The library internally uses
+         CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_DISABLE) aka MemCheck_off(),
+         CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ENABLE) aka MemCheck_on()
+     to disable memory-checking temporarily.
+
+     Some inconsistent states that previously were possible (and were
+     even the default) are now avoided.
+
+     -DCRYPTO_MDEBUG_TIME is new and additionally stores the current time
+     with each memory chunk allocated; this is occasionally more helpful
+     than just having a counter.
+
+     -DCRYPTO_MDEBUG_THREAD is also new and adds the thread ID.
+
+     -DCRYPTO_MDEBUG_ALL enables all of the above, plus any future
+     extensions.
+     [Bodo Moeller]
+
+  *) Introduce "mode" for SSL structures (with defaults in SSL_CTX),
+     which largely parallels "options", but is for changing API behaviour,
+     whereas "options" are about protocol behaviour.
+     Initial "mode" flags are:
+
+     SSL_MODE_ENABLE_PARTIAL_WRITE   Allow SSL_write to report success when
+                                     a single record has been written.
+     SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER  Don't insist that SSL_write
+                                     retries use the same buffer location.
+                                     (But all of the contents must be
+                                     copied!)
+     [Bodo Moeller]
+
+  *) Bugfix: SSL_set_mode ignored its parameter, only SSL_CTX_set_mode
+     worked.
+
+  *) Fix problems with no-hmac etc.
+     [Ulf Möller, pointed out by Brian Wellington <bwelling@tislabs.com>]
+
+  *) New functions RSA_get_default_method(), RSA_set_method() and
+     RSA_get_method(). These allows replacement of RSA_METHODs without having
+     to mess around with the internals of an RSA structure.
+     [Steve Henson]
+
+  *) Fix memory leaks in DSA_do_sign and DSA_is_prime.
+     Also really enable memory leak checks in openssl.c and in some
+     test programs.
+     [Chad C. Mulligan, Bodo Moeller]
+
+  *) Fix a bug in d2i_ASN1_INTEGER() and i2d_ASN1_INTEGER() which can mess
+     up the length of negative integers. This has now been simplified to just
+     store the length when it is first determined and use it later, rather
+     than trying to keep track of where data is copied and updating it to
+     point to the end.
+     [Steve Henson, reported by Brien Wheeler
+      <bwheeler@authentica-security.com>]
+
+  *) Add a new function PKCS7_signatureVerify. This allows the verification
+     of a PKCS#7 signature but with the signing certificate passed to the
+     function itself. This contrasts with PKCS7_dataVerify which assumes the
+     certificate is present in the PKCS#7 structure. This isn't always the
+     case: certificates can be omitted from a PKCS#7 structure and be
+     distributed by "out of band" means (such as a certificate database).
+     [Steve Henson]
+
+  *) Complete the PEM_* macros with DECLARE_PEM versions to replace the
+     function prototypes in pem.h, also change util/mkdef.pl to add the
+     necessary function names. 
+     [Steve Henson]
+
+  *) mk1mf.pl (used by Windows builds) did not properly read the
+     options set by Configure in the top level Makefile, and Configure
+     was not even able to write more than one option correctly.
+     Fixed, now "no-idea no-rc5 -DCRYPTO_MDEBUG" etc. works as intended.
+     [Bodo Moeller]
+
+  *) New functions CONF_load_bio() and CONF_load_fp() to allow a config
+     file to be loaded from a BIO or FILE pointer. The BIO version will
+     for example allow memory BIOs to contain config info.
+     [Steve Henson]
+
+  *) New function "CRYPTO_num_locks" that returns CRYPTO_NUM_LOCKS.
+     Whoever hopes to achieve shared-library compatibility across versions
+     must use this, not the compile-time macro.
+     (Exercise 0.9.4: Which is the minimum library version required by
+     such programs?)
+     Note: All this applies only to multi-threaded programs, others don't
+     need locks.
+     [Bodo Moeller]
+
+  *) Add missing case to s3_clnt.c state machine -- one of the new SSL tests
+     through a BIO pair triggered the default case, i.e.
+     SSLerr(...,SSL_R_UNKNOWN_STATE).
+     [Bodo Moeller]
+
+  *) New "BIO pair" concept (crypto/bio/bss_bio.c) so that applications
+     can use the SSL library even if none of the specific BIOs is
+     appropriate.
+     [Bodo Moeller]
+
+  *) Fix a bug in i2d_DSAPublicKey() which meant it returned the wrong value
+     for the encoded length.
+     [Jeon KyoungHo <khjeon@sds.samsung.co.kr>]
+
+  *) Add initial documentation of the X509V3 functions.
+     [Steve Henson]
+
+  *) Add a new pair of functions PEM_write_PKCS8PrivateKey() and 
+     PEM_write_bio_PKCS8PrivateKey() that are equivalent to
+     PEM_write_PrivateKey() and PEM_write_bio_PrivateKey() but use the more
+     secure PKCS#8 private key format with a high iteration count.
+     [Steve Henson]
+
+  *) Fix determination of Perl interpreter: A perl or perl5
+     _directory_ in $PATH was also accepted as the interpreter.
+     [Ralf S. Engelschall]
+
+  *) Fix demos/sign/sign.c: well there wasn't anything strictly speaking
+     wrong with it but it was very old and did things like calling
+     PEM_ASN1_read() directly and used MD5 for the hash not to mention some
+     unusual formatting.
+     [Steve Henson]
+
+  *) Fix demos/selfsign.c: it used obsolete and deleted functions, changed
+     to use the new extension code.
+     [Steve Henson]
+
+  *) Implement the PEM_read/PEM_write functions in crypto/pem/pem_all.c
+     with macros. This should make it easier to change their form, add extra
+     arguments etc. Fix a few PEM prototypes which didn't have cipher as a
+     constant.
+     [Steve Henson]
+
+  *) Add to configuration table a new entry that can specify an alternative
+     name for unistd.h (for pre-POSIX systems); we need this for NeXTstep,
+     according to Mark Crispin <MRC@Panda.COM>.
+     [Bodo Moeller]
+
+#if 0
+  *) DES CBC did not update the IV. Weird.
+     [Ben Laurie]
+#else
+     des_cbc_encrypt does not update the IV, but des_ncbc_encrypt does.
+     Changing the behaviour of the former might break existing programs --
+     where IV updating is needed, des_ncbc_encrypt can be used.
+#endif
+
+  *) When bntest is run from "make test" it drives bc to check its
+     calculations, as well as internally checking them. If an internal check
+     fails, it needs to cause bc to give a non-zero result or make test carries
+     on without noticing the failure. Fixed.
+     [Ben Laurie]
+
+  *) DES library cleanups.
+     [Ulf Möller]
+
+  *) Add support for PKCS#5 v2.0 PBE algorithms. This will permit PKCS#8 to be
+     used with any cipher unlike PKCS#5 v1.5 which can at most handle 64 bit
+     ciphers. NOTE: although the key derivation function has been verified
+     against some published test vectors it has not been extensively tested
+     yet. Added a -v2 "cipher" option to pkcs8 application to allow the use
+     of v2.0.
+     [Steve Henson]
+
+  *) Instead of "mkdir -p", which is not fully portable, use new
+     Perl script "util/mkdir-p.pl".
+     [Bodo Moeller]
+
+  *) Rewrite the way password based encryption (PBE) is handled. It used to
+     assume that the ASN1 AlgorithmIdentifier parameter was a PBEParameter
+     structure. This was true for the PKCS#5 v1.5 and PKCS#12 PBE algorithms
+     but doesn't apply to PKCS#5 v2.0 where it can be something else. Now
+     the 'parameter' field of the AlgorithmIdentifier is passed to the
+     underlying key generation function so it must do its own ASN1 parsing.
+     This has also changed the EVP_PBE_CipherInit() function which now has a
+     'parameter' argument instead of literal salt and iteration count values
+     and the function EVP_PBE_ALGOR_CipherInit() has been deleted.
+     [Steve Henson]
+
+  *) Support for PKCS#5 v1.5 compatible password based encryption algorithms
+     and PKCS#8 functionality. New 'pkcs8' application linked to openssl.
+     Needed to change the PEM_STRING_EVP_PKEY value which was just "PRIVATE
+     KEY" because this clashed with PKCS#8 unencrypted string. Since this
+     value was just used as a "magic string" and not used directly its
+     value doesn't matter.
+     [Steve Henson]
+
+  *) Introduce some semblance of const correctness to BN. Shame C doesn't
+     support mutable.
+     [Ben Laurie]
+
+  *) "linux-sparc64" configuration (ultrapenguin).
+     [Ray Miller <ray.miller@oucs.ox.ac.uk>]
+     "linux-sparc" configuration.
+     [Christian Forster <fo@hawo.stw.uni-erlangen.de>]
+
+  *) config now generates no-xxx options for missing ciphers.
+     [Ulf Möller]
+
+  *) Support the EBCDIC character set (work in progress).
+     File ebcdic.c not yet included because it has a different license.
+     [Martin Kraemer <Martin.Kraemer@MchP.Siemens.De>]
+
+  *) Support BS2000/OSD-POSIX.
+     [Martin Kraemer <Martin.Kraemer@MchP.Siemens.De>]
+
+  *) Make callbacks for key generation use void * instead of char *.
+     [Ben Laurie]
+
+  *) Make S/MIME samples compile (not yet tested).
+     [Ben Laurie]
+
+  *) Additional typesafe stacks.
+     [Ben Laurie]
+
+  *) New configuration variants "bsdi-elf-gcc" (BSD/OS 4.x).
+     [Bodo Moeller]
+
 
  Changes between 0.9.3 and 0.9.3a  [29 May 1999]
 
@@ -28,6 +386,7 @@
 
   *) Improvements for VMS support.
      [Richard Levitte]
+
 
  Changes between 0.9.2b and 0.9.3  [24 May 1999]
 
@@ -373,7 +732,7 @@
      [Ulf Möller]
 
   *) Tweaks to Configure
-     Niels Poppe <niels@netbox.org>
+     [Niels Poppe <niels@netbox.org>]
 
   *) Add support for PKCS#5 v2.0 ASN1 PBES2 structures. No other support,
      yet...

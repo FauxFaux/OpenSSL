@@ -59,6 +59,7 @@
 #include <stdio.h>
 #include "cryptlib.h"
 #include <openssl/asn1_mac.h>
+#include <openssl/x509.h>
 
 int i2d_X509_ALGOR(X509_ALGOR *a, unsigned char **pp)
 	{
@@ -113,3 +114,5 @@ void X509_ALGOR_free(X509_ALGOR *a)
 	Free((char *)a);
 	}
 
+IMPLEMENT_STACK_OF(X509_ALGOR)
+IMPLEMENT_ASN1_SET_OF(X509_ALGOR)

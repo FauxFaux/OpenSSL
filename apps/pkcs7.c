@@ -195,7 +195,7 @@ bad:
 	if	(informat == FORMAT_ASN1)
 		p7=d2i_PKCS7_bio(in,NULL);
 	else if (informat == FORMAT_PEM)
-		p7=PEM_read_bio_PKCS7(in,NULL,NULL);
+		p7=PEM_read_bio_PKCS7(in,NULL,NULL,NULL);
 	else
 		{
 		BIO_printf(bio_err,"bad input format specified for pkcs7 object\n");
@@ -222,7 +222,7 @@ bad:
 	if (print_certs)
 		{
 		STACK_OF(X509) *certs=NULL;
-		STACK *crls=NULL;
+		STACK_OF(X509_CRL) *crls=NULL;
 
 		i=OBJ_obj2nid(p7->type);
 		switch (i)
@@ -266,9 +266,9 @@ bad:
 			{
 			X509_CRL *crl;
 
-			for (i=0; i<sk_num(crls); i++)
+			for (i=0; i<sk_X509_CRL_num(crls); i++)
 				{
-				crl=(X509_CRL *)sk_value(crls,i);
+				crl=sk_X509_CRL_value(crls,i);
 
 				X509_NAME_oneline(crl->crl->issuer,buf,256);
 				BIO_puts(out,"issuer= ");

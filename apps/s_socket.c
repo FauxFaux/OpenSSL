@@ -56,20 +56,21 @@
  * [including the GNU Public Licence.]
  */
 
-/* With IPv6, it looks like Digital has mixed up the proper order of
-   recursive header file inclusion, resulting in the compiler complaining
-   that u_int isn't defined, but only if _POSIX_C_SOURCE is defined, which
-   is needed to have fileno() declared correctly...  So let's define u_int */
-#if defined(__DECC) && !defined(__U_INT)
-#define __U_INT
-typedef unsigned int u_int;
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <signal.h>
+
+/* With IPv6, it looks like Digital has mixed up the proper order of
+   recursive header file inclusion, resulting in the compiler complaining
+   that u_int isn't defined, but only if _POSIX_C_SOURCE is defined, which
+   is needed to have fileno() declared correctly...  So let's define u_int */
+#if defined(VMS) && defined(__DECC) && !defined(__U_INT)
+#define __U_INT
+typedef unsigned int u_int;
+#endif
+
 #define USE_SOCKETS
 #define NON_MAIN
 #include "apps.h"
@@ -494,7 +495,7 @@ int host_ip(char *str, unsigned char ip[4])
 	unsigned int in[4]; 
 	int i;
 
-	if (sscanf(str,"%d.%d.%d.%d",&(in[0]),&(in[1]),&(in[2]),&(in[3])) == 4)
+	if (sscanf(str,"%u.%u.%u.%u",&(in[0]),&(in[1]),&(in[2]),&(in[3])) == 4)
 		{
 		for (i=0; i<4; i++)
 			if (in[i] > 255)

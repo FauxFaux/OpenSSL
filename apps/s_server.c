@@ -56,15 +56,9 @@
  * [including the GNU Public Licence.]
  */
 
-/* With IPv6, it looks like Digital has mixed up the proper order of
-   recursive header file inclusion, resulting in the compiler complaining
-   that u_int isn't defined, but only if _POSIX_C_SOURCE is defined, which
-   is needed to have fileno() declared correctly...  So let's define u_int */
-#if defined(__DECC) && !defined(__U_INT)
-#define __U_INT
-typedef unsigned int u_int;
+#ifdef APPS_CRLF
+# include <assert.h>
 #endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,6 +67,16 @@ typedef unsigned int u_int;
 #ifdef NO_STDIO
 #define APPS_WIN16
 #endif
+
+/* With IPv6, it looks like Digital has mixed up the proper order of
+   recursive header file inclusion, resulting in the compiler complaining
+   that u_int isn't defined, but only if _POSIX_C_SOURCE is defined, which
+   is needed to have fileno() declared correctly...  So let's define u_int */
+#if defined(VMS) && defined(__DECC) && !defined(__U_INT)
+#define __U_INT
+typedef unsigned int u_int;
+#endif
+
 #include <openssl/lhash.h>
 #include <openssl/bn.h>
 #define USE_SOCKETS
@@ -93,7 +97,7 @@ typedef unsigned int u_int;
 #endif
 
 #ifndef NO_RSA
-static RSA MS_CALLBACK *tmp_rsa_cb(SSL *s, int export,int keylength);
+static RSA MS_CALLBACK *tmp_rsa_cb(SSL *s, int is_export, int keylength);
 #endif
 static int sv_body(char *hostname, int s, unsigned char *context);
 static int www_body(char *hostname, int s, unsigned char *context);
@@ -108,11 +112,11 @@ static DH *get_dh512(void);
 /* static void s_server_init(void);*/
 
 #ifndef S_ISDIR
-#if defined(VMS) && !defined(__DECC)
-#define S_ISDIR(a)	(((a) & S_IFMT) == S_IFDIR)
-#else
-#define S_ISDIR(a)	(((a) & _S_IFMT) == _S_IFDIR)
-#endif
+# if defined(_S_IFMT) && defined(_S_IFDIR)
+#  define S_ISDIR(a)	(((a) & _S_IFMT) == _S_IFDIR)
+# else
+#  define S_ISDIR(a)	(((a) & S_IFMT) == S_IFDIR)
+# endif
 #endif
 
 #ifndef NO_DH
@@ -165,6 +169,9 @@ static char *s_dcert_file=NULL,*s_dkey_file=NULL;
 static int s_nbio=0;
 #endif
 static int s_nbio_test=0;
+#ifdef APPS_CRLF /* won't be #ifdef'd in next release */
+int s_crlf=0;
+#endif
 static SSL_CTX *ctx=NULL;
 static int www=0;
 
@@ -212,6 +219,9 @@ static void sv_usage(void)
 	BIO_printf(bio_err," -nbio         - Run with non-blocking IO\n");
 #endif
 	BIO_printf(bio_err," -nbio_test    - test with the non-blocking test bio\n");
+#ifdef APPS_CRLF
+	BIO_printf(bio_err," -crlf         - convert LF from terminal into CRLF\n");
+#endif
 	BIO_printf(bio_err," -debug        - Print more output\n");
 	BIO_printf(bio_err," -state        - Print the SSL states\n");
 	BIO_printf(bio_err," -CApath arg   - PEM format directory of CA's\n");
@@ -226,6 +236,9 @@ static void sv_usage(void)
 	BIO_printf(bio_err," -no_ssl2      - Just disable SSLv2\n");
 	BIO_printf(bio_err," -no_ssl3      - Just disable SSLv3\n");
 	BIO_printf(bio_err," -no_tls1      - Just disable TLSv1\n");
+#ifndef NO_DH
+	BIO_printf(bio_err," -no_dhe       - Disable ephemeral DH\n");
+#endif
 	BIO_printf(bio_err," -bugs         - Turn on SSL bug compatability\n");
 	BIO_printf(bio_err," -www          - Respond to a 'GET /' with a status page\n");
 	BIO_printf(bio_err," -WWW          - Respond to a 'GET /<path> HTTP/1.0' with file ./<path>\n");
@@ -235,6 +248,156 @@ static int local_argc=0;
 static char **local_argv;
 static int hack=0;
 
+#ifdef CHARSET_EBCDIC
+static int ebcdic_new(BIO *bi);
+static int ebcdic_free(BIO *a);
+static int ebcdic_read(BIO *b, char *out, int outl);
+static int ebcdic_write(BIO *b, char *in, int inl);
+static long ebcdic_ctrl(BIO *b, int cmd, long num, char *ptr);
+static int ebcdic_gets(BIO *bp, char *buf, int size);
+static int ebcdic_puts(BIO *bp, char *str);
+
+#define BIO_TYPE_EBCDIC_FILTER	(18|0x0200)
+static BIO_METHOD methods_ebcdic=
+	{
+	BIO_TYPE_EBCDIC_FILTER,
+	"EBCDIC/ASCII filter",
+	ebcdic_write,
+	ebcdic_read,
+	ebcdic_puts,
+	ebcdic_gets,
+	ebcdic_ctrl,
+	ebcdic_new,
+	ebcdic_free,
+	};
+
+typedef struct
+{
+	size_t	alloced;
+	char	buff[1];
+} EBCDIC_OUTBUFF;
+
+BIO_METHOD *BIO_f_ebcdic_filter()
+{
+	return(&methods_ebcdic);
+}
+
+static int ebcdic_new(BIO *bi)
+{
+	EBCDIC_OUTBUFF *wbuf;
+
+	wbuf = (EBCDIC_OUTBUFF *)Malloc(sizeof(EBCDIC_OUTBUFF) + 1024);
+	wbuf->alloced = 1024;
+	wbuf->buff[0] = '\0';
+
+	bi->ptr=(char *)wbuf;
+	bi->init=1;
+	bi->flags=0;
+	return(1);
+}
+
+static int ebcdic_free(BIO *a)
+{
+	if (a == NULL) return(0);
+	if (a->ptr != NULL)
+		Free(a->ptr);
+	a->ptr=NULL;
+	a->init=0;
+	a->flags=0;
+	return(1);
+}
+	
+static int ebcdic_read(BIO *b, char *out, int outl)
+{
+	int ret=0;
+
+	if (out == NULL || outl == 0) return(0);
+	if (b->next_bio == NULL) return(0);
+
+	ret=BIO_read(b->next_bio,out,outl);
+	if (ret > 0)
+		ascii2ebcdic(out,out,ret);
+	return(ret);
+}
+
+static int ebcdic_write(BIO *b, char *in, int inl)
+{
+	EBCDIC_OUTBUFF *wbuf;
+	int ret=0;
+	int num;
+	unsigned char n;
+
+	if ((in == NULL) || (inl <= 0)) return(0);
+	if (b->next_bio == NULL) return(0);
+
+	wbuf=(EBCDIC_OUTBUFF *)b->ptr;
+
+	if (inl > (num = wbuf->alloced))
+	{
+		num = num + num;  /* double the size */
+		if (num < inl)
+			num = inl;
+		Free((char*)wbuf);
+		wbuf=(EBCDIC_OUTBUFF *)Malloc(sizeof(EBCDIC_OUTBUFF) + num);
+
+		wbuf->alloced = num;
+		wbuf->buff[0] = '\0';
+
+		b->ptr=(char *)wbuf;
+	}
+
+	ebcdic2ascii(wbuf->buff, in, inl);
+
+	ret=BIO_write(b->next_bio, wbuf->buff, inl);
+
+	return(ret);
+}
+
+static long ebcdic_ctrl(BIO *b, int cmd, long num, char *ptr)
+{
+	long ret;
+
+	if (b->next_bio == NULL) return(0);
+	switch (cmd)
+	{
+	case BIO_CTRL_DUP:
+		ret=0L;
+		break;
+	default:
+		ret=BIO_ctrl(b->next_bio,cmd,num,ptr);
+		break;
+	}
+	return(ret);
+}
+
+static int ebcdic_gets(BIO *bp, char *buf, int size)
+{
+	int i, ret;
+	if (bp->next_bio == NULL) return(0);
+/*	return(BIO_gets(bp->next_bio,buf,size));*/
+	for (i=0; i<size-1; ++i)
+	{
+		ret = ebcdic_read(bp,&buf[i],1);
+		if (ret <= 0)
+			break;
+		else if (buf[i] == '\n')
+		{
+			++i;
+			break;
+		}
+	}
+	if (i < size)
+		buf[i] = '\0';
+	return (ret < 0 && i == 0) ? ret : i;
+}
+
+static int ebcdic_puts(BIO *bp, char *str)
+{
+	if (bp->next_bio == NULL) return(0);
+	return ebcdic_write(bp, str, strlen(str));
+}
+#endif
+
 int MAIN(int argc, char *argv[])
 	{
 	short port=PORT;
@@ -243,7 +406,7 @@ int MAIN(int argc, char *argv[])
 	int badop=0,bugs=0;
 	int ret=1;
 	int off=0;
-	int no_tmp_rsa=0,nocert=0;
+	int no_tmp_rsa=0,no_dhe=0,nocert=0;
 	int state=0;
 	SSL_METHOD *meth=NULL;
 #ifndef NO_DH
@@ -362,12 +525,18 @@ int MAIN(int argc, char *argv[])
 			{ hack=1; }
 		else if	(strcmp(*argv,"-state") == 0)
 			{ state=1; }
+#ifdef APPS_CRLF
+		else if	(strcmp(*argv,"-crlf") == 0)
+			{ s_crlf=1; }
+#endif
 		else if	(strcmp(*argv,"-quiet") == 0)
 			{ s_quiet=1; }
 		else if	(strcmp(*argv,"-bugs") == 0)
 			{ bugs=1; }
 		else if	(strcmp(*argv,"-no_tmp_rsa") == 0)
 			{ no_tmp_rsa=1; }
+		else if	(strcmp(*argv,"-no_dhe") == 0)
+			{ no_dhe=1; }
 		else if	(strcmp(*argv,"-www") == 0)
 			{ www=1; }
 		else if	(strcmp(*argv,"-WWW") == 0)
@@ -470,21 +639,24 @@ bad:
 		}
 
 #ifndef NO_DH
-	/* EAY EAY EAY evil hack */
-	dh=load_dh_param();
-	if (dh != NULL)
+	if (!no_dhe)
 		{
-		BIO_printf(bio_s_out,"Setting temp DH parameters\n");
-		}
-	else
-		{
-		BIO_printf(bio_s_out,"Using default temp DH parameters\n");
-		dh=get_dh512();
-		}
-	BIO_flush(bio_s_out);
+		/* EAY EAY EAY evil hack */
+		dh=load_dh_param();
+		if (dh != NULL)
+			{
+			BIO_printf(bio_s_out,"Setting temp DH parameters\n");
+			}
+		else
+			{
+			BIO_printf(bio_s_out,"Using default temp DH parameters\n");
+			dh=get_dh512();
+			}
+		(void)BIO_flush(bio_s_out);
 
-	SSL_CTX_set_tmp_dh(ctx,dh);
-	DH_free(dh);
+		SSL_CTX_set_tmp_dh(ctx,dh);
+		DH_free(dh);
+		}
 #endif
 	
 	if (!set_cert_stuff(ctx,s_cert_file,s_key_file))
@@ -641,7 +813,32 @@ static int sv_body(char *hostname, int s, unsigned char *context)
 		if (i <= 0) continue;
 		if (FD_ISSET(fileno(stdin),&readfds))
 			{
-			i=read(fileno(stdin),buf,bufsize);
+#ifdef APPS_CRLF
+			if (s_crlf)
+				{
+				int j, lf_num;
+
+				i=read(fileno(stdin), buf, bufsize/2);
+				lf_num = 0;
+				/* both loops are skipped when i <= 0 */
+				for (j = 0; j < i; j++)
+					if (buf[j] == '\n')
+						lf_num++;
+				for (j = i-1; j >= 0; j--)
+					{
+					buf[j+lf_num] = buf[j];
+					if (buf[j] == '\n')
+						{
+						lf_num--;
+						i++;
+						buf[j+lf_num] = '\r';
+						}
+					}
+				assert(lf_num == 0);
+				}
+			else
+#endif
+				i=read(fileno(stdin),buf,bufsize);
 			if (!s_quiet)
 				{
 				if ((i <= 0) || (buf[0] == 'Q'))
@@ -692,6 +889,9 @@ static int sv_body(char *hostname, int s, unsigned char *context)
 					print_stats(bio_s_out,SSL_get_SSL_CTX(con));
 					}
 				}
+#ifdef CHARSET_EBCDIC
+			ebcdic2ascii(buf,buf,i);
+#endif
 			l=k=0;
 			for (;;)
 				{
@@ -750,6 +950,9 @@ again:
 				switch (SSL_get_error(con,i))
 					{
 				case SSL_ERROR_NONE:
+#ifdef CHARSET_EBCDIC
+					ascii2ebcdic(buf,buf,i);
+#endif
 					write(fileno(stdout),buf,
 						(unsigned int)i);
 					if (SSL_pending(con)) goto again;
@@ -863,7 +1066,7 @@ static DH *load_dh_param(void)
 
 	if ((bio=BIO_new_file(DH_PARAM,"r")) == NULL)
 		goto err;
-	ret=PEM_read_bio_DHparams(bio,NULL,NULL);
+	ret=PEM_read_bio_DHparams(bio,NULL,NULL,NULL);
 err:
 	if (bio != NULL) BIO_free(bio);
 	return(ret);
@@ -941,6 +1144,9 @@ static int www_body(char *hostname, int s, unsigned char *context)
 	/* SSL_set_fd(con,s); */
 	BIO_set_ssl(ssl_bio,con,BIO_CLOSE);
 	BIO_push(io,ssl_bio);
+#ifdef CHARSET_EBCDIC
+	io = BIO_push(BIO_new(BIO_f_ebcdic_filter()),io);
+#endif
 
 	if (s_debug)
 		{
@@ -1010,7 +1216,7 @@ static int www_body(char *hostname, int s, unsigned char *context)
 			static char *space="                          ";
 
 			BIO_puts(io,"HTTP/1.0 200 ok\r\nContent-type: text/html\r\n\r\n");
-			BIO_puts(io,"<HTML><BODY BGCOLOR=ffffff>\n");
+			BIO_puts(io,"<HTML><BODY BGCOLOR=\"#ffffff\">\n");
 			BIO_puts(io,"<pre>\n");
 /*			BIO_puts(io,SSLeay_version(SSLEAY_VERSION));*/
 			BIO_puts(io,"\n");
@@ -1082,7 +1288,7 @@ static int www_body(char *hostname, int s, unsigned char *context)
 			BIO_puts(io,"</BODY></HTML>\r\n\r\n");
 			break;
 			}
-		else if ((www == 2) && (strncmp("GET ",buf,4) == 0))
+		else if ((www == 2) && (strncmp("GET /",buf,5) == 0))
 			{
 			BIO *file;
 			char *p,*e;
@@ -1235,7 +1441,7 @@ err:
 	}
 
 #ifndef NO_RSA
-static RSA MS_CALLBACK *tmp_rsa_cb(SSL *s, int export, int keylength)
+static RSA MS_CALLBACK *tmp_rsa_cb(SSL *s, int is_export, int keylength)
 	{
 	static RSA *rsa_tmp=NULL;
 
@@ -1244,13 +1450,13 @@ static RSA MS_CALLBACK *tmp_rsa_cb(SSL *s, int export, int keylength)
 		if (!s_quiet)
 			{
 			BIO_printf(bio_err,"Generating temp (%d bit) RSA key...",keylength);
-			BIO_flush(bio_err);
+			(void)BIO_flush(bio_err);
 			}
 		rsa_tmp=RSA_generate_key(keylength,RSA_F4,NULL,NULL);
 		if (!s_quiet)
 			{
 			BIO_printf(bio_err,"\n");
-			BIO_flush(bio_err);
+			(void)BIO_flush(bio_err);
 			}
 		}
 	return(rsa_tmp);

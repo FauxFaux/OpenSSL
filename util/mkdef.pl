@@ -1,4 +1,4 @@
-#!/usr/my/bin/perl -w
+#!/usr/local/bin/perl -w
 #
 # generate a .def file
 #
@@ -237,10 +237,19 @@ sub do_defs
 				$funcs{"sk_${1}_pop_free"} = 1;
 				$funcs{"sk_${1}_shift"} = 1;
 				$funcs{"sk_${1}_pop"} = 1;
+				$funcs{"sk_${1}_sort"} = 1;
 			} elsif ($safe_stack_def &&
 				/^\s*DECLARE_ASN1_SET_OF\s*\(\s*(\w*)\s*\)/) {
 				$funcs{"d2i_ASN1_SET_OF_${1}"} = 1;
 				$funcs{"i2d_ASN1_SET_OF_${1}"} = 1;
+			} elsif (/^DECLARE_PEM_rw\s*\(\s*(\w*)\s*,/ ||
+				     /^DECLARE_PEM_rw_cb\s*\(\s*(\w*)\s*,/ ) {
+				if($W32) {
+					$funcs{"PEM_read_${1}"} = 1;
+					$funcs{"PEM_write_${1}"} = 1;
+				}
+				$funcs{"PEM_read_bio_${1}"} = 1;
+				$funcs{"PEM_write_bio_${1}"} = 1;
 			} elsif ( 
 				($tag{'FreeBSD'} != 1) &&
 				($tag{'CONST_STRICT'} != 1) &&

@@ -212,8 +212,8 @@ end:
 
 	/* We now need to gernerate g */
 	/* Set r0=(p-1)/q */
-        BN_sub(test,p,BN_value_one());
-        BN_div(r0,NULL,test,q,ctx);
+	BN_sub(test,p,BN_value_one());
+	BN_div(r0,NULL,test,q,ctx);
 
 	BN_set_word(test,h);
 	BN_MONT_CTX_set(mont,p,ctx);
@@ -326,6 +326,7 @@ err:
 	if (ok == -1) DSAerr(DSA_F_DSA_IS_PRIME,ERR_R_BN_LIB);
 	BN_CTX_free(ctx);
 	BN_CTX_free(ctx2);
+	BN_MONT_CTX_free(mont);
 	
 	return(ok);
 	}

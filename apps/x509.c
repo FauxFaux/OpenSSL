@@ -377,7 +377,7 @@ bad:
 				goto end;
 				}
 			}
-		req=PEM_read_bio_X509_REQ(in,NULL,NULL);
+		req=PEM_read_bio_X509_REQ(in,NULL,NULL,NULL);
 		BIO_free(in);
 
 		if (req == NULL) { perror(infile); goto end; }
@@ -855,18 +855,6 @@ static int x509_certify(X509_STORE *ctx, char *CAfile, const EVP_MD *digest,
 	if (X509_gmtime_adj(X509_get_notAfter(x),(long)60*60*24*days) == NULL)
 		goto end;
 
-	/* don't save DSA parameters in child if parent has them
-	 * and the parents and the childs are the same. */
-	upkey=X509_get_pubkey(x);
-	if (!EVP_PKEY_missing_parameters(pkey) &&
-		(EVP_PKEY_cmp_parameters(pkey,upkey) == 0))
-		{
-		EVP_PKEY_save_parameters(upkey,0);
-		/* Force a re-write */
-		X509_set_pubkey(x,upkey);
-		}
-	EVP_PKEY_free(upkey);
-
 	if(conf) {
 		X509V3_CTX ctx2;
 		X509_set_version(x,2); /* version 3 certificate */
@@ -960,7 +948,7 @@ static EVP_PKEY *load_key(char *file, int format)
 #endif
 		if (format == FORMAT_PEM)
 		{
-		pkey=PEM_read_bio_PrivateKey(key,NULL,NULL);
+		pkey=PEM_read_bio_PrivateKey(key,NULL,NULL,NULL);
 		}
 	else
 		{
@@ -1043,7 +1031,7 @@ static X509 *load_cert(char *file, int format)
 		ah->data=NULL;
 		}
 	else if (format == FORMAT_PEM)
-		x=PEM_read_bio_X509(cert,NULL,NULL);
+		x=PEM_read_bio_X509(cert,NULL,NULL,NULL);
 	else	{
 		BIO_printf(bio_err,"bad input format specified for input cert\n");
 		goto end;

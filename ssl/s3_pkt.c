@@ -468,7 +468,12 @@ int ssl3_write_bytes(SSL *s, int type, const void *_buf, int len)
 		if (type == SSL3_RT_HANDSHAKE)
 			ssl3_finish_mac(s,&(buf[tot]),i);
 
-		if (i == (int)n) return(tot+i);
+		if ((i == (int)n) ||
+			(type == SSL3_RT_APPLICATION_DATA &&
+			 (s->mode & SSL_MODE_ENABLE_PARTIAL_WRITE)))
+			{
+			return(tot+i);
+			}
 
 		n-=i;
 		tot+=i;
@@ -596,7 +601,9 @@ static int ssl3_write_pending(SSL *s, int type, const unsigned char *buf,
 	int i;
 
 /* XXXX */
-	if ((s->s3->wpend_tot > (int)len) || (s->s3->wpend_buf != buf)
+	if ((s->s3->wpend_tot > (int)len)
+		|| ((s->s3->wpend_buf != buf) &&
+			!(s->mode & SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER))
 		|| (s->s3->wpend_type != type))
 		{
 		SSLerr(SSL_F_SSL3_WRITE_PENDING,SSL_R_BAD_WRITE_RETRY);
@@ -1016,7 +1023,7 @@ int ssl3_dispatch_alert(SSL *s)
 		 * does not get sent due to non-blocking IO, we will
 		 * not worry too much. */
 		if (s->s3->send_alert[0] == SSL3_AL_FATAL)
-			BIO_flush(s->wbio);
+			(void)BIO_flush(s->wbio);
 
 		if (s->info_callback != NULL)
 			cb=s->info_callback;

@@ -70,7 +70,7 @@
 static void value_free_hash(CONF_VALUE *a, LHASH *conf);
 static void value_free_stack(CONF_VALUE *a,LHASH *conf);
 static unsigned long hash(CONF_VALUE *v);
-static int cmp(CONF_VALUE *a,CONF_VALUE *b);
+static int cmp_conf(CONF_VALUE *a,CONF_VALUE *b);
 static char *eat_ws(char *p);
 static char *eat_alpha_numeric(char *p);
 static void clear_comments(char *p);
@@ -82,28 +82,11 @@ static CONF_VALUE *get_section(LHASH *conf,char *section);
 
 const char *CONF_version="CONF" OPENSSL_VERSION_PTEXT;
 
-LHASH *CONF_load(LHASH *h, char *file, long *line)
-	{
-	LHASH *ret=NULL;
-	FILE *in=NULL;
-#define BUFSIZE	512
-	char btmp[16];
-	int bufnum=0,i,ii;
-	BUF_MEM *buff=NULL;
-	char *s,*p,*end;
-	int again,n;
-	long eline=0;
-	CONF_VALUE *v=NULL,*vv,*tv;
-	CONF_VALUE *sv=NULL;
-	char *section=NULL,*buf;
-	STACK *section_sk=NULL,*ts;
-	char *start,*psection,*pname;
 
-	if ((buff=BUF_MEM_new()) == NULL)
-		{
-		CONFerr(CONF_F_CONF_LOAD,ERR_R_BUF_LIB);
-		goto err;
-		}
+LHASH *CONF_load(LHASH *h, const char *file, long *line)
+	{
+	LHASH *ltmp;
+	FILE *in=NULL;
 
 #ifdef VMS
 	in=fopen(file,"r");
@@ -116,22 +99,63 @@ LHASH *CONF_load(LHASH *h, char *file, long *line)
 		ERR_set_error_data(BUF_strdup(file),
 			ERR_TXT_MALLOCED|ERR_TXT_STRING);
 		CONFerr(CONF_F_CONF_LOAD,ERR_R_SYS_LIB);
+		return NULL;
+		}
+
+	ltmp = CONF_load_fp(h, in, line);
+	fclose(in);
+
+	return ltmp;
+}
+
+LHASH *CONF_load_fp(LHASH *h, FILE *in, long *line)
+{
+	BIO *btmp;
+	LHASH *ltmp;
+	if(!(btmp = BIO_new_fp(in, BIO_NOCLOSE))) {
+		CONFerr(CONF_F_CONF_LOAD_FP,ERR_R_BUF_LIB);
+		return NULL;
+	}
+	ltmp = CONF_load_bio(h, btmp, line);
+	BIO_free(btmp);
+	return ltmp;
+}
+
+LHASH *CONF_load_bio(LHASH *h, BIO *in, long *line)
+	{
+	LHASH *ret=NULL;
+#define BUFSIZE	512
+	char btmp[16];
+	int bufnum=0,i,ii;
+	BUF_MEM *buff=NULL;
+	char *s,*p,*end;
+	int again,n;
+	long eline=0;
+	CONF_VALUE *v=NULL,*vv,*tv;
+	CONF_VALUE *sv=NULL;
+	char *section=NULL,*buf;
+	STACK_OF(CONF_VALUE) *section_sk=NULL,*ts;
+	char *start,*psection,*pname;
+
+	if ((buff=BUF_MEM_new()) == NULL)
+		{
+		CONFerr(CONF_F_CONF_LOAD_BIO,ERR_R_BUF_LIB);
 		goto err;
 		}
 
 	section=(char *)Malloc(10);
 	if (section == NULL)
 		{
-		CONFerr(CONF_F_CONF_LOAD,ERR_R_MALLOC_FAILURE);
+		CONFerr(CONF_F_CONF_LOAD_BIO,ERR_R_MALLOC_FAILURE);
 		goto err;
 		}
 	strcpy(section,"default");
 
 	if (h == NULL)
 		{
-		if ((ret=lh_new(hash,cmp)) == NULL)
+		if ((ret=lh_new(hash,cmp_conf)) == NULL)
 			{
-			CONFerr(CONF_F_CONF_LOAD,ERR_R_MALLOC_FAILURE);
+			CONFerr(CONF_F_CONF_LOAD_BIO,ERR_R_MALLOC_FAILURE);
 			goto err;
 			}
 		}
@@ -141,10 +165,11 @@ LHASH *CONF_load(LHASH *h, char *file, long *line)
 	sv=new_section(ret,section);
 	if (sv == NULL)
 		{
-		CONFerr(CONF_F_CONF_LOAD,CONF_R_UNABLE_TO_CREATE_NEW_SECTION);
+		CONFerr(CONF_F_CONF_LOAD_BIO,
+					CONF_R_UNABLE_TO_CREATE_NEW_SECTION);
 		goto err;
 		}
-	section_sk=(STACK *)sv->value;
+	section_sk=(STACK_OF(CONF_VALUE) *)sv->value;
 
 	bufnum=0;
 	for (;;)
@@ -152,12 +177,12 @@ LHASH *CONF_load(LHASH *h, char *file, long *line)
 		again=0;
 		if (!BUF_MEM_grow(buff,bufnum+BUFSIZE))
 			{
-			CONFerr(CONF_F_CONF_LOAD,ERR_R_BUF_LIB);
+			CONFerr(CONF_F_CONF_LOAD_BIO,ERR_R_BUF_LIB);
 			goto err;
 			}
 		p= &(buff->data[bufnum]);
 		*p='\0';
-		fgets(p,BUFSIZE-1,in);
+		BIO_gets(in, p, BUFSIZE-1);
 		p[BUFSIZE-1]='\0';
 		ii=i=strlen(p);
 		if (i == 0) break;
@@ -222,7 +247,8 @@ again:
 					ss=p;
 					goto again;
 					}
-				CONFerr(CONF_F_CONF_LOAD,CONF_R_MISSING_CLOSE_SQUARE_BRACKET);
+				CONFerr(CONF_F_CONF_LOAD_BIO,
+					CONF_R_MISSING_CLOSE_SQUARE_BRACKET);
 				goto err;
 				}
 			*end='\0';
@@ -231,10 +257,11 @@ again:
 				sv=new_section(ret,section);
 			if (sv == NULL)
 				{
-				CONFerr(CONF_F_CONF_LOAD,CONF_R_UNABLE_TO_CREATE_NEW_SECTION);
+				CONFerr(CONF_F_CONF_LOAD_BIO,
+					CONF_R_UNABLE_TO_CREATE_NEW_SECTION);
 				goto err;
 				}
-			section_sk=(STACK *)sv->value;
+			section_sk=(STACK_OF(CONF_VALUE) *)sv->value;
 			continue;
 			}
 		else
@@ -253,7 +280,8 @@ again:
 			p=eat_ws(end);
 			if (*p != '=')
 				{
-				CONFerr(CONF_F_CONF_LOAD,CONF_R_MISSING_EQUAL_SIGN);
+				CONFerr(CONF_F_CONF_LOAD_BIO,
+						CONF_R_MISSING_EQUAL_SIGN);
 				goto err;
 				}
 			*end='\0';
@@ -267,9 +295,10 @@ again:
 			p++;
 			*p='\0';
 
-			if ((v=(CONF_VALUE *)Malloc(sizeof(CONF_VALUE))) == NULL)
+			if (!(v=(CONF_VALUE *)Malloc(sizeof(CONF_VALUE))))
 				{
-				CONFerr(CONF_F_CONF_LOAD,ERR_R_MALLOC_FAILURE);
+				CONFerr(CONF_F_CONF_LOAD_BIO,
+							ERR_R_MALLOC_FAILURE);
 				goto err;
 				}
 			if (psection == NULL) psection=section;
@@ -277,7 +306,8 @@ again:
 			v->value=NULL;
 			if (v->name == NULL)
 				{
-				CONFerr(CONF_F_CONF_LOAD,ERR_R_MALLOC_FAILURE);
+				CONFerr(CONF_F_CONF_LOAD_BIO,
+							ERR_R_MALLOC_FAILURE);
 				goto err;
 				}
 			strcpy(v->name,pname);
@@ -290,10 +320,11 @@ again:
 					tv=new_section(ret,psection);
 				if (tv == NULL)
 					{
-					CONFerr(CONF_F_CONF_LOAD,CONF_R_UNABLE_TO_CREATE_NEW_SECTION);
+					CONFerr(CONF_F_CONF_LOAD_BIO,
+					   CONF_R_UNABLE_TO_CREATE_NEW_SECTION);
 					goto err;
 					}
-				ts=(STACK *)tv->value;
+				ts=(STACK_OF(CONF_VALUE) *)tv->value;
 				}
 			else
 				{
@@ -301,15 +332,16 @@ again:
 				ts=section_sk;
 				}
 			v->section=tv->section;	
-			if (!sk_push(ts,(char *)v))
+			if (!sk_CONF_VALUE_push(ts,v))
 				{
-				CONFerr(CONF_F_CONF_LOAD,ERR_R_MALLOC_FAILURE);
+				CONFerr(CONF_F_CONF_LOAD_BIO,
+							ERR_R_MALLOC_FAILURE);
 				goto err;
 				}
 			vv=(CONF_VALUE *)lh_insert(ret,(char *)v);
 			if (vv != NULL)
 				{
-				sk_delete_ptr(ts,(char *)vv);
+				sk_CONF_VALUE_delete_ptr(ts,vv);
 				Free(vv->name);
 				Free(vv->value);
 				Free(vv);
@@ -319,7 +351,6 @@ again:
 		}
 	if (buff != NULL) BUF_MEM_free(buff);
 	if (section != NULL) Free(section);
-	if (in != NULL) fclose(in);
 	return(ret);
 err:
 	if (buff != NULL) BUF_MEM_free(buff);
@@ -327,7 +358,6 @@ err:
 	if (line != NULL) *line=eline;
 	sprintf(btmp,"%ld",eline);
 	ERR_add_error_data(2,"line ",btmp);
-	if (in != NULL) fclose(in);
 	if ((h != ret) && (ret != NULL)) CONF_free(ret);
 	if (v != NULL)
 		{
@@ -337,7 +367,7 @@ err:
 		}
 	return(NULL);
 	}
-		
+
 char *CONF_get_string(LHASH *conf, char *section, char *name)
 	{
 	CONF_VALUE *v,vv;
@@ -381,13 +411,13 @@ static CONF_VALUE *get_section(LHASH *conf, char *section)
 	return(v);
 	}
 
-STACK *CONF_get_section(LHASH *conf, char *section)
+STACK_OF(CONF_VALUE) *CONF_get_section(LHASH *conf, char *section)
 	{
 	CONF_VALUE *v;
 
 	v=get_section(conf,section);
 	if (v != NULL)
-		return((STACK *)v->value);
+		return((STACK_OF(CONF_VALUE) *)v->value);
 	else
 		return(NULL);
 	}
@@ -623,7 +653,7 @@ static unsigned long hash(CONF_VALUE *v)
 	return((lh_strhash(v->section)<<2)^lh_strhash(v->name));
 	}
 
-static int cmp(CONF_VALUE *a, CONF_VALUE *b)
+static int cmp_conf(CONF_VALUE *a, CONF_VALUE *b)
 	{
 	int i;
 
@@ -698,3 +728,5 @@ err:
 		}
 	return(v);
 	}
+
+IMPLEMENT_STACK_OF(CONF_VALUE)

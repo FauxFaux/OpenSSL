@@ -179,7 +179,7 @@
 #ifndef PEDANTIC
 # if defined(_MSC_VER)
 #  define ROTATE(a,n)     _lrotl(a,n)
-# elif defined(__GNUC__) && __GNUC__>=2
+# elif defined(__GNUC__) && __GNUC__>=2 && !defined(NO_ASM)
   /*
    * Some GNU C inline assembler templates. Note that these are
    * rotates by *constant* number of bits! But that's exactly
@@ -211,7 +211,7 @@
  * Engage compiler specific "fetch in reverse byte order"
  * intrinsic function if available.
  */
-# if defined(__GNUC__) && __GNUC__>=2
+# if defined(__GNUC__) && __GNUC__>=2 && !defined(NO_ASM)
   /* some GNU C inline assembler templates by <appro@fy.chalmers.se> */
 #  if defined(__i386) && !defined(I386_ONLY)
 #   define BE_FETCH32(a)	({ register unsigned int l=(a);\
@@ -315,7 +315,7 @@
 #  endif
 #endif
 
-#if !defined(HASH_BLOCK_DATA_ORDER_ALIGNED) || HASH_BLOCK_DATA_ORDER_ALIGNED==1
+#if !defined(HASH_BLOCK_DATA_ORDER_ALIGNED)
 #ifndef HASH_BLOCK_DATA_ORDER
 #error "HASH_BLOCK_DATA_ORDER must be defined!"
 #endif
@@ -461,7 +461,7 @@ void HASH_UPDATE (HASH_CTX *c, const unsigned char *data, unsigned long len)
 	sw=len/HASH_CBLOCK;
 	if (sw > 0)
 		{
-#if defined(HASH_BLOCK_DATA_ORDER_ALIGNED) && HASH_BLOCK_DATA_ORDER_ALIGNED!=1
+#if defined(HASH_BLOCK_DATA_ORDER_ALIGNED)
 		/*
 		 * Note that HASH_BLOCK_DATA_ORDER_ALIGNED gets defined
 		 * only if sizeof(HASH_LONG)==4.
@@ -513,7 +513,7 @@ void HASH_UPDATE (HASH_CTX *c, const unsigned char *data, unsigned long len)
 
 void HASH_TRANSFORM (HASH_CTX *c, const unsigned char *data)
 	{
-#if defined(HASH_BLOCK_DATA_ORDER_ALIGNED) && HASH_BLOCK_DATA_ORDER_ALIGNED!=1
+#if defined(HASH_BLOCK_DATA_ORDER_ALIGNED)
 	if ((((unsigned long)data)%4) == 0)
 		/* data is properly aligned so that we can cast it: */
 		HASH_BLOCK_DATA_ORDER_ALIGNED (c,(HASH_LONG *)data,1);

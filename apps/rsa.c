@@ -81,6 +81,7 @@
  * -idea	- encrypt output if PEM format
  * -text	- print a text version
  * -modulus	- print the RSA key modulus
+ * -check	- verify key consistency
  */
 
 int MAIN(int argc, char **argv)
@@ -90,7 +91,7 @@ int MAIN(int argc, char **argv)
 	int i,badops=0;
 	const EVP_CIPHER *enc=NULL;
 	BIO *in=NULL,*out=NULL;
-	int informat,outformat,text=0,noout=0;
+	int informat,outformat,text=0,check=0,noout=0;
 	char *infile,*outfile,*prog;
 	int modulus=0;
 
@@ -136,6 +137,8 @@ int MAIN(int argc, char **argv)
 			text=1;
 		else if (strcmp(*argv,"-modulus") == 0)
 			modulus=1;
+		else if (strcmp(*argv,"-check") == 0)
+			check=1;
 		else if ((enc=EVP_get_cipherbyname(&(argv[0][1]))) == NULL)
 			{
 			BIO_printf(bio_err,"unknown option %s\n",*argv);
@@ -163,6 +166,7 @@ bad:
 		BIO_printf(bio_err," -text         print the key in text\n");
 		BIO_printf(bio_err," -noout        don't print key out\n");
 		BIO_printf(bio_err," -modulus      print the RSA key modulus\n");
+		BIO_printf(bio_err," -check        verify key consistency\n");
 		goto end;
 		}
 
@@ -218,7 +222,7 @@ bad:
 		}
 #endif
 	else if (informat == FORMAT_PEM)
-		rsa=PEM_read_bio_RSAPrivateKey(in,NULL,NULL);
+		rsa=PEM_read_bio_RSAPrivateKey(in,NULL,NULL,NULL);
 	else
 		{
 		BIO_printf(bio_err,"bad input format specified for key\n");
@@ -257,6 +261,33 @@ bad:
 		fprintf(stdout,"\n");
 		}
 
+	if (check)
+		{
+		int r = RSA_check_key(rsa);
+
+		if (r == 1)
+			BIO_printf(out,"RSA key ok\n");
+		else if (r == 0)
+			{
+			long e;
+
+			while ((e = ERR_peek_error()) != 0 &&
+				ERR_GET_LIB(e) == ERR_LIB_RSA &&
+				ERR_GET_FUNC(e) == RSA_F_RSA_CHECK_KEY &&
+				ERR_GET_REASON(e) != ERR_R_MALLOC_FAILURE)
+				{
+				BIO_printf(out, "RSA key error: %s\n", ERR_reason_error_string(e));
+				ERR_get_error(); /* remove e from error stack */
+				}
+			}
+		
+		if (r == -1 || ERR_peek_error() != 0) /* should happen only if r == -1 */
+			{
+			ERR_print_errors(bio_err);
+			goto end;
+			}
+		}
+		
 	if (noout) goto end;
 	BIO_printf(bio_err,"writing RSA private key\n");
 	if 	(outformat == FORMAT_ASN1)
@@ -281,7 +312,7 @@ bad:
 		}
 #endif
 	else if (outformat == FORMAT_PEM)
-		i=PEM_write_bio_RSAPrivateKey(out,rsa,enc,NULL,0,NULL);
+		i=PEM_write_bio_RSAPrivateKey(out,rsa,enc,NULL,0,NULL,NULL);
 	else	{
 		BIO_printf(bio_err,"bad output format specified for outfile\n");
 		goto end;

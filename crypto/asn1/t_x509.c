@@ -158,6 +158,7 @@ int X509_print(BIO *bp, X509 *x)
 	if (pkey == NULL)
 		{
 		BIO_printf(bp,"%12sUnable to load Public Key\n","");
+		ERR_print_errors(bp);
 		}
 	else
 #ifndef NO_RSA
@@ -357,6 +358,7 @@ int X509_NAME_print(BIO *bp, X509_NAME *name, int obase)
 	c=s;
 	for (;;)
 		{
+#ifndef CHARSET_EBCDIC
 		if (	((*s == '/') &&
 				((s[1] >= 'A') && (s[1] <= 'Z') && (
 					(s[2] == '=') ||
@@ -364,6 +366,15 @@ int X509_NAME_print(BIO *bp, X509_NAME *name, int obase)
 					(s[3] == '='))
 				 ))) ||
 			(*s == '\0'))
+#else
+		if (	((*s == '/') &&
+				(isupper(s[1]) && (
+					(s[2] == '=') ||
+					(isupper(s[2]) &&
+					(s[3] == '='))
+				 ))) ||
+			(*s == '\0'))
+#endif
 			{
 			if ((l <= 0) && !first)
 				{

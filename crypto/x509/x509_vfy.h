@@ -127,6 +127,8 @@ typedef struct x509_object_st
 
 typedef struct x509_lookup_st X509_LOOKUP;
 
+DECLARE_STACK_OF(X509_LOOKUP)
+
 /* This is a static that defines the function interface */
 typedef struct x509_lookup_method_st
 	{
@@ -164,7 +166,7 @@ typedef struct x509_store_st
 #endif
 
 	/* These are external lookup methods */
-	STACK *get_cert_methods;/* X509_LOOKUP */
+	STACK_OF(X509_LOOKUP) *get_cert_methods;
 	int (*verify)(X509_STORE_CTX *ctx);	/* called to verify a certificate */
 	int (*verify_cb)(int ok,X509_STORE_CTX *ctx);	/* error callback */
 
@@ -205,7 +207,7 @@ struct x509_store_state_st      /* X509_STORE_CTX */
 	int depth;		/* how far to go looking up certs */
 	int valid;		/* if 0, rebuild chain */
 	int last_untrusted;	/* index of last untrusted cert */
-	STACK *chain; 		/* chain of X509s - built up and trusted */
+	STACK_OF(X509) *chain; 		/* chain of X509s - built up and trusted */
 
 	/* When something goes wrong, this is why */
 	int error_depth;
@@ -333,7 +335,7 @@ int	X509_STORE_CTX_get_error(X509_STORE_CTX *ctx);
 void	X509_STORE_CTX_set_error(X509_STORE_CTX *ctx,int s);
 int	X509_STORE_CTX_get_error_depth(X509_STORE_CTX *ctx);
 X509 *	X509_STORE_CTX_get_current_cert(X509_STORE_CTX *ctx);
-STACK *	X509_STORE_CTX_get_chain(X509_STORE_CTX *ctx);
+STACK_OF(X509) *X509_STORE_CTX_get_chain(X509_STORE_CTX *ctx);
 void	X509_STORE_CTX_set_cert(X509_STORE_CTX *c,X509 *x);
 void	X509_STORE_CTX_set_chain(X509_STORE_CTX *c,STACK_OF(X509) *sk);
 

@@ -12,7 +12,7 @@ $ssl_version="";
 open(IN,"<Makefile.ssl") || die "unable to open Makefile.ssl!\n";
 while(<IN>) {
     $ssl_version=$1 if (/^VERSION=(.*)$/);
-    $options=$1 if (/^OPTIONS=(.*)$/);
+    $OPTIONS=$1 if (/^OPTIONS=(.*)$/);
     $INSTALLTOP=$1 if (/^INSTALLTOP=(.*$)/);
 }
 close(IN);
@@ -45,7 +45,7 @@ foreach (@ARGV)
 	if (!&read_options && !defined($ops{$_}))
 		{
 		print STDERR "unknown option - $_\n";
-		print STDERR "usage: perl mk1mf.pl [system] [options]\n";
+		print STDERR "usage: perl mk1mf.pl [options] [system]\n";
 		print STDERR "\nwhere [system] can be one of the following\n";
 		foreach $i (sort keys %ops)
 		{ printf STDERR "\t%-10s\t%s\n",$i,$ops{$i}; }
@@ -58,6 +58,7 @@ and [options] can be one of
 	no-ssl2 no-ssl3				- Skip this version of SSL
 	just-ssl				- remove all non-ssl keys/digest
 	no-asm 					- No x86 asm
+	nasm 					- Use NASM for x86 asm
 	no-socks				- No socket code
 	no-err					- No error strings
 	dll/shlib				- Build shared libraries (MS)
@@ -400,6 +401,42 @@ vclean:
 	\$(RM) \$(OUT_D)$o*.*
 
 EOF
+    
+my $platform_cpp_symbol = "MK1MF_PLATFORM_$platform";
+$platform_cpp_symbol =~ s/-/_/g;
+if (open(IN,"crypto/buildinf.h"))
+	{
+	# Remove entry for this platform in existing file buildinf.h.
+
+	my $old_buildinf_h = "";
+	while (<IN>)
+		{
+		if (/^\#ifdef $platform_cpp_symbol$/)
+			{
+			while (<IN>) { last if (/^\#endif/); }
+			}
+		else
+			{
+			$old_buildinf_h .= $_;
+			}
+		}
+	close(IN);
+
+	open(OUT,">crypto/buildinf.h") || die "Can't open buildinf.h";
+	print OUT $old_buildinf_h;
+	close(OUT);
+	}
+
+open (OUT,">>crypto/buildinf.h") || die "Can't open buildinf.h";
+printf OUT <<EOF;
+#ifdef $platform_cpp_symbol
+  /* auto-generated/updated by util/mk1mf.pl for crypto/cversion.c */
+  #define CFLAGS "$cc $cflags"
+  #define PLATFORM "$platform"
+EOF
+printf OUT "  #define DATE \"%s\"\n", scalar gmtime();
+printf OUT "#endif\n";
+close(OUT);
 
 #############################################
 # We parse in input file and 'store' info for later printing.
@@ -729,8 +766,7 @@ sub cc_compile_target
 	local($target,$source,$ex_flags)=@_;
 	local($ret);
 	
-	# EAY EAY
-	$ex_flags.=' -DCFLAGS="\"$(CC) $(CFLAG)\"" -DPLATFORM="\"$(PLATFORM)\""' if ($source =~ /cversion/ and $dcflags ne 'n');
+	$ex_flags.=" -DMK1MF_BUILD -D$platform_cpp_symbol" if ($source =~ /cversion/);
 	$target =~ s/\//$o/g if $o ne "/";
 	$source =~ s/\//$o/g if $o ne "/";
 	$ret ="$target: \$(SRC_D)$o$source\n\t";
@@ -813,6 +849,7 @@ sub read_options
 	elsif (/^no-dh$/)	{ $no_dh=1; }
 	elsif (/^no-hmac$/)	{ $no_hmac=1; }
 	elsif (/^no-asm$/)	{ $no_asm=1; }
+	elsif (/^nasm$/)	{ $nasm=1; }
 	elsif (/^no-ssl2$/)	{ $no_ssl2=1; }
 	elsif (/^no-ssl3$/)	{ $no_ssl3=1; }
 	elsif (/^no-err$/)	{ $no_err=1; }

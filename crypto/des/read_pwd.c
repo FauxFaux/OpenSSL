@@ -57,7 +57,8 @@
  */
 
 #if !defined(MSDOS) && !defined(VMS) && !defined(WIN32)
-#include <unistd.h>
+#include <openssl/opensslconf.h>
+#include OPENSSL_UNISTD
 /* If unistd.h defines _POSIX_VERSION, we conclude that we
  * are on a POSIX system and have sigaction and termios. */
 #if defined(_POSIX_VERSION)
@@ -187,11 +188,7 @@ static int noecho_fgets(char *buf, int size, FILE *tty);
 #ifdef SIGACTION
  static struct sigaction savsig[NX509_SIG];
 #else
-# ifndef NOPROTO
   static void (*savsig[NX509_SIG])(int );
-# else
-  static void (*savsig[NX509_SIG])();
-# endif
 #endif
 static jmp_buf save;
 
@@ -476,11 +473,11 @@ static int noecho_fgets(char *buf, int size, FILE *tty)
  * usually a CR so this can be trouble. No STDIO fix seems to work but
  * flushing the console appears to do the trick.
  */
-                {
-                        HANDLE inh;
-                        inh = GetStdHandle(STD_INPUT_HANDLE);
-                        FlushConsoleInputBuffer(inh);
-                }
+		{
+			HANDLE inh;
+			inh = GetStdHandle(STD_INPUT_HANDLE);
+			FlushConsoleInputBuffer(inh);
+		}
 #endif
 	return(strlen(buf));
 	}

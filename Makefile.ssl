@@ -2,9 +2,9 @@
 ## Makefile for OpenSSL
 ##
 
-VERSION=0.9.3a
+VERSION=0.9.4
 MAJOR=0
-MINOR=9.3
+MINOR=9.4
 PLATFORM=dist
 OPTIONS=
 # INSTALL_PREFIX is for package builders so that they can configure
@@ -55,7 +55,7 @@ PEX_LIBS= -L. -L.. -L../.. -L../../..
 EX_LIBS= 
 AR=ar r
 RANLIB= /usr/bin/ranlib
-PERL= /usr/bin/perl5
+PERL= /usr/local/bin/perl5
 
 # Set BN_ASM to bn_asm.o if you want to use the C version
 BN_ASM= bn_asm.o
@@ -179,7 +179,8 @@ all: Makefile.ssl
 	do \
 	(cd $$i && echo "making all in $$i..." && \
 	$(MAKE) CC='${CC}' PLATFORM='${PLATFORM}' CFLAG='${CFLAG}' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' SDIRS='${SDIRS}' AR='${AR}' PROCESSOR='${PROCESSOR}' PERL='${PERL}' RANLIB='${RANLIB}' all ) || exit 1; \
-	done;
+	done
+	-@# cd perl; $(PERL) Makefile.PL; make
 
 sub_all:
 	@for i in $(DIRS) ;\
@@ -207,8 +208,7 @@ linux-shared:
 
 Makefile.ssl: Makefile.org
 	@echo "Makefile.ssl is older than Makefile.org."
-	@echo "Reconfigure the source tree (via 'perl Configure' or 'sh config')"
-	@echo "and update the error lists (via 'make errors'), please."
+	@echo "Reconfigure the source tree (via './config' or 'perl Configure'), please."
 	@false
 
 libclean:
@@ -243,7 +243,7 @@ files:
 
 links:
 	@$(TOP)/util/point.sh Makefile.ssl Makefile
-	@-mkdir -p include/openssl 2>/dev/null
+	@$(PERL) $(TOP)/util/mkdir-p.pl include/openssl
 	@$(PERL) $(TOP)/util/mklink.pl include/openssl $(EXHEADER)
 	@for i in $(DIRS); do \
 	(cd $$i && echo "making links in $$i..." && \
@@ -271,7 +271,7 @@ tests: rehash
 depend:
 	@for i in $(DIRS) ;\
 	do \
-	(cd $$i && echo "making dependancies $$i..." && \
+	(cd $$i && echo "making dependencies $$i..." && \
 	$(MAKE) SDIRS='${SDIRS}' DEPFLAG='${DEPFLAG}' depend ) || exit 1; \
 	done;
 
@@ -292,9 +292,21 @@ tags:
 errors:
 	perl util/mkerr.pl -recurse -write
 
+util/libeay.num::
+	perl util/mkdef.pl crypto update
+
+util/ssleay.num::
+	perl util/mkdef.pl ssl update
+
+TABLE: Configure
+	(echo 'Output of `Configure TABLE'"':"; \
+	perl Configure TABLE) > TABLE
+
+update: depend errors util/libeay.num util/ssleay.num TABLE
+
 tar:
 	@tar --norecurse -cvf - \
-		`find * \! -path CVS/\* \! -path \*/CVS/\* \! -name CVS \! -name .cvsignore \! -name STATUS | sort` |\
+		`find * \! -path CVS/\* \! -path \*/CVS/\* \! -name CVS \! -name .cvsignore \! -name STATUS \! -name TABLE | sort` |\
 	tardy --user_number=0  --user_name=openssl \
 	      --group_number=0 --group_name=openssl \
 	      --prefix=openssl-$(VERSION) - |\
@@ -311,13 +323,13 @@ dist_pem_h:
 	(cd crypto/pem; $(MAKE) CC='${CC}' SDIRS='${SDIRS}' CFLAG='${CFLAG}' pem.h; $(MAKE) clean)
 
 install: all
-	@-mkdir -p $(INSTALL_PREFIX)$(INSTALLTOP)/bin 2>/dev/null
-	@-mkdir -p $(INSTALL_PREFIX)$(INSTALLTOP)/lib 2>/dev/null
-	@-mkdir -p $(INSTALL_PREFIX)$(INSTALLTOP)/include/openssl 2>/dev/null
-	@-mkdir -p $(INSTALL_PREFIX)$(OPENSSLDIR)/misc 2>/dev/null
-	@-mkdir -p $(INSTALL_PREFIX)$(OPENSSLDIR)/certs 2>/dev/null
-	@-mkdir -p $(INSTALL_PREFIX)$(OPENSSLDIR)/private 2>/dev/null
-	@-mkdir -p $(INSTALL_PREFIX)$(OPENSSLDIR)/lib 2>/dev/null
+	@$(PERL) $(TOP)/util/mkdir-p.pl $(INSTALL_PREFIX)$(INSTALLTOP)/bin \
+		$(INSTALL_PREFIX)$(INSTALLTOP)/lib \
+		$(INSTALL_PREFIX)$(INSTALLTOP)/include/openssl \
+		$(INSTALL_PREFIX)$(OPENSSLDIR)/misc \
+		$(INSTALL_PREFIX)$(OPENSSLDIR)/certs \
+		$(INSTALL_PREFIX)$(OPENSSLDIR)/private \
+		$(INSTALL_PREFIX)$(OPENSSLDIR)/lib
 	@for i in $(EXHEADER) ;\
 	do \
 	(cp $$i $(INSTALL_PREFIX)$(INSTALLTOP)/include/openssl/$$i; \

@@ -426,7 +426,7 @@ int ssl_verify_cert_chain(SSL *s,STACK_OF(X509) *sk)
 		(char *)s);
 
 	if (s->ctx->app_verify_callback != NULL)
-		i=s->ctx->app_verify_callback(&ctx);
+		i=s->ctx->app_verify_callback(&ctx); /* should pass app_verify_arg */
 	else
 		{
 #ifndef NO_X509_VERIFY
@@ -452,19 +452,19 @@ static void set_client_CA_list(STACK_OF(X509_NAME) **ca_list,STACK_OF(X509_NAME)
 	*ca_list=list;
 	}
 
-STACK *SSL_dup_CA_list(STACK *sk)
+STACK_OF(X509_NAME) *SSL_dup_CA_list(STACK_OF(X509_NAME) *sk)
 	{
 	int i;
-	STACK *ret;
+	STACK_OF(X509_NAME) *ret;
 	X509_NAME *name;
 
-	ret=sk_new_null();
-	for (i=0; i<sk_num(sk); i++)
+	ret=sk_X509_NAME_new_null();
+	for (i=0; i<sk_X509_NAME_num(sk); i++)
 		{
-		name=X509_NAME_dup((X509_NAME *)sk_value(sk,i));
-		if ((name == NULL) || !sk_push(ret,(char *)name))
+		name=X509_NAME_dup(sk_X509_NAME_value(sk,i));
+		if ((name == NULL) || !sk_X509_NAME_push(ret,name))
 			{
-			sk_pop_free(ret,X509_NAME_free);
+			sk_X509_NAME_pop_free(ret,X509_NAME_free);
 			return(NULL);
 			}
 		}
@@ -571,7 +571,7 @@ STACK_OF(X509_NAME) *SSL_load_client_CA_file(const char *file)
 
 	for (;;)
 		{
-		if (PEM_read_bio_X509(in,&x,NULL) == NULL)
+		if (PEM_read_bio_X509(in,&x,NULL,NULL) == NULL)
 			break;
 		if ((xn=X509_get_subject_name(x)) == NULL) goto err;
 		/* check for duplicates */
@@ -632,7 +632,7 @@ int SSL_add_file_cert_subjects_to_stack(STACK_OF(X509_NAME) *stack,
 
     for (;;)
 	{
-	if (PEM_read_bio_X509(in,&x,NULL) == NULL)
+	if (PEM_read_bio_X509(in,&x,NULL,NULL) == NULL)
 	    break;
 	if ((xn=X509_get_subject_name(x)) == NULL) goto err;
 	xn=X509_NAME_dup(xn);
@@ -685,7 +685,9 @@ int SSL_add_dir_cert_subjects_to_stack(STACK_OF(X509_NAME) *stack,
     /* Note that a side effect is that the CAs will be sorted by name */
     if(!d)
 	{
-	SSLerr(SSL_F_SSL_ADD_DIR_CERT_SUBJECTS_TO_STACK,ERR_R_MALLOC_FAILURE);
+	SYSerr(SYS_F_OPENDIR, get_last_sys_error());
+	ERR_add_error_data(3, "opendir('", dir, "')");
+	SSLerr(SSL_F_SSL_ADD_DIR_CERT_SUBJECTS_TO_STACK, ERR_R_SYS_LIB);
 	goto err;
 	}
 

@@ -66,6 +66,10 @@ extern "C" {
 #include <openssl/bio.h>
 #include <openssl/x509.h>
 
+#ifdef VMS
+#include <openssl/vms_idhacks.h>
+#endif
+
 #ifdef WIN32
 /* Under Win32 this is defined in wincrypt.h */
 #undef PKCS7_ISSUER_AND_SERIAL
@@ -89,14 +93,17 @@ typedef struct pkcs7_signer_info_st
 	ASN1_INTEGER 			*version;	/* version 1 */
 	PKCS7_ISSUER_AND_SERIAL		*issuer_and_serial;
 	X509_ALGOR			*digest_alg;
-	STACK /* X509_ATTRIBUTE */	*auth_attr;	/* [ 0 ] */
+	STACK_OF(X509_ATTRIBUTE)	*auth_attr;	/* [ 0 ] */
 	X509_ALGOR			*digest_enc_alg;
 	ASN1_OCTET_STRING		*enc_digest;
-	STACK /* X509_ATTRIBUTE */	*unauth_attr;	/* [ 1 ] */
+	STACK_OF(X509_ATTRIBUTE)	*unauth_attr;	/* [ 1 ] */
 
 	/* The private key to sign with */
 	EVP_PKEY			*pkey;
 	} PKCS7_SIGNER_INFO;
+
+DECLARE_STACK_OF(PKCS7_SIGNER_INFO)
+DECLARE_ASN1_SET_OF(PKCS7_SIGNER_INFO)
 
 typedef struct pkcs7_recip_info_st
 	{
@@ -107,13 +114,16 @@ typedef struct pkcs7_recip_info_st
 	X509				*cert; /* get the pub-key from this */
 	} PKCS7_RECIP_INFO;
 
+DECLARE_STACK_OF(PKCS7_RECIP_INFO)
+DECLARE_ASN1_SET_OF(PKCS7_RECIP_INFO)
+
 typedef struct pkcs7_signed_st
 	{
 	ASN1_INTEGER			*version;	/* version 1 */
-	STACK /* X509_ALGOR's */	*md_algs;	/* md used */
+	STACK_OF(X509_ALGOR)		*md_algs;	/* md used */
 	STACK_OF(X509)			*cert;		/* [ 0 ] */
-	STACK /* X509_CRL */		*crl;		/* [ 1 ] */
-	STACK /* PKCS7_SIGNER_INFO */	*signer_info;
+	STACK_OF(X509_CRL)		*crl;		/* [ 1 ] */
+	STACK_OF(PKCS7_SIGNER_INFO)	*signer_info;
 
 	struct pkcs7_st			*contents;
 	} PKCS7_SIGNED;
@@ -131,20 +141,20 @@ typedef struct pkcs7_enc_content_st
 typedef struct pkcs7_enveloped_st
 	{
 	ASN1_INTEGER			*version;	/* version 0 */
-	STACK /* PKCS7_RECIP_INFO */	*recipientinfo;
+	STACK_OF(PKCS7_RECIP_INFO)	*recipientinfo;
 	PKCS7_ENC_CONTENT		*enc_data;
 	} PKCS7_ENVELOPE;
 
 typedef struct pkcs7_signedandenveloped_st
 	{
 	ASN1_INTEGER			*version;	/* version 1 */
-	STACK /* X509_ALGOR's */	*md_algs;	/* md used */
+	STACK_OF(X509_ALGOR)		*md_algs;	/* md used */
 	STACK_OF(X509)			*cert;		/* [ 0 ] */
-	STACK /* X509_CRL */		*crl;		/* [ 1 ] */
-	STACK /* PKCS7_SIGNER_INFO */	*signer_info;
+	STACK_OF(X509_CRL)		*crl;		/* [ 1 ] */
+	STACK_OF(PKCS7_SIGNER_INFO)	*signer_info;
 
 	PKCS7_ENC_CONTENT		*enc_data;
-	STACK /* PKCS7_RECIP_INFO */	*recipientinfo;
+	STACK_OF(PKCS7_RECIP_INFO)	*recipientinfo;
 	} PKCS7_SIGN_ENVELOPE;
 
 typedef struct pkcs7_digest_st
@@ -327,6 +337,8 @@ int PKCS7_add_crl(PKCS7 *p7, X509_CRL *x509);
 int PKCS7_content_new(PKCS7 *p7, int nid);
 int PKCS7_dataVerify(X509_STORE *cert_store, X509_STORE_CTX *ctx,
 	BIO *bio, PKCS7 *p7, PKCS7_SIGNER_INFO *si); 
+int PKCS7_signatureVerify(BIO *bio, PKCS7 *p7, PKCS7_SIGNER_INFO *si,
+								X509 *x509);
 
 BIO *PKCS7_dataInit(PKCS7 *p7, BIO *bio);
 int PKCS7_dataFinal(PKCS7 *p7, BIO *bio);
@@ -336,7 +348,7 @@ BIO *PKCS7_dataDecode(PKCS7 *p7, EVP_PKEY *pkey, BIO *in_bio, X509 *pcert);
 PKCS7_SIGNER_INFO *PKCS7_add_signature(PKCS7 *p7, X509 *x509,
 	EVP_PKEY *pkey, EVP_MD *dgst);
 X509 *PKCS7_cert_from_signer_info(PKCS7 *p7, PKCS7_SIGNER_INFO *si);
-STACK *PKCS7_get_signer_info(PKCS7 *p7);
+STACK_OF(PKCS7_SIGNER_INFO) *PKCS7_get_signer_info(PKCS7 *p7);
 
 PKCS7_RECIP_INFO *PKCS7_add_recipient(PKCS7 *p7, X509 *x509);
 int PKCS7_add_recipient_info(PKCS7 *p7, PKCS7_RECIP_INFO *ri);
@@ -344,15 +356,16 @@ int PKCS7_RECIP_INFO_set(PKCS7_RECIP_INFO *p7i, X509 *x509);
 int PKCS7_set_cipher(PKCS7 *p7, const EVP_CIPHER *cipher);
 
 PKCS7_ISSUER_AND_SERIAL *PKCS7_get_issuer_and_serial(PKCS7 *p7, int idx);
-ASN1_OCTET_STRING *PKCS7_digest_from_attributes(STACK *sk);
+ASN1_OCTET_STRING *PKCS7_digest_from_attributes(STACK_OF(X509_ATTRIBUTE) *sk);
 int PKCS7_add_signed_attribute(PKCS7_SIGNER_INFO *p7si,int nid,int type,
 	void *data);
 int PKCS7_add_attribute (PKCS7_SIGNER_INFO *p7si, int nid, int atrtype,
 	void *value);
 ASN1_TYPE *PKCS7_get_attribute(PKCS7_SIGNER_INFO *si, int nid);
 ASN1_TYPE *PKCS7_get_signed_attribute(PKCS7_SIGNER_INFO *si, int nid);
-int PKCS7_set_signed_attributes(PKCS7_SIGNER_INFO *p7si, STACK *sk);
-int PKCS7_set_attributes(PKCS7_SIGNER_INFO *p7si, STACK *sk);
+int PKCS7_set_signed_attributes(PKCS7_SIGNER_INFO *p7si,
+				STACK_OF(X509_ATTRIBUTE) *sk);
+int PKCS7_set_attributes(PKCS7_SIGNER_INFO *p7si,STACK_OF(X509_ATTRIBUTE) *sk);
 
 
 
@@ -376,6 +389,7 @@ int PKCS7_set_attributes(PKCS7_SIGNER_INFO *p7si, STACK *sk);
 #define PKCS7_F_PKCS7_SET_CIPHER			 108
 #define PKCS7_F_PKCS7_SET_CONTENT			 109
 #define PKCS7_F_PKCS7_SET_TYPE				 110
+#define PKCS7_F_PKCS7_SIGNATUREVERIFY			 113
 
 /* Reason codes. */
 #define PKCS7_R_CIPHER_NOT_INITIALIZED			 116

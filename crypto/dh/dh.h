@@ -105,14 +105,19 @@ typedef struct dh_st
 		(unsigned char *)(x))
 #define d2i_DHparams_bio(bp,x) (DH *)ASN1_d2i_bio((char *(*)())DH_new, \
 		(char *(*)())d2i_DHparams,(bp),(unsigned char **)(x))
+#ifdef  __cplusplus
+#define i2d_DHparams_bio(bp,x) ASN1_i2d_bio((int (*)())i2d_DHparams,(bp), \
+		(unsigned char *)(x))
+#else
 #define i2d_DHparams_bio(bp,x) ASN1_i2d_bio(i2d_DHparams,(bp), \
 		(unsigned char *)(x))
+#endif
 
 DH *	DH_new(void);
 void	DH_free(DH *dh);
 int	DH_size(DH *dh);
 DH *	DH_generate_parameters(int prime_len,int generator,
-		void (*callback)(int,int,char *),char *cb_arg);
+		void (*callback)(int,int,void *),void *cb_arg);
 int	DH_check(DH *dh,int *codes);
 int	DH_generate_key(DH *dh);
 int	DH_compute_key(unsigned char *key,BIGNUM *pub_key,DH *dh);

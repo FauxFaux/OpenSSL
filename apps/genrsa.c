@@ -75,7 +75,7 @@
 #undef PROG
 #define PROG genrsa_main
 
-static void MS_CALLBACK genrsa_cb(int p, int n, char *arg);
+static void MS_CALLBACK genrsa_cb(int p, int n, void *arg);
 static long gr_load_rand(char *names);
 int MAIN(int argc, char **argv)
 	{
@@ -194,7 +194,7 @@ bad:
 
 	BIO_printf(bio_err,"Generating RSA private key, %d bit long modulus\n",
 		num);
-	rsa=RSA_generate_key(num,f4,genrsa_cb,(char *)bio_err);
+	rsa=RSA_generate_key(num,f4,genrsa_cb,bio_err);
 		
 	if (randfile == NULL)
 		BIO_printf(bio_err,"unable to write 'random state'\n");
@@ -215,7 +215,7 @@ bad:
 		l+=rsa->e->d[i];
 		}
 	BIO_printf(bio_err,"e is %ld (0x%lX)\n",l,l);
-	if (!PEM_write_bio_RSAPrivateKey(out,rsa,enc,NULL,0,NULL))
+	if (!PEM_write_bio_RSAPrivateKey(out,rsa,enc,NULL,0,NULL,NULL))
 		goto err;
 
 	ret=0;
@@ -227,7 +227,7 @@ err:
 	EXIT(ret);
 	}
 
-static void MS_CALLBACK genrsa_cb(int p, int n, char *arg)
+static void MS_CALLBACK genrsa_cb(int p, int n, void *arg)
 	{
 	char c='*';
 
@@ -236,7 +236,7 @@ static void MS_CALLBACK genrsa_cb(int p, int n, char *arg)
 	if (p == 2) c='*';
 	if (p == 3) c='\n';
 	BIO_write((BIO *)arg,&c,1);
-	BIO_flush((BIO *)arg);
+	(void)BIO_flush((BIO *)arg);
 #ifdef LINT
 	p=n;
 #endif

@@ -384,10 +384,13 @@ extern "C" {
 #define NID_pbeWithSHA1AndRC2_CBC	68
 #define OBJ_pbeWithSHA1AndRC2_CBC	OBJ_pkcs,5L,11L 
 
-/* proposed by microsoft to RSA */
-#define LN_pbeWithSHA1AndRC4		"pbeWithSHA1AndRC4"
-#define NID_pbeWithSHA1AndRC4		69
-#define OBJ_pbeWithSHA1AndRC4		OBJ_pkcs,5L,12L 
+/* proposed by microsoft to RSA as pbeWithSHA1AndRC4: it is now
+ * defined explicitly in PKCS#5 v2.0 as id-PBKDF2 which is something
+ * completely different.
+ */
+#define LN_id_pbkdf2			"PBKDF2"
+#define NID_id_pbkdf2			69
+#define OBJ_id_pbkdf2			OBJ_pkcs,5L,12L 
 
 #define SN_dsaWithSHA1_2		"DSA-SHA1-old"
 #define LN_dsaWithSHA1_2		"dsaWithSHA1-old"
@@ -875,6 +878,18 @@ extern "C" {
 #define NID_SMIMECapabilities		167
 #define OBJ_SMIMECapabilities		OBJ_id_pkcs9,15L
 
+#define LN_pbeWithMD2AndRC2_CBC		"pbeWithMD2AndRC2-CBC"
+#define NID_pbeWithMD2AndRC2_CBC	168
+#define OBJ_pbeWithMD2AndRC2_CBC	OBJ_pkcs,5L,4L
+
+#define LN_pbeWithMD5AndRC2_CBC		"pbeWithMD5AndRC2-CBC"
+#define NID_pbeWithMD5AndRC2_CBC	169
+#define OBJ_pbeWithMD5AndRC2_CBC	OBJ_pkcs,5L,6L
+
+#define LN_pbeWithSHA1AndDES_CBC	"pbeWithSHA1AndDES-CBC"
+#define NID_pbeWithSHA1AndDES_CBC	170
+#define OBJ_pbeWithSHA1AndDES_CBC	OBJ_pkcs,5L,10L
+
 #include <openssl/bio.h>
 #include <openssl/asn1.h>
 
@@ -913,6 +928,7 @@ const char *	OBJ_nid2ln(int n);
 const char *	OBJ_nid2sn(int n);
 int		OBJ_obj2nid(ASN1_OBJECT *o);
 ASN1_OBJECT *	OBJ_txt2obj(const char *s, int no_name);
+int	OBJ_obj2txt(char *buf, int buf_len, ASN1_OBJECT *a, int no_name);
 int		OBJ_txt2nid(char *s);
 int		OBJ_ln2nid(const char *s);
 int		OBJ_sn2nid(const char *s);

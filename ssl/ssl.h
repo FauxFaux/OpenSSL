@@ -281,12 +281,12 @@ typedef struct ssl_session_st
 #define SSL_OP_TLS_BLOCK_PADDING_BUG			0x00000200L
 #define SSL_OP_TLS_ROLLBACK_BUG				0x00000400L
 
-/* If set, only use tmp_dh parameters once */
+/* If set, always create a new key when using tmp_dh parameters */
 #define SSL_OP_SINGLE_DH_USE				0x00100000L
 /* Set to also use the tmp_rsa key when doing RSA operations. */
 #define SSL_OP_EPHEMERAL_RSA				0x00200000L
 
-/* The next flag deliberatly changes the ciphertest, this is a check
+/* The next flag deliberately changes the ciphertest, this is a check
  * for the PKCS#1 attack */
 #define SSL_OP_PKCS1_CHECK_1				0x08000000L
 #define SSL_OP_PKCS1_CHECK_2				0x10000000L
@@ -295,18 +295,39 @@ typedef struct ssl_session_st
 #define SSL_OP_NETSCAPE_DEMO_CIPHER_CHANGE_BUG		0x80000000L
 #define SSL_OP_ALL					0x000FFFFFL
 
+#define SSL_OP_NO_SSLv2					0x01000000L
+#define SSL_OP_NO_SSLv3					0x02000000L
+#define SSL_OP_NO_TLSv1					0x04000000L
+
+/* Allow SSL_write(..., n) to return r with 0 < r < n (i.e. report success
+ * when just a single record has been written): */
+#define SSL_MODE_ENABLE_PARTIAL_WRITE       0x00000001L
+/* Make it possible to retry SSL_write() with changed buffer location
+ * (buffer contents must stay the same!); this is not the default to avoid
+ * the misconception that non-blocking SSL_write() behaves like
+ * non-blocking write(): */
+#define SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER 0x00000002L
+
+/* Note: SSL[_CTX]_set_{options,mode} use |= op on the previous value,
+ * they cannot be used to clear bits. */
+
 #define SSL_CTX_set_options(ctx,op) \
 	SSL_CTX_ctrl(ctx,SSL_CTRL_OPTIONS,op,NULL)
 #define SSL_CTX_get_options(ctx) \
 	SSL_CTX_ctrl(ctx,SSL_CTRL_OPTIONS,0,NULL)
 #define SSL_set_options(ssl,op) \
-	SSL_ctrl(ssl,SSL_CTRL_OPTIONS,0,NULL)
+	SSL_ctrl(ssl,SSL_CTRL_OPTIONS,op,NULL)
 #define SSL_get_options(ssl) \
         SSL_ctrl(ssl,SSL_CTRL_OPTIONS,0,NULL)
 
-#define SSL_OP_NO_SSLv2					0x01000000L
-#define SSL_OP_NO_SSLv3					0x02000000L
-#define SSL_OP_NO_TLSv1					0x04000000L
+#define SSL_CTX_set_mode(ctx,op) \
+	SSL_CTX_ctrl(ctx,SSL_CTRL_MODE,op,NULL)
+#define SSL_CTX_get_mode(ctx) \
+	SSL_CTX_ctrl(ctx,SSL_CTRL_MODE,0,NULL)
+#define SSL_set_mode(ssl,op) \
+	SSL_ctrl(ssl,SSL_CTRL_MODE,op,NULL)
+#define SSL_get_mode(ssl) \
+        SSL_ctrl(ssl,SSL_CTRL_MODE,0,NULL)
 
 #define SSL_SESSION_CACHE_MAX_SIZE_DEFAULT	(1024*20)
 
@@ -327,6 +348,7 @@ struct ssl_ctx_st
 	{
 	SSL_METHOD *method;
 	unsigned long options;
+	unsigned long mode;
 
 	STACK_OF(SSL_CIPHER) *cipher_list;
 	/* same as above but sorted for lookup */
@@ -391,7 +413,7 @@ struct ssl_ctx_st
 
 	/* if defined, these override the X509_verify_cert() calls */
 /**/	int (*app_verify_callback)();
-/**/	char *app_verify_arg;
+/**/	char *app_verify_arg; /* never used; should be void * */
 
 	/* default values to use in SSL structures */
 /**/	struct cert_st /* CERT */ *cert;
@@ -404,6 +426,9 @@ struct ssl_ctx_st
 
 	/* Default password callback. */
 /**/	pem_password_cb *default_passwd_callback;
+
+	/* Default password callback user data. */
+/**/	void *default_passwd_callback_userdata;
 
 	/* get client cert callback */
 /**/	int (*client_cert_cb)(/* SSL *ssl, X509 **x509, EVP_PKEY **pkey */);
@@ -605,7 +630,8 @@ struct ssl_st
 	STACK_OF(X509_NAME) *client_CA;
 
 	int references;
-	unsigned long options;
+	unsigned long options; /* protocol behaviour */
+	unsigned long mode; /* API behaviour */
 	int first_packet;
 	int client_version;	/* what was passed, used for
 				 * SSLv3/TLS rolback check */
@@ -704,16 +730,16 @@ struct ssl_st
 	(bp),(unsigned char **)(s_id))
 #define i2d_SSL_SESSION_bio(bp,s_id) ASN1_i2d_bio(i2d_SSL_SESSION, \
 	bp,(unsigned char *)s_id)
-#define PEM_read_SSL_SESSION(fp,x,cb) (SSL_SESSION *)PEM_ASN1_read( \
-	(char *(*)())d2i_SSL_SESSION,PEM_STRING_SSL_SESSION,fp,(char **)x,cb)
-#define PEM_read_bio_SSL_SESSION(bp,x,cb) (SSL_SESSION *)PEM_ASN1_read_bio( \
-	(char *(*)())d2i_SSL_SESSION,PEM_STRING_SSL_SESSION,bp,(char **)x,cb)
+#define PEM_read_SSL_SESSION(fp,x,cb,u) (SSL_SESSION *)PEM_ASN1_read( \
+	(char *(*)())d2i_SSL_SESSION,PEM_STRING_SSL_SESSION,fp,(char **)x,cb,u)
+#define PEM_read_bio_SSL_SESSION(bp,x,cb,u) (SSL_SESSION *)PEM_ASN1_read_bio( \
+	(char *(*)())d2i_SSL_SESSION,PEM_STRING_SSL_SESSION,bp,(char **)x,cb,u)
 #define PEM_write_SSL_SESSION(fp,x) \
 	PEM_ASN1_write((int (*)())i2d_SSL_SESSION, \
-		PEM_STRING_SSL_SESSION,fp, (char *)x, NULL,NULL,0,NULL)
+		PEM_STRING_SSL_SESSION,fp, (char *)x, NULL,NULL,0,NULL,NULL)
 #define PEM_write_bio_SSL_SESSION(bp,x) \
 	PEM_ASN1_write_bio((int (*)())i2d_SSL_SESSION, \
-		PEM_STRING_SSL_SESSION,bp, (char *)x, NULL,NULL,0,NULL)
+		PEM_STRING_SSL_SESSION,bp, (char *)x, NULL,NULL,0,NULL,NULL)
 #endif
 
 #define SSL_AD_REASON_OFFSET		1000
@@ -748,7 +774,7 @@ struct ssl_st
 #define SSL_ERROR_WANT_READ		2
 #define SSL_ERROR_WANT_WRITE		3
 #define SSL_ERROR_WANT_X509_LOOKUP	4
-#define SSL_ERROR_SYSCALL		5 /* look at errno */
+#define SSL_ERROR_SYSCALL		5 /* look at error stack/return value/errno */
 #define SSL_ERROR_ZERO_RETURN		6
 #define SSL_ERROR_WANT_CONNECT		7
 
@@ -780,6 +806,7 @@ struct ssl_st
 #define SSL_CTRL_SESS_TIMEOUTS			30
 #define SSL_CTRL_SESS_CACHE_FULL		31
 #define SSL_CTRL_OPTIONS			32
+#define SSL_CTRL_MODE			33
 
 #define SSL_CTRL_GET_READ_AHEAD			40
 #define SSL_CTRL_SET_READ_AHEAD			41
@@ -938,6 +965,10 @@ X509 *	SSL_get_peer_certificate(SSL *s);
 
 STACK_OF(X509) *SSL_get_peer_cert_chain(SSL *s);
 
+#ifdef VMS
+#define SSL_CTX_set_default_passwd_cb_userdata SSL_CTX_set_def_passwd_cb_ud
+#endif
+
 int SSL_CTX_get_verify_mode(SSL_CTX *ctx);
 int SSL_CTX_get_verify_depth(SSL_CTX *ctx);
 int (*SSL_CTX_get_verify_callback(SSL_CTX *ctx))(int,X509_STORE_CTX *);
@@ -955,7 +986,8 @@ int SSL_CTX_use_PrivateKey_ASN1(int pk,SSL_CTX *ctx,
 int SSL_CTX_use_certificate(SSL_CTX *ctx, X509 *x);
 int SSL_CTX_use_certificate_ASN1(SSL_CTX *ctx, int len, unsigned char *d);
 
-void SSL_CTX_set_default_passwd_cb(SSL_CTX *ctx, pem_password_cb *);
+void SSL_CTX_set_default_passwd_cb(SSL_CTX *ctx, pem_password_cb *cb);
+void SSL_CTX_set_default_passwd_cb_userdata(SSL_CTX *ctx, void *u);
 
 int SSL_CTX_check_private_key(SSL_CTX *ctx);
 int SSL_check_private_key(SSL *ctx);
@@ -1025,7 +1057,7 @@ long SSL_get_default_timeout(SSL *s);
 int SSL_library_init(void );
 
 char *SSL_CIPHER_description(SSL_CIPHER *,char *buf,int size);
-STACK *SSL_dup_CA_list(STACK *sk);
+STACK_OF(X509_NAME) *SSL_dup_CA_list(STACK_OF(X509_NAME) *sk);
 
 SSL *SSL_dup(SSL *ssl);
 
@@ -1084,21 +1116,23 @@ int SSL_get_ex_data_X509_STORE_CTX_idx(void );
 #define SSL_CTX_set_read_ahead(ctx,m) \
 	SSL_CTX_ctrl(ctx,SSL_CTRL_SET_READ_AHEAD,0,NULL)
 
-     /* NB: the keylength is only applicable when export is true */
+     /* NB: the keylength is only applicable when is_export is true */
 #ifndef NO_RSA
 void SSL_CTX_set_tmp_rsa_callback(SSL_CTX *ctx,
-				  RSA *(*cb)(SSL *ssl,int export,
+				  RSA *(*cb)(SSL *ssl,int is_export,
 					     int keylength));
 
 void SSL_set_tmp_rsa_callback(SSL *ssl,
-				  RSA *(*cb)(SSL *ssl,int export,
+				  RSA *(*cb)(SSL *ssl,int is_export,
 					     int keylength));
 #endif
 #ifndef NO_DH
 void SSL_CTX_set_tmp_dh_callback(SSL_CTX *ctx,
-				 DH *(*dh)(SSL *ssl,int export,int keylength));
+				 DH *(*dh)(SSL *ssl,int is_export,
+					   int keylength));
 void SSL_set_tmp_dh_callback(SSL *ssl,
-				 DH *(*dh)(SSL *ssl,int export,int keylength));
+				 DH *(*dh)(SSL *ssl,int is_export,
+					   int keylength));
 #endif
 
 #ifdef HEADER_COMP_H

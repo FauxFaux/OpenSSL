@@ -62,8 +62,9 @@
 #include <openssl/objects.h>
 #include <openssl/x509.h>
 
-static int add_attribute(STACK **sk, int nid, int atrtype, void *value);
-static ASN1_TYPE *get_attribute(STACK *sk, int nid);
+static int add_attribute(STACK_OF(X509_ATTRIBUTE) **sk, int nid, int atrtype,
+			 void *value);
+static ASN1_TYPE *get_attribute(STACK_OF(X509_ATTRIBUTE) *sk, int nid);
 
 BIO *PKCS7_dataInit(PKCS7 *p7, BIO *bio)
 	{
@@ -72,7 +73,8 @@ BIO *PKCS7_dataInit(PKCS7 *p7, BIO *bio)
 	X509_ALGOR *xa;
 	const EVP_MD *evp_md;
 	const EVP_CIPHER *evp_cipher=NULL;
-	STACK *md_sk=NULL,*rsk=NULL;
+	STACK_OF(X509_ALGOR) *md_sk=NULL;
+	STACK_OF(PKCS7_RECIP_INFO) *rsk=NULL;
 	X509_ALGOR *xalg=NULL;
 	PKCS7_RECIP_INFO *ri=NULL;
 	EVP_PKEY *pkey;
@@ -115,9 +117,9 @@ BIO *PKCS7_dataInit(PKCS7 *p7, BIO *bio)
 
 	if (md_sk != NULL)
 		{
-		for (i=0; i<sk_num(md_sk); i++)
+		for (i=0; i<sk_X509_ALGOR_num(md_sk); i++)
 			{
-			xa=(X509_ALGOR *)sk_value(md_sk,i);
+			xa=sk_X509_ALGOR_value(md_sk,i);
 			if ((btmp=BIO_new(BIO_f_md())) == NULL)
 				{
 				PKCS7err(PKCS7_F_PKCS7_DATAINIT,ERR_R_BIO_LIB);
@@ -172,9 +174,9 @@ BIO *PKCS7_dataInit(PKCS7 *p7, BIO *bio)
 
 		/* Lets do the pub key stuff :-) */
 		max=0;
-		for (i=0; i<sk_num(rsk); i++)
+		for (i=0; i<sk_PKCS7_RECIP_INFO_num(rsk); i++)
 			{
-			ri=(PKCS7_RECIP_INFO *)sk_value(rsk,i);
+			ri=sk_PKCS7_RECIP_INFO_value(rsk,i);
 			if (ri->cert == NULL)
 				{
 				PKCS7err(PKCS7_F_PKCS7_DATAINIT,PKCS7_R_MISSING_CERIPEND_INFO);
@@ -190,9 +192,9 @@ BIO *PKCS7_dataInit(PKCS7 *p7, BIO *bio)
 			PKCS7err(PKCS7_F_PKCS7_DATAINIT,ERR_R_MALLOC_FAILURE);
 			goto err;
 			}
-		for (i=0; i<sk_num(rsk); i++)
+		for (i=0; i<sk_PKCS7_RECIP_INFO_num(rsk); i++)
 			{
-			ri=(PKCS7_RECIP_INFO *)sk_value(rsk,i);
+			ri=sk_PKCS7_RECIP_INFO_value(rsk,i);
 			pkey=X509_get_pubkey(ri->cert);
 			jj=EVP_PKEY_encrypt(tmp,key,keylen,pkey);
 			EVP_PKEY_free(pkey);
@@ -264,7 +266,8 @@ BIO *PKCS7_dataDecode(PKCS7 *p7, EVP_PKEY *pkey, BIO *in_bio, X509 *pcert)
 	const EVP_CIPHER *evp_cipher=NULL;
 	EVP_CIPHER_CTX *evp_ctx=NULL;
 	X509_ALGOR *enc_alg=NULL;
-	STACK *md_sk=NULL,*rsk=NULL;
+	STACK_OF(X509_ALGOR) *md_sk=NULL;
+	STACK_OF(PKCS7_RECIP_INFO) *rsk=NULL;
 	X509_ALGOR *xalg=NULL;
 	PKCS7_RECIP_INFO *ri=NULL;
 /*	EVP_PKEY *pkey; */
@@ -314,9 +317,9 @@ BIO *PKCS7_dataDecode(PKCS7 *p7, EVP_PKEY *pkey, BIO *in_bio, X509 *pcert)
 	/* We will be checking the signature */
 	if (md_sk != NULL)
 		{
-		for (i=0; i<sk_num(md_sk); i++)
+		for (i=0; i<sk_X509_ALGOR_num(md_sk); i++)
 			{
-			xa=(X509_ALGOR *)sk_value(md_sk,i);
+			xa=sk_X509_ALGOR_value(md_sk,i);
 			if ((btmp=BIO_new(BIO_f_md())) == NULL)
 				{
 				PKCS7err(PKCS7_F_PKCS7_DATADECODE,ERR_R_BIO_LIB);
@@ -365,8 +368,8 @@ BIO *PKCS7_dataDecode(PKCS7 *p7, EVP_PKEY *pkey, BIO *in_bio, X509 *pcert)
 		 * (if any)
 		 */
 
-		for (i=0; i<sk_num(rsk); i++) {
-			ri=(PKCS7_RECIP_INFO *)sk_value(rsk,i);
+		for (i=0; i<sk_PKCS7_RECIP_INFO_num(rsk); i++) {
+			ri=sk_PKCS7_RECIP_INFO_value(rsk,i);
 			if(!X509_NAME_cmp(ri->issuer_and_serial->issuer,
 					pcert->cert_info->issuer) &&
 			     !ASN1_INTEGER_cmp(pcert->cert_info->serialNumber,
@@ -462,7 +465,8 @@ int PKCS7_dataFinal(PKCS7 *p7, BIO *bio)
 	BUF_MEM *buf=NULL;
 	PKCS7_SIGNER_INFO *si;
 	EVP_MD_CTX *mdc,ctx_tmp;
-	STACK *sk,*si_sk=NULL;
+	STACK_OF(X509_ATTRIBUTE) *sk;
+	STACK_OF(PKCS7_SIGNER_INFO) *si_sk=NULL;
 	unsigned char *p,*pp=NULL;
 	int x;
 	ASN1_OCTET_STRING *os=NULL;
@@ -501,10 +505,9 @@ int PKCS7_dataFinal(PKCS7 *p7, BIO *bio)
 			PKCS7err(PKCS7_F_PKCS7_DATASIGN,ERR_R_BIO_LIB);
 			goto err;
 			}
-		for (i=0; i<sk_num(si_sk); i++)
+		for (i=0; i<sk_PKCS7_SIGNER_INFO_num(si_sk); i++)
 			{
-			si=(PKCS7_SIGNER_INFO *)
-				sk_value(si_sk,i);
+			si=sk_PKCS7_SIGNER_INFO_value(si_sk,i);
 			if (si->pkey == NULL) continue;
 
 			j=OBJ_obj2nid(si->digest_alg->algorithm);
@@ -543,7 +546,7 @@ int PKCS7_dataFinal(PKCS7 *p7, BIO *bio)
 
 			/* If there are attributes, we add the digest
 			 * attribute and only sign the attributes */
-			if ((sk != NULL) && (sk_num(sk) != 0))
+			if ((sk != NULL) && (sk_X509_ATTRIBUTE_num(sk) != 0))
 				{
 				unsigned char md_data[EVP_MAX_MD_SIZE];
 				unsigned int md_len;
@@ -568,12 +571,14 @@ int PKCS7_dataFinal(PKCS7 *p7, BIO *bio)
 
 				/* Now sign the mess */
 				EVP_SignInit(&ctx_tmp,md_tmp);
-				x=i2d_ASN1_SET(sk,NULL,i2d_X509_ATTRIBUTE,
-					V_ASN1_SET,V_ASN1_UNIVERSAL, IS_SET);
+				x=i2d_ASN1_SET_OF_X509_ATTRIBUTE(sk,NULL,
+					   i2d_X509_ATTRIBUTE,
+					   V_ASN1_SET,V_ASN1_UNIVERSAL,IS_SET);
 				pp=(unsigned char *)Malloc(x);
 				p=pp;
-				i2d_ASN1_SET(sk,&p,i2d_X509_ATTRIBUTE,
-					V_ASN1_SET,V_ASN1_UNIVERSAL, IS_SET);
+				i2d_ASN1_SET_OF_X509_ATTRIBUTE(sk,&p,
+				           i2d_X509_ATTRIBUTE,
+					   V_ASN1_SET,V_ASN1_UNIVERSAL,IS_SET);
 				EVP_SignUpdate(&ctx_tmp,pp,x);
 				Free(pp);
 				pp=NULL;
@@ -621,18 +626,10 @@ err:
 int PKCS7_dataVerify(X509_STORE *cert_store, X509_STORE_CTX *ctx, BIO *bio,
 	     PKCS7 *p7, PKCS7_SIGNER_INFO *si)
 	{
-/*	PKCS7_SIGNED *s; */
-	ASN1_OCTET_STRING *os;
-	EVP_MD_CTX mdc_tmp,*mdc;
-	unsigned char *pp,*p;
 	PKCS7_ISSUER_AND_SERIAL *ias;
 	int ret=0,i;
-	int md_type;
-	STACK *sk;
 	STACK_OF(X509) *cert;
-	BIO *btmp;
 	X509 *x509;
-	EVP_PKEY *pkey;
 
 	if (PKCS7_type_is_signed(p7))
 		{
@@ -669,7 +666,30 @@ int PKCS7_dataVerify(X509_STORE *cert_store, X509_STORE_CTX *ctx, BIO *bio,
 		}
 	X509_STORE_CTX_cleanup(ctx);
 
-	/* So we like 'x509', lets check the signature. */
+	return PKCS7_signatureVerify(bio, p7, si, x509);
+	err:
+	return ret;
+	}
+
+int PKCS7_signatureVerify(BIO *bio, PKCS7 *p7, PKCS7_SIGNER_INFO *si,
+								X509 *x509)
+	{
+	ASN1_OCTET_STRING *os;
+	EVP_MD_CTX mdc_tmp,*mdc;
+	unsigned char *pp,*p;
+	int ret=0,i;
+	int md_type;
+	STACK_OF(X509_ATTRIBUTE) *sk;
+	BIO *btmp;
+	EVP_PKEY *pkey;
+
+	if (!PKCS7_type_is_signed(p7) && 
+				!PKCS7_type_is_signedAndEnveloped(p7)) {
+		PKCS7err(PKCS7_F_PKCS7_SIGNATUREVERIFY,
+						PKCS7_R_WRONG_PKCS7_TYPE);
+		goto err;
+	}
+
 	md_type=OBJ_obj2nid(si->digest_alg->algorithm);
 
 	btmp=bio;
@@ -678,13 +698,15 @@ int PKCS7_dataVerify(X509_STORE *cert_store, X509_STORE_CTX *ctx, BIO *bio,
 		if ((btmp == NULL) ||
 			((btmp=BIO_find_type(btmp,BIO_TYPE_MD)) == NULL))
 			{
-			PKCS7err(PKCS7_F_PKCS7_DATAVERIFY,PKCS7_R_UNABLE_TO_FIND_MESSAGE_DIGEST);
+			PKCS7err(PKCS7_F_PKCS7_SIGNATUREVERIFY,
+					PKCS7_R_UNABLE_TO_FIND_MESSAGE_DIGEST);
 			goto err;
 			}
 		BIO_get_md_ctx(btmp,&mdc);
 		if (mdc == NULL)
 			{
-			PKCS7err(PKCS7_F_PKCS7_DATAVERIFY,PKCS7_R_INTERNAL_ERROR);
+			PKCS7err(PKCS7_F_PKCS7_SIGNATUREVERIFY,
+							PKCS7_R_INTERNAL_ERROR);
 			goto err;
 			}
 		if (EVP_MD_type(EVP_MD_CTX_type(mdc)) == md_type)
@@ -697,7 +719,7 @@ int PKCS7_dataVerify(X509_STORE *cert_store, X509_STORE_CTX *ctx, BIO *bio,
 	memcpy(&mdc_tmp,mdc,sizeof(mdc_tmp));
 
 	sk=si->auth_attr;
-	if ((sk != NULL) && (sk_num(sk) != 0))
+	if ((sk != NULL) && (sk_X509_ATTRIBUTE_num(sk) != 0))
 		{
 		unsigned char md_dat[EVP_MAX_MD_SIZE];
                 unsigned int md_len;
@@ -707,7 +729,8 @@ int PKCS7_dataVerify(X509_STORE *cert_store, X509_STORE_CTX *ctx, BIO *bio,
 		message_digest=PKCS7_digest_from_attributes(sk);
 		if (!message_digest)
 			{
-			PKCS7err(PKCS7_F_PKCS7_DATAVERIFY,PKCS7_R_UNABLE_TO_FIND_MESSAGE_DIGEST);
+			PKCS7err(PKCS7_F_PKCS7_SIGNATUREVERIFY,
+					PKCS7_R_UNABLE_TO_FIND_MESSAGE_DIGEST);
 			goto err;
 			}
 		if ((message_digest->length != (int)md_len) ||
@@ -721,7 +744,8 @@ for (ii=0; ii<message_digest->length; ii++)
 for (ii=0; ii<md_len; ii++) printf("%02X",md_dat[ii]); printf(" calc\n");
 }
 #endif
-			PKCS7err(PKCS7_F_PKCS7_DATAVERIFY,PKCS7_R_DIGEST_FAILURE);
+			PKCS7err(PKCS7_F_PKCS7_SIGNATUREVERIFY,
+							PKCS7_R_DIGEST_FAILURE);
 			ret= -1;
 			goto err;
 			}
@@ -731,11 +755,11 @@ for (ii=0; ii<md_len; ii++) printf("%02X",md_dat[ii]); printf(" calc\n");
 		 * shouldn't reorder them or this will break the signature.
 		 * This is done by using the IS_SEQUENCE flag.
 		 */
-		i=i2d_ASN1_SET(sk,NULL,i2d_X509_ATTRIBUTE,
+		i=i2d_ASN1_SET_OF_X509_ATTRIBUTE(sk,NULL,i2d_X509_ATTRIBUTE,
 			V_ASN1_SET,V_ASN1_UNIVERSAL, IS_SEQUENCE);
-		pp=(unsigned char *)Malloc(i);
+		pp=Malloc(i);
 		p=pp;
-		i2d_ASN1_SET(sk,&p,i2d_X509_ATTRIBUTE,
+		i2d_ASN1_SET_OF_X509_ATTRIBUTE(sk,&p,i2d_X509_ATTRIBUTE,
 			V_ASN1_SET,V_ASN1_UNIVERSAL, IS_SEQUENCE);
 		EVP_VerifyUpdate(&mdc_tmp,pp,i);
 
@@ -750,7 +774,8 @@ for (ii=0; ii<md_len; ii++) printf("%02X",md_dat[ii]); printf(" calc\n");
 	EVP_PKEY_free(pkey);
 	if (i <= 0)
 		{
-		PKCS7err(PKCS7_F_PKCS7_DATAVERIFY,PKCS7_R_SIGNATURE_FAILURE);
+		PKCS7err(PKCS7_F_PKCS7_SIGNATUREVERIFY,
+						PKCS7_R_SIGNATURE_FAILURE);
 		ret= -1;
 		goto err;
 		}
@@ -762,16 +787,16 @@ err:
 
 PKCS7_ISSUER_AND_SERIAL *PKCS7_get_issuer_and_serial(PKCS7 *p7, int idx)
 	{
-	STACK *rsk;
+	STACK_OF(PKCS7_RECIP_INFO) *rsk;
 	PKCS7_RECIP_INFO *ri;
 	int i;
 
 	i=OBJ_obj2nid(p7->type);
 	if (i != NID_pkcs7_signedAndEnveloped) return(NULL);
 	rsk=p7->d.signed_and_enveloped->recipientinfo;
-	ri=(PKCS7_RECIP_INFO *)sk_value(rsk,0);
-	if (sk_num(rsk) <= idx) return(NULL);
-	ri=(PKCS7_RECIP_INFO *)sk_value(rsk,idx);
+	ri=sk_PKCS7_RECIP_INFO_value(rsk,0);
+	if (sk_PKCS7_RECIP_INFO_num(rsk) <= idx) return(NULL);
+	ri=sk_PKCS7_RECIP_INFO_value(rsk,idx);
 	return(ri->issuer_and_serial);
 	}
 
@@ -785,7 +810,7 @@ ASN1_TYPE *PKCS7_get_attribute(PKCS7_SIGNER_INFO *si, int nid)
 	return(get_attribute(si->unauth_attr,nid));
 	}
 
-static ASN1_TYPE *get_attribute(STACK *sk, int nid)
+static ASN1_TYPE *get_attribute(STACK_OF(X509_ATTRIBUTE) *sk, int nid)
 	{
 	int i;
 	X509_ATTRIBUTE *xa;
@@ -793,9 +818,9 @@ static ASN1_TYPE *get_attribute(STACK *sk, int nid)
 
 	o=OBJ_nid2obj(nid);
 	if (!o || !sk) return(NULL);
-	for (i=0; i<sk_num(sk); i++)
+	for (i=0; i<sk_X509_ATTRIBUTE_num(sk); i++)
 		{
-		xa=(X509_ATTRIBUTE *)sk_value(sk,i);
+		xa=sk_X509_ATTRIBUTE_value(sk,i);
 		if (OBJ_cmp(xa->object,o) == 0)
 			{
 			if (xa->set && sk_ASN1_TYPE_num(xa->value.set))
@@ -807,40 +832,44 @@ static ASN1_TYPE *get_attribute(STACK *sk, int nid)
 	return(NULL);
 	}
 
-ASN1_OCTET_STRING *PKCS7_digest_from_attributes(STACK *sk)
+ASN1_OCTET_STRING *PKCS7_digest_from_attributes(STACK_OF(X509_ATTRIBUTE) *sk)
 {
 	ASN1_TYPE *astype;
 	if(!(astype = get_attribute(sk, NID_pkcs9_messageDigest))) return NULL;
 	return astype->value.octet_string;
 }
 
-int PKCS7_set_signed_attributes(PKCS7_SIGNER_INFO *p7si, STACK *sk)
+int PKCS7_set_signed_attributes(PKCS7_SIGNER_INFO *p7si,
+				STACK_OF(X509_ATTRIBUTE) *sk)
 	{
 	int i;
 
 	if (p7si->auth_attr != NULL)
-		sk_pop_free(p7si->auth_attr,X509_ATTRIBUTE_free);
-	p7si->auth_attr=sk_dup(sk);
-	for (i=0; i<sk_num(sk); i++)
+		sk_X509_ATTRIBUTE_pop_free(p7si->auth_attr,X509_ATTRIBUTE_free);
+	p7si->auth_attr=sk_X509_ATTRIBUTE_dup(sk);
+	for (i=0; i<sk_X509_ATTRIBUTE_num(sk); i++)
 		{
-		if ((sk_set(p7si->auth_attr,i,(char *)X509_ATTRIBUTE_dup(
-			(X509_ATTRIBUTE *)sk_value(sk,i)))) == NULL)
+		if ((sk_X509_ATTRIBUTE_set(p7si->auth_attr,i,
+			X509_ATTRIBUTE_dup(sk_X509_ATTRIBUTE_value(sk,i))))
+		    == NULL)
 			return(0);
 		}
 	return(1);
 	}
 
-int PKCS7_set_attributes(PKCS7_SIGNER_INFO *p7si, STACK *sk)
+int PKCS7_set_attributes(PKCS7_SIGNER_INFO *p7si, STACK_OF(X509_ATTRIBUTE) *sk)
 	{
 	int i;
 
 	if (p7si->unauth_attr != NULL)
-		sk_pop_free(p7si->unauth_attr,X509_ATTRIBUTE_free);
-	p7si->unauth_attr=sk_dup(sk);
-	for (i=0; i<sk_num(sk); i++)
+		sk_X509_ATTRIBUTE_pop_free(p7si->unauth_attr,
+					   X509_ATTRIBUTE_free);
+	p7si->unauth_attr=sk_X509_ATTRIBUTE_dup(sk);
+	for (i=0; i<sk_X509_ATTRIBUTE_num(sk); i++)
 		{
-		if ((sk_set(p7si->unauth_attr,i,(char *)X509_ATTRIBUTE_dup(
-			(X509_ATTRIBUTE *)sk_value(sk,i)))) == NULL)
+		if ((sk_X509_ATTRIBUTE_set(p7si->unauth_attr,i,
+                        X509_ATTRIBUTE_dup(sk_X509_ATTRIBUTE_value(sk,i))))
+		    == NULL)
 			return(0);
 		}
 	return(1);
@@ -858,29 +887,30 @@ int PKCS7_add_attribute(PKCS7_SIGNER_INFO *p7si, int nid, int atrtype,
 	return(add_attribute(&(p7si->unauth_attr),nid,atrtype,value));
 	}
 
-static int add_attribute(STACK **sk, int nid, int atrtype, void *value)
+static int add_attribute(STACK_OF(X509_ATTRIBUTE) **sk, int nid, int atrtype,
+			 void *value)
 	{
 	X509_ATTRIBUTE *attr=NULL;
 
 	if (*sk == NULL)
 		{
-		*sk = sk_new(NULL);
+		*sk = sk_X509_ATTRIBUTE_new(NULL);
 new_attrib:
 		attr=X509_ATTRIBUTE_create(nid,atrtype,value);
-		sk_push(*sk,(char *)attr);
+		sk_X509_ATTRIBUTE_push(*sk,attr);
 		}
 	else
 		{
 		int i;
 
-		for (i=0; i<sk_num(*sk); i++)
+		for (i=0; i<sk_X509_ATTRIBUTE_num(*sk); i++)
 			{
-			attr=(X509_ATTRIBUTE *)sk_value(*sk,i);
+			attr=sk_X509_ATTRIBUTE_value(*sk,i);
 			if (OBJ_obj2nid(attr->object) == nid)
 				{
 				X509_ATTRIBUTE_free(attr);
 				attr=X509_ATTRIBUTE_create(nid,atrtype,value);
-				sk_set(*sk,i,(char *)attr);
+				sk_X509_ATTRIBUTE_set(*sk,i,attr);
 				goto end;
 				}
 			}

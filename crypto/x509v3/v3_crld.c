@@ -63,25 +63,25 @@
 #include <openssl/asn1_mac.h>
 #include <openssl/x509v3.h>
 
-static STACK *i2v_crld(X509V3_EXT_METHOD *method, STACK_OF(DIST_POINT) *crld,
-							 STACK *extlist);
+static STACK_OF(CONF_VALUE) *i2v_crld(X509V3_EXT_METHOD *method,
+		STACK_OF(DIST_POINT) *crld, STACK_OF(CONF_VALUE) *extlist);
 static STACK_OF(DIST_POINT) *v2i_crld(X509V3_EXT_METHOD *method,
-						 X509V3_CTX *ctx, STACK *nval);
+				X509V3_CTX *ctx, STACK_OF(CONF_VALUE) *nval);
 
 X509V3_EXT_METHOD v3_crld = {
 NID_crl_distribution_points, X509V3_EXT_MULTILINE,
 (X509V3_EXT_NEW)CRL_DIST_POINTS_new,
-CRL_DIST_POINTS_free,
+(X509V3_EXT_FREE)CRL_DIST_POINTS_free,
 (X509V3_EXT_D2I)d2i_CRL_DIST_POINTS,
-i2d_CRL_DIST_POINTS,
+(X509V3_EXT_I2D)i2d_CRL_DIST_POINTS,
 NULL, NULL,
 (X509V3_EXT_I2V)i2v_crld,
 (X509V3_EXT_V2I)v2i_crld,
 NULL, NULL, NULL
 };
 
-static STACK *i2v_crld(X509V3_EXT_METHOD *method, STACK_OF(DIST_POINT) *crld,
-								 STACK *exts)
+static STACK_OF(CONF_VALUE) *i2v_crld(X509V3_EXT_METHOD *method,
+			STACK_OF(DIST_POINT) *crld, STACK_OF(CONF_VALUE) *exts)
 {
 	DIST_POINT *point;
 	int i;
@@ -102,7 +102,7 @@ static STACK *i2v_crld(X509V3_EXT_METHOD *method, STACK_OF(DIST_POINT) *crld,
 }
 
 static STACK_OF(DIST_POINT) *v2i_crld(X509V3_EXT_METHOD *method,
-						 X509V3_CTX *ctx, STACK *nval)
+				X509V3_CTX *ctx, STACK_OF(CONF_VALUE) *nval)
 {
 	STACK_OF(DIST_POINT) *crld = NULL;
 	STACK_OF(GENERAL_NAME) *gens = NULL;
@@ -110,9 +110,9 @@ static STACK_OF(DIST_POINT) *v2i_crld(X509V3_EXT_METHOD *method,
 	CONF_VALUE *cnf;
 	int i;
 	if(!(crld = sk_DIST_POINT_new(NULL))) goto merr;
-	for(i = 0; i < sk_num(nval); i++) {
+	for(i = 0; i < sk_CONF_VALUE_num(nval); i++) {
 		DIST_POINT *point;
-		cnf = (CONF_VALUE *)sk_value(nval, i);
+		cnf = sk_CONF_VALUE_value(nval, i);
 		if(!(gen = v2i_GENERAL_NAME(method, ctx, cnf))) goto err; 
 		if(!(gens = GENERAL_NAMES_new())) goto merr;
 		if(!sk_GENERAL_NAME_push(gens, gen)) goto merr;

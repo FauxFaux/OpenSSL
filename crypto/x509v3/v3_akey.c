@@ -63,15 +63,17 @@
 #include <openssl/asn1_mac.h>
 #include <openssl/x509v3.h>
 
-static STACK *i2v_AUTHORITY_KEYID(X509V3_EXT_METHOD *method, AUTHORITY_KEYID *akeyid, STACK *extlist);
-static AUTHORITY_KEYID *v2i_AUTHORITY_KEYID(X509V3_EXT_METHOD *method, X509V3_CTX *ctx, STACK *values);
+static STACK_OF(CONF_VALUE) *i2v_AUTHORITY_KEYID(X509V3_EXT_METHOD *method,
+			AUTHORITY_KEYID *akeyid, STACK_OF(CONF_VALUE) *extlist);
+static AUTHORITY_KEYID *v2i_AUTHORITY_KEYID(X509V3_EXT_METHOD *method,
+			X509V3_CTX *ctx, STACK_OF(CONF_VALUE) *values);
 
 X509V3_EXT_METHOD v3_akey_id = {
 NID_authority_key_identifier, X509V3_EXT_MULTILINE,
 (X509V3_EXT_NEW)AUTHORITY_KEYID_new,
-AUTHORITY_KEYID_free,
+(X509V3_EXT_FREE)AUTHORITY_KEYID_free,
 (X509V3_EXT_D2I)d2i_AUTHORITY_KEYID,
-i2d_AUTHORITY_KEYID,
+(X509V3_EXT_I2D)i2d_AUTHORITY_KEYID,
 NULL, NULL,
 (X509V3_EXT_I2V)i2v_AUTHORITY_KEYID,
 (X509V3_EXT_V2I)v2i_AUTHORITY_KEYID,
@@ -133,8 +135,8 @@ void AUTHORITY_KEYID_free(AUTHORITY_KEYID *a)
 	Free ((char *)a);
 }
 
-static STACK *i2v_AUTHORITY_KEYID(X509V3_EXT_METHOD *method,
-	     AUTHORITY_KEYID *akeyid, STACK *extlist)
+static STACK_OF(CONF_VALUE) *i2v_AUTHORITY_KEYID(X509V3_EXT_METHOD *method,
+	     AUTHORITY_KEYID *akeyid, STACK_OF(CONF_VALUE) *extlist)
 {
 	char *tmp;
 	if(akeyid->keyid) {
@@ -162,7 +164,7 @@ static STACK *i2v_AUTHORITY_KEYID(X509V3_EXT_METHOD *method,
  */
 
 static AUTHORITY_KEYID *v2i_AUTHORITY_KEYID(X509V3_EXT_METHOD *method,
-	     X509V3_CTX *ctx, STACK *values)
+	     X509V3_CTX *ctx, STACK_OF(CONF_VALUE) *values)
 {
 char keyid=0, issuer=0;
 int i;
@@ -175,8 +177,8 @@ ASN1_INTEGER *serial = NULL;
 X509_EXTENSION *ext;
 X509 *cert;
 AUTHORITY_KEYID *akeyid;
-for(i = 0; i < sk_num(values); i++) {
-	cnf = (CONF_VALUE *)sk_value(values, i);
+for(i = 0; i < sk_CONF_VALUE_num(values); i++) {
+	cnf = sk_CONF_VALUE_value(values, i);
 	if(!strcmp(cnf->name, "keyid")) {
 		keyid = 1;
 		if(cnf->value && !strcmp(cnf->value, "always")) keyid = 2;

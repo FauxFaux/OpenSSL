@@ -116,6 +116,7 @@ static ERR_STRING_DATA ERR_str_functs[]=
 #ifdef WINDOWS
 	{ERR_PACK(0,SYS_F_WSASTARTUP,0),	"WSAstartup"},
 #endif
+	{ERR_PACK(0,SYS_F_OPENDIR,0),		"opendir"},
 	{0,NULL},
 	};
 
@@ -141,7 +142,7 @@ static ERR_STRING_DATA ERR_str_reasons[]=
 {ERR_R_PKCS7_LIB			,"PKCS7 lib"},
 {ERR_R_PKCS12_LIB			,"PKCS12 lib"},
 {ERR_R_MALLOC_FAILURE			,"Malloc failure"},
-{ERR_R_SHOULD_NOT_HAVE_BEEN_CALLED	,"called a fuction you should not call"},
+{ERR_R_SHOULD_NOT_HAVE_BEEN_CALLED	,"called a function you should not call"},
 {ERR_R_PASSED_NULL_PARAMETER		,"passed a null parameter"},
 {ERR_R_NESTED_ASN1_ERROR		,"nested asn1 error"},
 {ERR_R_BAD_ASN1_OBJECT_HEADER		,"bad asn1 object header"},
@@ -246,6 +247,25 @@ void ERR_put_error(int lib, int func, int reason, const char *file,
 	{
 	ERR_STATE *es;
 
+#ifdef _OSD_POSIX
+	/* In the BS2000-OSD POSIX subsystem, the compiler generates
+	 * path names in the form "*POSIX(/etc/passwd)".
+	 * This dirty hack strips them to something sensible.
+	 * @@@ We shouldn't modify a const string, though.
+	 */
+	if (strncmp(file,"*POSIX(", sizeof("*POSIX(")-1) == 0) {
+		char *end;
+
+		/* Skip the "*POSIX(" prefix */
+		file += sizeof("*POSIX(")-1;
+		end = &file[strlen(file)-1];
+		if (*end == ')')
+			*end = '\0';
+		/* Optional: use the basename of the path only. */
+		if ((end = strrchr(file, '/')) != NULL)
+			file = &end[1];
+	}
+#endif
 	es=ERR_get_state();
 
 	es->top=(es->top+1)%ERR_NUM_ERRORS;
@@ -582,7 +602,7 @@ void ERR_set_error_data(char *data, int flags)
 	}
 
 void ERR_add_error_data(int num, ...)
-        {
+	{
 	va_list args;
 	int i,n,s;
 	char *str,*p,*a;

@@ -6,7 +6,7 @@ DIR=	des
 TOP=	../..
 CC=	cc
 CPP=	$(CC) -E
-INCLUDES=
+INCLUDES=-I../../include
 CFLAG=-g
 INSTALL_PREFIX=
 OPENSSLDIR=     /usr/local/ssl
@@ -58,6 +58,9 @@ lib:	$(LIBOBJ)
 	$(AR) $(LIB) $(LIBOBJ)
 	$(RANLIB) $(LIB)
 	@touch lib
+
+des: des.o cbc3_enc.o lib
+	$(CC) $(CFLAGS) -o des des.o cbc3_enc.o $(LIB)
 
 # elf
 asm/dx86-elf.o: asm/dx86unix.cpp
@@ -132,14 +135,14 @@ dclean:
 	mv -f Makefile.new $(MAKEFILE)
 
 clean:
-	rm -f asm/dx86unix.cpp asm/yx86unix.cpp *.o asm/*.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
+	rm -f asm/dx86unix.cpp asm/yx86unix.cpp *.o asm/*.o *.obj des lib tags core .pure .nfs* *.old *.bak fluff
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
 
 cbc_cksm.o: ../../include/openssl/des.h ../../include/openssl/e_os2.h
 cbc_cksm.o: ../../include/openssl/opensslconf.h des_locl.h
 cbc_enc.o: ../../include/openssl/des.h ../../include/openssl/e_os2.h
-cbc_enc.o: ../../include/openssl/opensslconf.h des_locl.h
+cbc_enc.o: ../../include/openssl/opensslconf.h des_locl.h ncbc_enc.c
 cfb64ede.o: ../../include/openssl/des.h ../../include/openssl/e_os2.h
 cfb64ede.o: ../../include/openssl/opensslconf.h des_locl.h
 cfb64enc.o: ../../include/openssl/des.h ../../include/openssl/e_os2.h
@@ -147,7 +150,7 @@ cfb64enc.o: ../../include/openssl/opensslconf.h des_locl.h
 cfb_enc.o: ../../include/openssl/des.h ../../include/openssl/e_os2.h
 cfb_enc.o: ../../include/openssl/opensslconf.h des_locl.h
 des_enc.o: ../../include/openssl/des.h ../../include/openssl/e_os2.h
-des_enc.o: ../../include/openssl/opensslconf.h des_locl.h
+des_enc.o: ../../include/openssl/opensslconf.h des_locl.h des_locl.h ncbc_enc.c
 ecb3_enc.o: ../../include/openssl/des.h ../../include/openssl/e_os2.h
 ecb3_enc.o: ../../include/openssl/opensslconf.h des_locl.h
 ecb_enc.o: ../../include/openssl/des.h ../../include/openssl/e_os2.h
@@ -165,8 +168,8 @@ enc_writ.o: ../../include/openssl/bio.h ../../include/openssl/buffer.h
 enc_writ.o: ../../include/openssl/crypto.h ../../include/openssl/des.h
 enc_writ.o: ../../include/openssl/e_os.h ../../include/openssl/e_os2.h
 enc_writ.o: ../../include/openssl/err.h ../../include/openssl/opensslconf.h
-enc_writ.o: ../../include/openssl/opensslv.h ../../include/openssl/stack.h
-enc_writ.o: ../cryptlib.h des_locl.h
+enc_writ.o: ../../include/openssl/opensslv.h ../../include/openssl/rand.h
+enc_writ.o: ../../include/openssl/stack.h ../cryptlib.h des_locl.h
 fcrypt.o: ../../include/openssl/des.h ../../include/openssl/des.h
 fcrypt.o: ../../include/openssl/e_os2.h ../../include/openssl/e_os2.h
 fcrypt.o: ../../include/openssl/opensslconf.h

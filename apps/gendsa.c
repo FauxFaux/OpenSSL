@@ -108,10 +108,6 @@ int MAIN(int argc, char **argv)
 			}
 		else if (strcmp(*argv,"-") == 0)
 			goto bad;
-		else if (dsaparams == NULL)
-			{
-			dsaparams= *argv;
-			}
 #ifndef NO_DES
 		else if (strcmp(*argv,"-des") == 0)
 			enc=EVP_des_cbc();
@@ -122,6 +118,10 @@ int MAIN(int argc, char **argv)
 		else if (strcmp(*argv,"-idea") == 0)
 			enc=EVP_idea_cbc();
 #endif
+		else if (**argv != '-' && dsaparams == NULL)
+			{
+			dsaparams = *argv;
+			}
 		else
 			goto bad;
 		argv++;
@@ -155,7 +155,7 @@ bad:
 		goto end;
 		}
 
-	if ((dsa=PEM_read_bio_DSAparams(in,NULL,NULL)) == NULL)
+	if ((dsa=PEM_read_bio_DSAparams(in,NULL,NULL,NULL)) == NULL)
 		{
 		BIO_printf(bio_err,"unable to load DSA parameter file\n");
 		goto end;
@@ -197,7 +197,7 @@ bad:
 	else
 		RAND_write_file(randfile);
 
-	if (!PEM_write_bio_DSAPrivateKey(out,dsa,enc,NULL,0,NULL))
+	if (!PEM_write_bio_DSAPrivateKey(out,dsa,enc,NULL,0,NULL,NULL))
 		goto end;
 	ret=0;
 end:

@@ -5,7 +5,7 @@
 
 $o='/';
 $cp='cp';
-$rm='del'; # use 'rm -f' if using GNU file utilities
+$rm='rem'; # use 'rm -f' if using GNU file utilities
 $mkdir='gmkdir';
 
 # gcc wouldn't accept backslashes in paths
@@ -19,8 +19,7 @@ $cc='gcc';
 if ($debug)
 	{ $cflags="-g2 -ggdb"; }
 else
-	{ $cflags="-O3 -fomit-frame-pointer"; }
-$dcflags='n'; # Make can't handle -DCFLAGS definition
+	{ $cflags="-DL_ENDIAN -fomit-frame-pointer -O3 -m486 -Wall"; }
 
 $obj='.o';
 $ofile='-o ';

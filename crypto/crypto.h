@@ -70,6 +70,10 @@ extern "C" {
 #include <openssl/stack.h>
 #include <openssl/opensslv.h>
 
+#ifdef CHARSET_EBCDIC
+#include <openssl/ebcdic.h>
+#endif
+
 /* Backward compatibility to SSLeay */
 /* This is more to be used to check the correct DLL is being used
  * in the MS world. */
@@ -196,6 +200,21 @@ typedef struct crypto_ex_data_func_st
 	(char *(*)())realloc,\
 	(void (*)())free)
 
+#ifdef CRYPTO_MDEBUG_ALL
+# ifndef CRYPTO_MDEBUG_TIME
+#  define CRYPTO_MDEBUG_TIME
+# endif
+# ifndef CRYPTO_MDEBUG_THREAD
+#  define CRYPTO_MDEBUG_THREAD
+# endif
+#endif
+
+#if defined CRYPTO_MDEBUG_TIME || defined CRYPTO_MDEBUG_THREAD
+# ifndef CRYPTO_MDEBUG /* avoid duplicate #define */
+#  define CRYPTO_MDEBUG
+# endif
+#endif
+
 #ifdef CRYPTO_MDEBUG
 #define MemCheck_start() CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ON)
 #define MemCheck_stop()	CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_OFF)
@@ -252,6 +271,8 @@ void CRYPTO_new_ex_data(STACK *meth, char *obj, CRYPTO_EX_DATA *ad);
 
 int CRYPTO_mem_ctrl(int mode);
 int CRYPTO_get_new_lockid(char *name);
+
+int CRYPTO_num_locks(void); /* return CRYPTO_NUM_LOCKS (shared libs!) */
 void CRYPTO_lock(int mode, int type,const char *file,int line);
 void CRYPTO_set_locking_callback(void (*func)(int mode,int type,
 					      const char *file,int line));

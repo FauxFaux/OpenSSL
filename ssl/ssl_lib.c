@@ -215,6 +215,7 @@ SSL *SSL_new(SSL_CTX *ctx)
 	s->references=1;
 	s->server=(ctx->method->ssl_accept == ssl_undefined_function)?0:1;
 	s->options=ctx->options;
+	s->mode=ctx->mode;
 	SSL_clear(s);
 
 	CRYPTO_new_ex_data(ssl_meth,(char *)s,&s->ex_data);
@@ -575,7 +576,10 @@ int SSL_check_private_key(SSL *ssl)
 		return(0);
 		}
 	if (ssl->cert == NULL)
-		return(SSL_CTX_check_private_key(ssl->ctx));
+		{
+                SSLerr(SSL_F_SSL_CHECK_PRIVATE_KEY,SSL_R_NO_CERTIFICATE_ASSIGNED);
+		return 0;
+		}
 	if (ssl->cert->key->x509 == NULL)
 		{
 		SSLerr(SSL_F_SSL_CHECK_PRIVATE_KEY,SSL_R_NO_CERTIFICATE_ASSIGNED);
@@ -695,6 +699,8 @@ long SSL_ctrl(SSL *s,int cmd,long larg,char *parg)
 		return(l);
 	case SSL_CTRL_OPTIONS:
 		return(s->options|=larg);
+	case SSL_CTRL_MODE:
+		return(s->mode|=larg);
 	default:
 		return(s->method->ssl_ctrl(s,cmd,larg,parg));
 		}
@@ -752,6 +758,8 @@ long SSL_CTX_ctrl(SSL_CTX *ctx,int cmd,long larg,char *parg)
 		return(ctx->stats.sess_cache_full);
 	case SSL_CTRL_OPTIONS:
 		return(ctx->options|=larg);
+	case SSL_CTRL_MODE:
+		return(ctx->mode|=larg);
 	default:
 		return(ctx->method->ssl_ctx_ctrl(ctx,cmd,larg,parg));
 		}
@@ -1027,6 +1035,7 @@ SSL_CTX *SSL_CTX_new(SSL_METHOD *meth)
 		goto err;
 
 	ret->default_passwd_callback=NULL;
+	ret->default_passwd_callback_userdata=NULL;
 	ret->client_cert_cb=NULL;
 
 	ret->sessions=lh_new(SSL_SESSION_hash,SSL_SESSION_cmp);
@@ -1126,10 +1135,20 @@ void SSL_CTX_set_default_passwd_cb(SSL_CTX *ctx, pem_password_cb *cb)
 	ctx->default_passwd_callback=cb;
 	}
 
+void SSL_CTX_set_default_passwd_cb_userdata(SSL_CTX *ctx,void *u)
+	{
+	ctx->default_passwd_callback_userdata=u;
+	}
+
 void SSL_CTX_set_cert_verify_callback(SSL_CTX *ctx,int (*cb)(),char *arg)
 	{
+	/* now
+	 *     int (*cb)(X509_STORE_CTX *),
+	 * but should be
+	 *     int (*cb)(X509_STORE_CTX *, void *arg)
+	 */
 	ctx->app_verify_callback=cb;
-	ctx->app_verify_arg=arg;
+	ctx->app_verify_arg=arg; /* never used */
 	}
 
 void SSL_CTX_set_verify(SSL_CTX *ctx,int mode,int (*cb)(int, X509_STORE_CTX *))
@@ -1250,13 +1269,13 @@ X509 *ssl_get_server_send_cert(SSL *s)
 	{
 	unsigned long alg,mask,kalg;
 	CERT *c;
-	int i,export;
+	int i,is_export;
 
 	c=s->cert;
 	ssl_set_cert_masks(c, s->s3->tmp.new_cipher);
 	alg=s->s3->tmp.new_cipher->algorithms;
-	export=SSL_IS_EXPORT(alg);
-	mask=export?c->export_mask:c->mask;
+	is_export=SSL_IS_EXPORT(alg);
+	mask=is_export?c->export_mask:c->mask;
 	kalg=alg&(SSL_MKEY_MASK|SSL_AUTH_MASK);
 
 	if 	(kalg & SSL_kDHr)
@@ -1396,6 +1415,15 @@ int SSL_get_error(SSL *s,int i)
 		if (BIO_should_read(bio))
 			return(SSL_ERROR_WANT_READ);
 		else if (BIO_should_write(bio))
+			/* This one doesn't make too much sense ... We never try
+			 * to write to the rbio, and an application program where
+			 * rbio and wbio are separate couldn't even know what it
+			 * should wait for.
+			 * However if we ever set s->rwstate incorrectly
+			 * (so that we have SSL_want_read(s) instead of
+			 * SSL_want_write(s)) and rbio and wbio *are* the same,
+			 * this test works around that bug; so it might be safer
+			 * to keep it. */
 			return(SSL_ERROR_WANT_WRITE);
 		else if (BIO_should_io_special(bio))
 			{
@@ -1413,6 +1441,7 @@ int SSL_get_error(SSL *s,int i)
 		if (BIO_should_write(bio))
 			return(SSL_ERROR_WANT_WRITE);
 		else if (BIO_should_read(bio))
+			/* See above (SSL_want_read(s) with BIO_should_write(bio)) */
 			return(SSL_ERROR_WANT_READ);
 		else if (BIO_should_io_special(bio))
 			{
@@ -1514,7 +1543,7 @@ SSL *SSL_dup(SSL *s)
 	{
 	STACK_OF(X509_NAME) *sk;
 	X509_NAME *xn;
-        SSL *ret;
+	SSL *ret;
 	int i;
 		 
 	if ((ret=SSL_new(SSL_get_SSL_CTX(s))) == NULL)
@@ -1664,9 +1693,9 @@ EVP_PKEY *SSL_get_privatekey(SSL *s)
 
 SSL_CIPHER *SSL_get_current_cipher(SSL *s)
 	{
-        if ((s->session != NULL) && (s->session->cipher != NULL))
-                return(s->session->cipher);
-        return(NULL);
+	if ((s->session != NULL) && (s->session->cipher != NULL))
+		return(s->session->cipher);
+	return(NULL);
 	}
 
 int ssl_init_wbio_buffer(SSL *s,int push)
@@ -1685,7 +1714,7 @@ int ssl_init_wbio_buffer(SSL *s,int push)
 		if (s->bbio == s->wbio)
 			s->wbio=BIO_pop(s->wbio);
 		}
-	BIO_reset(bbio);
+	(void)BIO_reset(bbio);
 /*	if (!BIO_set_write_buffer_size(bbio,16*1024)) */
 	if (!BIO_set_read_buffer_size(bbio,1))
 		{
@@ -1804,11 +1833,11 @@ long SSL_get_verify_result(SSL *ssl)
 
 int SSL_get_ex_new_index(long argl,char *argp,int (*new_func)(),
 			 int (*dup_func)(),void (*free_func)())
-        {
+	{
 	ssl_meth_num++;
 	return(CRYPTO_get_ex_new_index(ssl_meth_num-1,
 		&ssl_meth,argl,argp,new_func,dup_func,free_func));
-        }
+	}
 
 int SSL_set_ex_data(SSL *s,int idx,void *arg)
 	{
@@ -1822,11 +1851,11 @@ void *SSL_get_ex_data(SSL *s,int idx)
 
 int SSL_CTX_get_ex_new_index(long argl,char *argp,int (*new_func)(),
 			     int (*dup_func)(),void (*free_func)())
-        {
+	{
 	ssl_ctx_meth_num++;
 	return(CRYPTO_get_ex_new_index(ssl_ctx_meth_num-1,
 		&ssl_ctx_meth,argl,argp,new_func,dup_func,free_func));
-        }
+	}
 
 int SSL_CTX_set_ex_data(SSL_CTX *s,int idx,void *arg)
 	{
@@ -1867,13 +1896,14 @@ int SSL_want(SSL *s)
  */
 
 #ifndef NO_RSA
-void SSL_CTX_set_tmp_rsa_callback(SSL_CTX *ctx,RSA *(*cb)(SSL *ssl,int export,
+void SSL_CTX_set_tmp_rsa_callback(SSL_CTX *ctx,RSA *(*cb)(SSL *ssl,
+							  int is_export,
 							  int keylength))
     { SSL_CTX_ctrl(ctx,SSL_CTRL_SET_TMP_RSA_CB,0,(char *)cb); }
 #endif
 
 #ifndef NO_RSA
-void SSL_set_tmp_rsa_callback(SSL *ssl,RSA *(*cb)(SSL *ssl,int export,
+void SSL_set_tmp_rsa_callback(SSL *ssl,RSA *(*cb)(SSL *ssl,int is_export,
 							  int keylength))
     { SSL_ctrl(ssl,SSL_CTRL_SET_TMP_RSA_CB,0,(char *)cb); }
 #endif
@@ -1882,14 +1912,14 @@ void SSL_set_tmp_rsa_callback(SSL *ssl,RSA *(*cb)(SSL *ssl,int export,
 /*!
  * \brief The RSA temporary key callback function.
  * \param ssl the SSL session.
- * \param export \c TRUE if the temp RSA key is for an export ciphersuite.
- * \param keylength if \c export is \c TRUE, then \c keylength is the size of
- * the required key in bits.
+ * \param is_export \c TRUE if the temp RSA key is for an export ciphersuite.
+ * \param keylength if \c is_export is \c TRUE, then \c keylength is the size
+ * of the required key in bits.
  * \return the temporary RSA key.
  * \sa SSL_CTX_set_tmp_rsa_callback, SSL_set_tmp_rsa_callback
  */
 
-RSA *cb(SSL *ssl,int export,int keylength)
+RSA *cb(SSL *ssl,int is_export,int keylength)
     {}
 #endif
 
@@ -1900,11 +1930,11 @@ RSA *cb(SSL *ssl,int export,int keylength)
  */
 
 #ifndef NO_DH
-void SSL_CTX_set_tmp_dh_callback(SSL_CTX *ctx,DH *(*dh)(SSL *ssl,int export,
+void SSL_CTX_set_tmp_dh_callback(SSL_CTX *ctx,DH *(*dh)(SSL *ssl,int is_export,
 							int keylength))
     { SSL_CTX_ctrl(ctx,SSL_CTRL_SET_TMP_DH_CB,0,(char *)dh); }
 
-void SSL_set_tmp_dh_callback(SSL *ssl,DH *(*dh)(SSL *ssl,int export,
+void SSL_set_tmp_dh_callback(SSL *ssl,DH *(*dh)(SSL *ssl,int is_export,
 							int keylength))
     { SSL_ctrl(ssl,SSL_CTRL_SET_TMP_DH_CB,0,(char *)dh); }
 #endif

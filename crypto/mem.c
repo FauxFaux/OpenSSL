@@ -58,16 +58,30 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <openssl/crypto.h>
+#ifdef CRYPTO_MDEBUG_TIME
+# include <time.h>	
+#endif
 #include <openssl/buffer.h>
 #include <openssl/bio.h>
 #include <openssl/lhash.h>
 #include "cryptlib.h"
 
-#ifdef CRYPTO_MDEBUG
-static int mh_mode=CRYPTO_MEM_CHECK_ON;
-#else
+/* #ifdef CRYPTO_MDEBUG */
+/* static int mh_mode=CRYPTO_MEM_CHECK_ON; */
+/* #else */
 static int mh_mode=CRYPTO_MEM_CHECK_OFF;
-#endif
+/* #endif */
+/* State CRYPTO_MEM_CHECK_ON exists only temporarily when the library
+ * thinks that certain allocations should not be checked (e.g. the data
+ * structures used for memory checking).  It is not suitable as an initial
+ * state: the library will unexpectedly enable memory checking when it
+ * executes one of those sections that want to disable checking
+ * temporarily.
+ *
+ * State CRYPTO_MEM_CHECK_ENABLE without ..._ON makes no sense whatsoever.
+ */
+
 static unsigned long order=0;
 
 static LHASH *mh=NULL;
@@ -78,7 +92,13 @@ typedef struct mem_st
 	int num;
 	const char *file;
 	int line;
+#ifdef CRYPTO_MDEBUG_THREAD
+	unsigned long thread;
+#endif
 	unsigned long order;
+#ifdef CRYPTO_MDEBUG_TIME
+	time_t time;
+#endif
 	} MEM;
 
 int CRYPTO_mem_ctrl(int mode)
@@ -88,19 +108,23 @@ int CRYPTO_mem_ctrl(int mode)
 	CRYPTO_w_lock(CRYPTO_LOCK_MALLOC);
 	switch (mode)
 		{
-	case CRYPTO_MEM_CHECK_ON:
-		mh_mode|=CRYPTO_MEM_CHECK_ON;
+	/* for applications: */
+	case CRYPTO_MEM_CHECK_ON: /* aka MemCheck_start() */
+		mh_mode = CRYPTO_MEM_CHECK_ON|CRYPTO_MEM_CHECK_ENABLE;
 		break;
-	case CRYPTO_MEM_CHECK_OFF:
-		mh_mode&= ~CRYPTO_MEM_CHECK_ON;
+	case CRYPTO_MEM_CHECK_OFF: /* aka MemCheck_stop() */
+		mh_mode = 0;
 		break;
-	case CRYPTO_MEM_CHECK_DISABLE:
+
+	/* switch off temporarily (for library-internal use): */
+	case CRYPTO_MEM_CHECK_DISABLE: /* aka MemCheck_off() */
 		mh_mode&= ~CRYPTO_MEM_CHECK_ENABLE;
 		break;
-	case CRYPTO_MEM_CHECK_ENABLE:
+	case CRYPTO_MEM_CHECK_ENABLE: /* aka MemCheck_on() */
 		if (mh_mode&CRYPTO_MEM_CHECK_ON)
 			mh_mode|=CRYPTO_MEM_CHECK_ENABLE;
 		break;
+
 	default:
 		break;
 		}
@@ -218,12 +242,18 @@ void *CRYPTO_dbg_malloc(int num, const char *file, int line)
 		m->file=file;
 		m->line=line;
 		m->num=num;
+#ifdef CRYPTO_MDEBUG_THREAD
+		m->thread=CRYPTO_thread_id();
+#endif
 		if (order == break_order_num)
 			{
 			/* BREAK HERE */
 			m->order=order;
 			}
 		m->order=order++;
+#ifdef CRYPTO_MDEBUG_TIME
+		m->time=time(NULL);
+#endif
 		if ((mm=(MEM *)lh_insert(mh,(char *)m)) != NULL)
 			{
 			/* Not good, but don't sweat it */
@@ -305,11 +335,35 @@ typedef struct mem_leak_st
 static void print_leak(MEM *m, MEM_LEAK *l)
 	{
 	char buf[128];
+#ifdef CRYPTO_MDEBUG_TIME
+	struct tm *lcl;
+#endif
 
 	if(m->addr == (char *)l->bio)
 	    return;
-	sprintf(buf,"%5ld file=%s, line=%d, number=%d, address=%08lX\n",
-		m->order,m->file,m->line,m->num,(long)m->addr);
+
+#ifdef CRYPTO_MDEBUG_TIME
+	lcl = localtime(&m->time);
+#endif
+
+	sprintf(buf,
+#ifdef CRYPTO_MDEBUG_TIME
+		"[%02d:%02d:%02d] "
+#endif
+		"%5lu file=%s, line=%d, "
+#ifdef CRYPTO_MDEBUG_THREAD
+		"thread=%lu, "
+#endif
+		"number=%d, address=%08lX\n",
+#ifdef CRYPTO_MDEBUG_TIME
+		lcl->tm_hour,lcl->tm_min,lcl->tm_sec,
+#endif
+		m->order,m->file,m->line,
+#ifdef CRYPTO_MDEBUG_THREAD
+		m->thread,
+#endif
+		m->num,(unsigned long)m->addr);
+
 	BIO_puts(l->bio,buf);
 	l->chunks++;
 	l->bytes+=m->num;
@@ -336,8 +390,8 @@ void CRYPTO_mem_leaks(BIO *b)
 
 #if 0
 	lh_stats_bio(mh,b);
-        lh_node_stats_bio(mh,b);
-        lh_node_usage_stats_bio(mh,b);
+	lh_node_stats_bio(mh,b);
+	lh_node_usage_stats_bio(mh,b);
 #endif
 	}
 

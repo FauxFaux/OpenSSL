@@ -134,6 +134,8 @@ int main(int argc, char **argv)
 	if (bio_err == NULL)
 		bio_err=BIO_new_fp(stderr,BIO_NOCLOSE);
 
+	CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ON);
+
 	BIO_printf(bio_err,"test generation of DSA parameters\n");
 	BIO_printf(bio_err,"expect '.*' followed by 5 lines of '.'s and '+'s\n");
 	dsa=DSA_generate_parameters(512,seed,20,&counter,&h,dsa_cb,
@@ -190,8 +192,9 @@ int main(int argc, char **argv)
 end:
 	if (!ret)
 		ERR_print_errors(bio_err);
-	if (bio_err != NULL) BIO_free(bio_err);
 	if (dsa != NULL) DSA_free(dsa);
+	CRYPTO_mem_leaks(bio_err);
+	if (bio_err != NULL) BIO_free(bio_err);
 	exit(!ret);
 	return(0);
 	}
@@ -206,7 +209,7 @@ static void MS_CALLBACK dsa_cb(int p, int n, char *arg)
 	if (p == 2) { c='*'; ok++; }
 	if (p == 3) c='\n';
 	BIO_write((BIO *)arg,&c,1);
-	BIO_flush((BIO *)arg);
+	(void)BIO_flush((BIO *)arg);
 
 	if (!ok && (p == 0) && (num > 1))
 		{

@@ -123,9 +123,11 @@
 #endif
 #ifndef NO_MD5
 #include <openssl/md5.h>
-#include <openssl/hmac.h>
-#include <openssl/evp.h>
 #endif
+#ifndef NO_HMAC
+#include <openssl/hmac.h>
+#endif
+#include <openssl/evp.h>
 #ifndef NO_SHA
 #include <openssl/sha.h>
 #endif
@@ -239,7 +241,6 @@ static double Time_F(int s)
 int MAIN(int argc, char **argv)
 	{
 	unsigned char *buf=NULL,*buf2=NULL;
-	des_cblock *buf_as_des_cblock = NULL;
 	int ret=1;
 #define ALGOR_NUM	14
 #define SIZE_NUM	5
@@ -286,6 +287,7 @@ int MAIN(int argc, char **argv)
 		 0x34,0x56,0x78,0x9a,0xbc,0xde,0xf0,0x12};
 	unsigned char iv[8];
 #ifndef NO_DES
+	des_cblock *buf_as_des_cblock = NULL;
 	static des_cblock key ={0x12,0x34,0x56,0x78,0x9a,0xbc,0xde,0xf0};
 	static des_cblock key2={0x34,0x56,0x78,0x9a,0xbc,0xde,0xf0,0x12};
 	static des_cblock key3={0x56,0x78,0x9a,0xbc,0xde,0xf0,0x12,0x34};
@@ -361,7 +363,9 @@ int MAIN(int argc, char **argv)
 		BIO_printf(bio_err,"out of memory\n");
 		goto end;
 		}
+#ifndef NO_DES
 	buf_as_des_cblock = (des_cblock *)buf;
+#endif
 	if ((buf2=(unsigned char *)Malloc((int)BUFSIZE)) == NULL)
 		{
 		BIO_printf(bio_err,"out of memory\n");
@@ -754,7 +758,7 @@ int MAIN(int argc, char **argv)
 		}
 #endif
 
-#ifndef NO_MD5
+#if !defined(NO_MD5) && !defined(NO_HMAC)
 	if (doit[D_HMAC])
 		{
 		HMAC_CTX hctx;
@@ -1130,7 +1134,7 @@ int MAIN(int argc, char **argv)
 			printf("%18ssign    verify    sign/s verify/s\n"," ");
 			j=0;
 			}
-		fprintf(stdout,"rsa %4d bits %8.4fs %8.4fs %8.1f %8.1f",
+		fprintf(stdout,"rsa %4u bits %8.4fs %8.4fs %8.1f %8.1f",
 			rsa_bits[k],rsa_results[k][0],rsa_results[k][1],
 			1.0/rsa_results[k][0],1.0/rsa_results[k][1]);
 		fprintf(stdout,"\n");
@@ -1145,7 +1149,7 @@ int MAIN(int argc, char **argv)
 			printf("%18ssign    verify    sign/s verify/s\n"," ");
 			j=0;
 			}
-		fprintf(stdout,"dsa %4d bits %8.4fs %8.4fs %8.1f %8.1f",
+		fprintf(stdout,"dsa %4u bits %8.4fs %8.4fs %8.1f %8.1f",
 			dsa_bits[k],dsa_results[k][0],dsa_results[k][1],
 			1.0/dsa_results[k][0],1.0/dsa_results[k][1]);
 		fprintf(stdout,"\n");
@@ -1172,11 +1176,11 @@ static void print_message(char *s, long num, int length)
 	{
 #ifdef SIGALRM
 	BIO_printf(bio_err,"Doing %s for %ds on %d size blocks: ",s,SECONDS,length);
-	BIO_flush(bio_err);
+	(void)BIO_flush(bio_err);
 	alarm(SECONDS);
 #else
 	BIO_printf(bio_err,"Doing %s %ld times on %d size blocks: ",s,num,length);
-	BIO_flush(bio_err);
+	(void)BIO_flush(bio_err);
 #endif
 #ifdef LINT
 	num=num;
@@ -1188,11 +1192,11 @@ static void pkey_print_message(char *str, char *str2, long num, int bits,
 	{
 #ifdef SIGALRM
 	BIO_printf(bio_err,"Doing %d bit %s %s's for %ds: ",bits,str,str2,tm);
-	BIO_flush(bio_err);
+	(void)BIO_flush(bio_err);
 	alarm(RSA_SECONDS);
 #else
 	BIO_printf(bio_err,"Doing %ld %d bit %s %s's: ",num,bits,str,str2);
-	BIO_flush(bio_err);
+	(void)BIO_flush(bio_err);
 #endif
 #ifdef LINT
 	num=num;

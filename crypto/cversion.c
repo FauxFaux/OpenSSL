@@ -60,7 +60,8 @@
 #include <string.h>
 #include "cryptlib.h"
 #include <openssl/crypto.h>
-#include "date.h"
+
+#include "buildinf.h"
 
 const char *SSLeay_version(int t)
 	{
@@ -72,7 +73,7 @@ const char *SSLeay_version(int t)
 		static char buf[sizeof(DATE)+11];
 
 		sprintf(buf,"built on: %s",DATE);
-        	return(buf);
+		return(buf);
 #else
 		return("built on: date not available");
 #endif

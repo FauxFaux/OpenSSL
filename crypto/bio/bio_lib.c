@@ -117,7 +117,7 @@ int BIO_free(BIO *a)
 #ifdef REF_PRINT
 	REF_PRINT("BIO",a);
 #endif
-        if (i > 0) return(1);
+	if (i > 0) return(1);
 #ifdef REF_CHECK
 	if (i < 0)
 		{
@@ -290,7 +290,7 @@ char *BIO_ptr_ctrl(BIO *b, int cmd, long larg)
 		return(p);
 	}
 
-long BIO_ctrl(BIO *b, int cmd, long larg, char *parg)
+long BIO_ctrl(BIO *b, int cmd, long larg, void *parg)
 	{
 	long ret;
 	long (*cb)();
@@ -316,6 +316,20 @@ long BIO_ctrl(BIO *b, int cmd, long larg, char *parg)
 			larg,ret);
 	return(ret);
 	}
+
+/* It is unfortunate to duplicate in functions what the BIO_(w)pending macros
+ * do; but those macros have inappropriate return type, and for interfacing
+ * from other programming languages, C macros aren't much of a help anyway. */
+size_t BIO_ctrl_pending(BIO *bio)
+    {
+	return BIO_ctrl(bio, BIO_CTRL_PENDING, 0, NULL);
+	}
+
+size_t BIO_ctrl_wpending(BIO *bio)
+    {
+	return BIO_ctrl(bio, BIO_CTRL_WPENDING, 0, NULL);
+	}
+
 
 /* put the 'bio' on the end of b's list of operators */
 BIO *BIO_push(BIO *b, BIO *bio)
@@ -434,9 +448,9 @@ BIO *BIO_dup_chain(BIO *in)
 			goto err;
 			}
 
-	        /* copy app data */
-	        if (!CRYPTO_dup_ex_data(bio_meth,&new->ex_data,&bio->ex_data))
-	                goto err;
+		/* copy app data */
+		if (!CRYPTO_dup_ex_data(bio_meth,&new->ex_data,&bio->ex_data))
+			goto err;
 
 		if (ret == NULL)
 			{
@@ -464,11 +478,11 @@ void BIO_copy_next_retry(BIO *b)
 
 int BIO_get_ex_new_index(long argl, char *argp, int (*new_func)(),
 	     int (*dup_func)(), void (*free_func)())
-        {
-        bio_meth_num++;
-        return(CRYPTO_get_ex_new_index(bio_meth_num-1,&bio_meth,
-                argl,argp,new_func,dup_func,free_func));
-        }
+	{
+	bio_meth_num++;
+	return(CRYPTO_get_ex_new_index(bio_meth_num-1,&bio_meth,
+		argl,argp,new_func,dup_func,free_func));
+	}
 
 int BIO_set_ex_data(BIO *bio, int idx, char *data)
 	{

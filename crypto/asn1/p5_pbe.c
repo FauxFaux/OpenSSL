@@ -59,11 +59,10 @@
 #include <stdio.h>
 #include "cryptlib.h"
 #include <openssl/asn1_mac.h>
+#include <openssl/x509.h>
 #include <openssl/rand.h>
 
 /* PKCS#5 password based encryption structure */
-
-#define PKCS5_SALT_LEN	8
 
 int i2d_PBEPARAM(PBEPARAM *a, unsigned char **pp)
 {
@@ -112,8 +111,6 @@ void PBEPARAM_free (PBEPARAM *a)
 X509_ALGOR *PKCS5_pbe_set(int alg, int iter, unsigned char *salt,
 	     int saltlen)
 {
-	unsigned char *pdata, *ptmp;
-	int plen;
 	PBEPARAM *pbe;
 	ASN1_OBJECT *al;
 	X509_ALGOR *algor;
@@ -123,6 +120,7 @@ X509_ALGOR *PKCS5_pbe_set(int alg, int iter, unsigned char *salt,
 		ASN1err(ASN1_F_ASN1_PBE_SET,ERR_R_MALLOC_FAILURE);
 		return NULL;
 	}
+	if(iter <= 0) iter = PKCS5_DEFAULT_ITER;
 	ASN1_INTEGER_set (pbe->iter, iter);
 	if (!saltlen) saltlen = PKCS5_SALT_LEN;
 	if (!(pbe->salt->data = Malloc (saltlen))) {
@@ -132,17 +130,6 @@ X509_ALGOR *PKCS5_pbe_set(int alg, int iter, unsigned char *salt,
 	pbe->salt->length = saltlen;
 	if (salt) memcpy (pbe->salt->data, salt, saltlen);
 	else RAND_bytes (pbe->salt->data, saltlen);
-	if (!(plen = i2d_PBEPARAM (pbe, NULL))) {
-		ASN1err(ASN1_F_ASN1_PBE_SET,ASN1_R_ENCODE_ERROR);
-		return NULL;
-	}
-	if (!(pdata = Malloc (plen))) {
-		ASN1err(ASN1_F_ASN1_PBE_SET,ERR_R_MALLOC_FAILURE);
-		return NULL;
-	}
-	ptmp = pdata;
-	i2d_PBEPARAM (pbe, &ptmp);
-	PBEPARAM_free (pbe);
 
 	if (!(astype = ASN1_TYPE_new())) {
 		ASN1err(ASN1_F_ASN1_PBE_SET,ERR_R_MALLOC_FAILURE);
@@ -150,12 +137,11 @@ X509_ALGOR *PKCS5_pbe_set(int alg, int iter, unsigned char *salt,
 	}
 
 	astype->type = V_ASN1_SEQUENCE;
-	if (!(astype->value.sequence=ASN1_STRING_new())) {
+	if(!ASN1_pack_string(pbe, i2d_PBEPARAM, &astype->value.sequence)) {
 		ASN1err(ASN1_F_ASN1_PBE_SET,ERR_R_MALLOC_FAILURE);
 		return NULL;
 	}
-	ASN1_STRING_set (astype->value.sequence, pdata, plen);
-	Free (pdata);
+	PBEPARAM_free (pbe);
 	
 	al = OBJ_nid2obj(alg); /* never need to free al */
 	if (!(algor = X509_ALGOR_new())) {

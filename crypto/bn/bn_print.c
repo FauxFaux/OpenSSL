@@ -62,10 +62,10 @@
 #include <openssl/buffer.h>
 #include "bn_lcl.h"
 
-const static char *Hex="0123456789ABCDEF";
+static const char *Hex="0123456789ABCDEF";
 
 /* Must 'Free' the returned data */
-char *BN_bn2hex(BIGNUM *a)
+char *BN_bn2hex(const BIGNUM *a)
 	{
 	int i,j,v,z=0;
 	char *buf;
@@ -100,7 +100,7 @@ err:
 	}
 
 /* Must 'Free' the returned data */
-char *BN_bn2dec(BIGNUM *a)
+char *BN_bn2dec(const BIGNUM *a)
 	{
 	int i=0,num;
 	char *buf=NULL;
@@ -154,7 +154,7 @@ err:
 	return(buf);
 	}
 
-int BN_hex2bn(BIGNUM **bn, char *a)
+int BN_hex2bn(BIGNUM **bn, const char *a)
 	{
 	BIGNUM *ret=NULL;
 	BN_ULONG l=0;
@@ -220,7 +220,7 @@ err:
 	return(0);
 	}
 
-int BN_dec2bn(BIGNUM **bn, char *a)
+int BN_dec2bn(BIGNUM **bn, const char *a)
 	{
 	BIGNUM *ret=NULL;
 	BN_ULONG l=0;
@@ -294,7 +294,7 @@ int BN_print_fp(FILE *fp, BIGNUM *a)
 	}
 #endif
 
-int BN_print(BIO *bp, BIGNUM *a)
+int BN_print(BIO *bp, const BIGNUM *a)
 	{
 	int i,j,v,z=0;
 	int ret=0;

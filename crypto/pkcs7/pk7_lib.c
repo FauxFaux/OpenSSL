@@ -190,8 +190,8 @@ int PKCS7_add_signer(PKCS7 *p7, PKCS7_SIGNER_INFO *psi)
 	{
 	int i,j,nid;
 	X509_ALGOR *alg;
-	STACK *signer_sk;
-	STACK *md_sk;
+	STACK_OF(PKCS7_SIGNER_INFO) *signer_sk;
+	STACK_OF(X509_ALGOR) *md_sk;
 
 	i=OBJ_obj2nid(p7->type);
 	switch (i)
@@ -213,9 +213,9 @@ int PKCS7_add_signer(PKCS7 *p7, PKCS7_SIGNER_INFO *psi)
 
 	/* If the digest is not currently listed, add it */
 	j=0;
-	for (i=0; i<sk_num(md_sk); i++)
+	for (i=0; i<sk_X509_ALGOR_num(md_sk); i++)
 		{
-		alg=(X509_ALGOR *)sk_value(md_sk,i);
+		alg=sk_X509_ALGOR_value(md_sk,i);
 		if (OBJ_obj2nid(alg->algorithm) == nid)
 			{
 			j=1;
@@ -226,10 +226,10 @@ int PKCS7_add_signer(PKCS7 *p7, PKCS7_SIGNER_INFO *psi)
 		{
 		alg=X509_ALGOR_new();
 		alg->algorithm=OBJ_nid2obj(nid);
-		sk_push(md_sk,(char *)alg);
+		sk_X509_ALGOR_push(md_sk,alg);
 		}
 
-	sk_push(signer_sk,(char *)psi);
+	sk_PKCS7_SIGNER_INFO_push(signer_sk,psi);
 	return(1);
 	}
 
@@ -262,7 +262,7 @@ int PKCS7_add_certificate(PKCS7 *p7, X509 *x509)
 int PKCS7_add_crl(PKCS7 *p7, X509_CRL *crl)
 	{
 	int i;
-	STACK **sk;
+	STACK_OF(X509_CRL) **sk;
 
 	i=OBJ_obj2nid(p7->type);
 	switch (i)
@@ -279,10 +279,10 @@ int PKCS7_add_crl(PKCS7 *p7, X509_CRL *crl)
 		}
 
 	if (*sk == NULL)
-		*sk=sk_new_null();
+		*sk=sk_X509_CRL_new_null();
 
 	CRYPTO_add(&crl->references,1,CRYPTO_LOCK_X509_CRL);
-	sk_push(*sk,(char *)crl);
+	sk_X509_CRL_push(*sk,crl);
 	return(1);
 	}
 
@@ -342,7 +342,7 @@ err:
 	return(NULL);
 	}
 
-STACK *PKCS7_get_signer_info(PKCS7 *p7)
+STACK_OF(PKCS7_SIGNER_INFO) *PKCS7_get_signer_info(PKCS7 *p7)
 	{
 	if (PKCS7_type_is_signed(p7))
 		{
@@ -371,7 +371,7 @@ err:
 int PKCS7_add_recipient_info(PKCS7 *p7, PKCS7_RECIP_INFO *ri)
 	{
 	int i;
-	STACK *sk;
+	STACK_OF(PKCS7_RECIP_INFO) *sk;
 
 	i=OBJ_obj2nid(p7->type);
 	switch (i)
@@ -387,7 +387,7 @@ int PKCS7_add_recipient_info(PKCS7 *p7, PKCS7_RECIP_INFO *ri)
 		return(0);
 		}
 
-	sk_push(sk,(char *)ri);
+	sk_PKCS7_RECIP_INFO_push(sk,ri);
 	return(1);
 	}
 
