@@ -63,17 +63,17 @@
 #include <string.h>
 #include <errno.h>
 
-#include "e_os.h"
+#include "openssl/e_os.h"
 
-#include "buffer.h"
-#include "comp.h"
-#include "bio.h"
-#include "crypto.h"
-#include "evp.h"
-#include "stack.h"
-#include "x509.h"
-#include "err.h"
-#include "ssl.h"
+#include <openssl/buffer.h>
+#include <openssl/comp.h>
+#include <openssl/bio.h>
+#include <openssl/crypto.h>
+#include <openssl/evp.h>
+#include <openssl/stack.h>
+#include <openssl/x509.h>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 
 #define PKCS1_CHECK
 
@@ -201,7 +201,8 @@
 #define SSL_C_IS_EXPORT(c)	SSL_IS_EXPORT((c)->algorithms)
 #define SSL_C_IS_EXPORT56(c)	SSL_IS_EXPORT56((c)->algorithms)
 #define SSL_C_IS_EXPORT40(c)	SSL_IS_EXPORT40((c)->algorithms)
-#define SSL_EXPORT_KEYLENGTH(a)	(SSL_IS_EXPORT40(a) ? 5 : 7)
+#define SSL_EXPORT_KEYLENGTH(a)	(SSL_IS_EXPORT40(a) ? 5 : \
+				 ((a)&SSL_ENC_MASK) == SSL_DES ? 8 : 7)
 #define SSL_EXPORT_PKEYLENGTH(a) (SSL_IS_EXPORT40(a) ? 512 : 1024)
 #define SSL_C_EXPORT_KEYLENGTH(c)	SSL_EXPORT_KEYLENGTH((c)->algorithms)
 #define SSL_C_EXPORT_PKEYLENGTH(c)	SSL_EXPORT_PKEYLENGTH((c)->algorithms)
@@ -246,47 +247,58 @@
 typedef struct cert_pkey_st
 	{
 	X509 *x509;
-/*	EVP_PKEY *publickey; *//* when extracted */
 	EVP_PKEY *privatekey;
 	} CERT_PKEY;
 
 typedef struct cert_st
 	{
-	int cert_type;
-
-#ifdef undef
-	X509 *x509;
-	EVP_PKEY *publickey; /* when extracted */
-	EVP_PKEY *privatekey;
-
-	pkeys[SSL_PKEY_RSA_ENC].x509
-/*	pkeys[SSL_PKEY_RSA_ENC].publickey */
-	pkeys[SSL_PKEY_RSA_ENC].privatekey
-#endif
-
 	/* Current active set */
-	CERT_PKEY *key;
+	CERT_PKEY *key; /* ALWAYS points to an element of the pkeys array
+					 * Probably it would make more sense to store
+					 * an index, not a pointer. */
 
 	/* The following masks are for the key and auth
 	 * algorithms that are supported by the certs below */
 	int valid;
 	unsigned long mask;
 	unsigned long export_mask;
-
+#ifndef NO_RSA
 	RSA *rsa_tmp;
-	DH *dh_tmp;
-	/* FIXME: Although rsa_tmp and dh_tmp are properties of the cert,
-	   callbacks probably aren't, and besides only the context default
-	   cert's callbacks are actually used. Too close to a release to fix
-	   this now - Ben 6 Mar 1999 */
 	RSA *(*rsa_tmp_cb)(SSL *ssl,int export,int keysize);
+#endif
+#ifndef NO_DH
+	DH *dh_tmp;
 	DH *(*dh_tmp_cb)(SSL *ssl,int export,int keysize);
+#endif
+
 	CERT_PKEY pkeys[SSL_PKEY_NUM];
 
-	STACK *cert_chain;
-
-	int references;
+	int references; /* >1 only if SSL_copy_session_id is used */
 	} CERT;
+
+
+typedef struct sess_cert_st
+	{
+	STACK_OF(X509) *cert_chain; /* as received from peer (not for SSL2) */
+
+	/* The 'peer_...' members are used only by clients. */
+	int peer_cert_type;
+
+	CERT_PKEY *peer_key; /* points to an element of peer_pkeys (never NULL!) */
+	CERT_PKEY peer_pkeys[SSL_PKEY_NUM];
+	/* Obviously we don't have the private keys of these,
+	 * so maybe we shouldn't even use the CERT_PKEY type here. */
+
+#ifndef NO_RSA
+	RSA *peer_rsa_tmp; /* not used for SSL 2 */
+#endif
+#ifndef NO_DH
+	DH *peer_dh_tmp; /* not used for SSL 2 */
+#endif
+
+	int references; /* actually always 1 at the moment */
+	} SESS_CERT;
+
 
 /*#define MAC_DEBUG	*/
 
@@ -299,12 +311,7 @@ typedef struct cert_st
 /*#define RSA_DEBUG	*/ 
 /*#define IDEA_DEBUG	*/ 
 
-#ifndef NOPROTO
 #define FP_ICC  (int (*)(const void *,const void *))
-#else
-#define FP_ICC
-#endif
-
 #define ssl_put_cipher_by_char(ssl,ciph,ptr) \
 		((ssl)->method->put_cipher_by_char((ciph),(ptr)))
 #define ssl_get_cipher_by_char(ssl,ptr) \
@@ -338,11 +345,15 @@ typedef struct ssl3_comp_st
 	COMP_METHOD *method; /* The method :-) */
 	} SSL3_COMP;
 
-extern SSL3_ENC_METHOD ssl3_undef_enc_method;
-extern SSL_CIPHER ssl2_ciphers[];
-extern SSL_CIPHER ssl3_ciphers[];
+OPENSSL_EXTERN SSL3_ENC_METHOD ssl3_undef_enc_method;
+OPENSSL_EXTERN SSL_CIPHER ssl2_ciphers[];
+OPENSSL_EXTERN SSL_CIPHER ssl3_ciphers[];
 
-#ifndef NOPROTO
+#ifdef VMS
+#undef SSL_COMP_get_compression_methods
+#define SSL_COMP_get_compression_methods SSL_COMP_get_compress_methods
+#endif
+
 
 SSL_METHOD *ssl_bad_method(int ver);
 SSL_METHOD *sslv2_base_method(void);
@@ -352,27 +363,33 @@ SSL_METHOD *sslv3_base_method(void);
 void ssl_clear_cipher_ctx(SSL *s);
 int ssl_clear_bad_session(SSL *s);
 CERT *ssl_cert_new(void);
-int ssl_cert_instantiate(CERT **o, CERT *d);
+CERT *ssl_cert_dup(CERT *cert);
+int ssl_cert_inst(CERT **o);
 void ssl_cert_free(CERT *c);
-int ssl_set_cert_type(CERT *c, int type);
+SESS_CERT *ssl_sess_cert_new(void);
+void ssl_sess_cert_free(SESS_CERT *sc);
+int ssl_set_peer_cert_type(SESS_CERT *c, int type);
 int ssl_get_new_session(SSL *s, int session);
 int ssl_get_prev_session(SSL *s, unsigned char *session,int len);
 int ssl_cipher_id_cmp(SSL_CIPHER *a,SSL_CIPHER *b);
 int ssl_cipher_ptr_id_cmp(SSL_CIPHER **ap,SSL_CIPHER **bp);
-STACK *ssl_bytes_to_cipher_list(SSL *s,unsigned char *p,int num,STACK **skp);
-int ssl_cipher_list_to_bytes(SSL *s,STACK *sk,unsigned char *p);
-STACK *ssl_create_cipher_list(SSL_METHOD *meth,STACK **pref,
-	STACK **sorted,char *str);
+STACK_OF(SSL_CIPHER) *ssl_bytes_to_cipher_list(SSL *s,unsigned char *p,int num,
+					       STACK_OF(SSL_CIPHER) **skp);
+int ssl_cipher_list_to_bytes(SSL *s,STACK_OF(SSL_CIPHER) *sk,unsigned char *p);
+STACK_OF(SSL_CIPHER) *ssl_create_cipher_list(SSL_METHOD *meth,
+					     STACK_OF(SSL_CIPHER) **pref,
+					     STACK_OF(SSL_CIPHER) **sorted,
+					     char *str);
 void ssl_update_cache(SSL *s, int mode);
-int ssl_cipher_get_evp(SSL_SESSION *s, EVP_CIPHER **enc, EVP_MD **md,
-	SSL_COMP **comp);
-int ssl_verify_cert_chain(SSL *s,STACK *sk);
+int ssl_cipher_get_evp(SSL_SESSION *s,const EVP_CIPHER **enc,const EVP_MD **md,
+		       SSL_COMP **comp);
+int ssl_verify_cert_chain(SSL *s,STACK_OF(X509) *sk);
 int ssl_undefined_function(SSL *s);
 X509 *ssl_get_server_send_cert(SSL *);
 EVP_PKEY *ssl_get_sign_pkey(SSL *,SSL_CIPHER *);
 int ssl_cert_type(X509 *x,EVP_PKEY *pkey);
-void ssl_set_cert_masks(CERT *c,CERT *default_cert,SSL_CIPHER *cipher);
-STACK *ssl_get_ciphers_by_id(SSL *s);
+void ssl_set_cert_masks(CERT *c, SSL_CIPHER *cipher);
+STACK_OF(SSL_CIPHER) *ssl_get_ciphers_by_id(SSL *s);
 int ssl_verify_alarm_type(long type);
 
 int ssl2_enc_init(SSL *s, int client);
@@ -392,9 +409,9 @@ int	ssl2_new(SSL *s);
 void	ssl2_free(SSL *s);
 int	ssl2_accept(SSL *s);
 int	ssl2_connect(SSL *s);
-int	ssl2_read(SSL *s, char *buf, int len);
+int	ssl2_read(SSL *s, void *buf, int len);
 int	ssl2_peek(SSL *s, char *buf, int len);
-int	ssl2_write(SSL *s, const char *buf, int len);
+int	ssl2_write(SSL *s, const void *buf, int len);
 int	ssl2_shutdown(SSL *s);
 void	ssl2_clear(SSL *s);
 long	ssl2_ctrl(SSL *s,int cmd, long larg, char *parg);
@@ -422,25 +439,26 @@ SSL_CIPHER *ssl3_get_cipher(unsigned int u);
 int ssl3_renegotiate(SSL *ssl); 
 int ssl3_renegotiate_check(SSL *ssl); 
 int ssl3_dispatch_alert(SSL *s);
-int ssl3_read_bytes(SSL *s, int type, char *buf, int len);
+int ssl3_read_bytes(SSL *s, int type, unsigned char *buf, int len);
 int ssl3_part_read(SSL *s, int i);
-int ssl3_write_bytes(SSL *s, int type, char *buf, int len);
+int ssl3_write_bytes(SSL *s, int type, const void *buf, int len);
 int ssl3_final_finish_mac(SSL *s, EVP_MD_CTX *ctx1,EVP_MD_CTX *ctx2,
 	unsigned char *sender, int slen,unsigned char *p);
 int ssl3_cert_verify_mac(SSL *s, EVP_MD_CTX *in, unsigned char *p);
-void ssl3_finish_mac(SSL *s, unsigned char *buf, int len);
+void ssl3_finish_mac(SSL *s, const unsigned char *buf, int len);
 int ssl3_enc(SSL *s, int send_data);
 int ssl3_mac(SSL *ssl, unsigned char *md, int send_data);
 unsigned long ssl3_output_cert_chain(SSL *s, X509 *x);
-SSL_CIPHER *ssl3_choose_cipher(SSL *ssl,STACK *have,STACK *pref);
+SSL_CIPHER *ssl3_choose_cipher(SSL *ssl,STACK_OF(SSL_CIPHER) *have,
+			       STACK_OF(SSL_CIPHER) *pref);
 int	ssl3_setup_buffers(SSL *s);
 int	ssl3_new(SSL *s);
 void	ssl3_free(SSL *s);
 int	ssl3_accept(SSL *s);
 int	ssl3_connect(SSL *s);
-int	ssl3_read(SSL *s, char *buf, int len);
+int	ssl3_read(SSL *s, void *buf, int len);
 int	ssl3_peek(SSL *s,char *buf, int len);
-int	ssl3_write(SSL *s, const char *buf, int len);
+int	ssl3_write(SSL *s, const void *buf, int len);
 int	ssl3_shutdown(SSL *s);
 void	ssl3_clear(SSL *s);
 long	ssl3_ctrl(SSL *s,int cmd, long larg, char *parg);
@@ -474,137 +492,8 @@ int tls1_alert_code(int code);
 int ssl3_alert_code(int code);
 int ssl_ok(SSL *s);
 
-SSL_COMP *ssl3_comp_find(STACK *sk, int n);
-STACK *SSL_COMP_get_compression_methods(void);
+SSL_COMP *ssl3_comp_find(STACK_OF(SSL_COMP) *sk, int n);
+STACK_OF(SSL_COMP) *SSL_COMP_get_compression_methods(void);
 
-
-#else
-
-SSL_METHOD *ssl_bad_method();
-SSL_METHOD *sslv2_base_method();
-SSL_METHOD *sslv23_base_method();
-SSL_METHOD *sslv3_base_method();
-
-void ssl_clear_cipher_ctx();
-int ssl_clear_bad_session();
-CERT *ssl_cert_new();
-int ssl_cert_instantiate();
-void ssl_cert_free();
-int ssl_set_cert_type();
-int ssl_get_new_session();
-int ssl_get_prev_session();
-int ssl_cipher_id_cmp();
-int ssl_cipher_ptr_id_cmp();
-STACK *ssl_bytes_to_cipher_list();
-int ssl_cipher_list_to_bytes();
-STACK *ssl_create_cipher_list();
-void ssl_update_cache();
-int ssl_session_get_ciphers();
-int ssl_verify_cert_chain();
-int ssl_undefined_function();
-X509 *ssl_get_server_send_cert();
-EVP_PKEY *ssl_get_sign_pkey();
-int ssl_cert_type();
-void ssl_set_cert_masks();
-STACK *ssl_get_ciphers_by_id();
-int ssl_verify_alarm_type();
-
-int ssl2_enc_init();
-void ssl2_generate_key_material();
-void ssl2_enc();
-void ssl2_mac();
-SSL_CIPHER *ssl2_get_cipher_by_char();
-int ssl2_put_cipher_by_char();
-int ssl2_part_read();
-int ssl2_do_write();
-int ssl2_set_certificate();
-void ssl2_return_error();
-void ssl2_write_error();
-int ssl2_num_ciphers();
-SSL_CIPHER *ssl2_get_cipher();
-int	ssl2_new();
-void	ssl2_free();
-int	ssl2_accept();
-int	ssl2_connect();
-int	ssl2_read();
-int	ssl2_peek();
-int	ssl2_write();
-int	ssl2_shutdown();
-void	ssl2_clear();
-long	ssl2_ctrl();
-long	ssl2_ctx_ctrl();
-int	ssl2_pending();
-
-SSL_CIPHER *ssl3_get_cipher_by_char();
-int ssl3_put_cipher_by_char();
-void ssl3_init_finished_mac();
-int ssl3_send_server_certificate();
-int ssl3_get_finished();
-int ssl3_setup_key_block();
-int ssl3_send_change_cipher_spec();
-int ssl3_change_cipher_state();
-void ssl3_cleanup_key_block();
-int ssl3_do_write();
-void ssl3_send_alert();
-int ssl3_generate_master_secret();
-int ssl3_get_req_cert_type();
-long ssl3_get_message();
-int ssl3_send_finished();
-int ssl3_num_ciphers();
-SSL_CIPHER *ssl3_get_cipher();
-int ssl3_renegotiate();
-int ssl3_renegotiate_check();
-int ssl3_dispatch_alert();
-int ssl3_read_bytes();
-int ssl3_part_read();
-int ssl3_write_bytes();
-int ssl3_final_finish_mac();
-void ssl3_finish_mac();
-int ssl3_enc();
-int ssl3_mac();
-unsigned long ssl3_output_cert_chain();
-SSL_CIPHER *ssl3_choose_cipher();
-int	ssl3_setup_buffers();
-int	ssl3_new();
-void	ssl3_free();
-int	ssl3_accept();
-int	ssl3_connect();
-int	ssl3_read();
-int	ssl3_peek();
-int	ssl3_write();
-int	ssl3_shutdown();
-void	ssl3_clear();
-long	ssl3_ctrl();
-long	ssl3_ctx_ctrl();
-int	ssl3_pending();
-
-int ssl23_accept();
-int ssl23_connect();
-int ssl23_read_bytes();
-int ssl23_write_bytes();
-
-int ssl_init_wbio_buffer();
-void ssl_free_wbio_buffer();
-
-int ssl3_cert_verify_mac();
-int ssl3_alert_code();
-int tls1_new();
-void tls1_free();
-void tls1_clear();
-long tls1_ctrl();
-SSL_METHOD *tlsv1_base_method();
-int tls1_change_cipher_state();
-int tls1_setup_key_block();
-int tls1_enc();
-int tls1_final_finish_mac();
-int tls1_cert_verify_mac();
-int tls1_mac();
-int tls1_generate_master_secret();
-int tls1_alert_code();
-int ssl_ok();
-SSL_COMP *ssl3_comp_find();
-STACK *SSL_COMP_get_compression_methods();
-
-#endif
 
 #endif

@@ -62,7 +62,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "blowfish.h"
+
+#ifdef NO_BF
+int main(int argc, char *argv[])
+{
+    printf("No BF support\n");
+    return(0);
+}
+#else
+#include <openssl/blowfish.h>
 
 char *bf_key[2]={
 	"abcdefghijklmnopqrstuvwxyz",
@@ -252,17 +260,9 @@ unsigned char key_out[KEY_TEST_NUM][8]={
 	{0x05,0x04,0x4B,0x62,0xFA,0x52,0xD0,0x80},
 	};
 
-#ifndef NOPROTO
 static int test(void );
 static int print_test_data(void );
-#else
-static int test();
-static int print_test_data();
-#endif
-
-int main(argc,argv)
-int argc;
-char *argv[];
+int main(int argc, char *argv[])
 	{
 	int ret;
 
@@ -275,7 +275,7 @@ char *argv[];
 	return(0);
 	}
 
-static int print_test_data()
+static int print_test_data(void)
 	{
 	unsigned int i,j;
 
@@ -342,7 +342,7 @@ static int print_test_data()
 	return(0);
 	}
 
-static int test()
+static int test(void)
 	{
 	unsigned char cbc_in[40],cbc_out[40],iv[8];
 	int i,n,err=0;
@@ -364,11 +364,11 @@ static int test()
 			printf("BF_encrypt error encrypting\n");
 			printf("got     :");
 			for (i=0; i<2; i++)
-				printf("%08lX ",data[i]);
+				printf("%08lX ",(unsigned long)data[i]);
 			printf("\n");
 			printf("expected:");
 			for (i=0; i<2; i++)
-				printf("%08lX ",bf_cipher[n][i]);
+				printf("%08lX ",(unsigned long)bf_cipher[n][i]);
 			err=1;
 			printf("\n");
 			}
@@ -379,11 +379,11 @@ static int test()
 			printf("BF_encrypt error decrypting\n");
 			printf("got     :");
 			for (i=0; i<2; i++)
-				printf("%08lX ",data[i]);
+				printf("%08lX ",(unsigned long)data[i]);
 			printf("\n");
 			printf("expected:");
 			for (i=0; i<2; i++)
-				printf("%08lX ",bf_plain[n][i]);
+				printf("%08lX ",(unsigned long)bf_plain[n][i]);
 			printf("\n");
 			err=1;
 			}
@@ -519,3 +519,4 @@ static int test()
 
 	return(err);
 	}
+#endif

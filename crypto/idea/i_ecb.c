@@ -56,13 +56,13 @@
  * [including the GNU Public Licence.]
  */
 
-#include "idea.h"
+#include <openssl/idea.h>
 #include "idea_lcl.h"
-#include "opensslv.h"
+#include <openssl/opensslv.h>
 
-char *IDEA_version="IDEA" OPENSSL_VERSION_PTEXT;
+const char *IDEA_version="IDEA" OPENSSL_VERSION_PTEXT;
 
-char *idea_options()
+const char *idea_options(void)
 	{
 	if (sizeof(short) != sizeof(IDEA_INT))
 		return("idea(int)");
@@ -70,10 +70,8 @@ char *idea_options()
 		return("idea(short)");
 	}
 
-void idea_ecb_encrypt(in, out, ks)
-unsigned char *in;
-unsigned char *out;
-IDEA_KEY_SCHEDULE *ks;
+void idea_ecb_encrypt(unsigned char *in, unsigned char *out,
+	     IDEA_KEY_SCHEDULE *ks)
 	{
 	unsigned long l0,l1,d[2];
 

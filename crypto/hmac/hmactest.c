@@ -59,7 +59,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "hmac.h"
+
+#ifdef NO_HMAC
+int main(int argc, char *argv[])
+{
+    printf("No HMAC support\n");
+    return(0);
+}
+#else
+#include <openssl/hmac.h>
 
 struct test_st
 	{
@@ -102,15 +110,8 @@ struct test_st
 	};
 
 
-#ifndef NOPROTO
 static char *pt(unsigned char *md);
-#else
-static char *pt();
-#endif
-
-int main(argc,argv)
-int argc;
-char *argv[];
+int main(int argc, char *argv[])
 	{
 	int i,err=0;
 	char *p;
@@ -135,8 +136,7 @@ char *argv[];
 	return(0);
 	}
 
-static char *pt(md)
-unsigned char *md;
+static char *pt(unsigned char *md)
 	{
 	int i;
 	static char buf[80];
@@ -145,3 +145,4 @@ unsigned char *md;
 		sprintf(&(buf[i*2]),"%02x",md[i]);
 	return(buf);
 	}
+#endif

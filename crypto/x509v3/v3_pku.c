@@ -58,22 +58,14 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "asn1.h"
-#include "asn1_mac.h"
-#include "x509v3.h"
+#include <openssl/asn1.h>
+#include <openssl/asn1_mac.h>
+#include <openssl/x509v3.h>
 
-#ifndef NOPROTO
-static int i2r_PKEY_USAGE_PERIOD(X509V3_EXT_METHOD *method, PKEY_USAGE_PERIOD *usage, BIO *out);
+static int i2r_PKEY_USAGE_PERIOD(X509V3_EXT_METHOD *method, PKEY_USAGE_PERIOD *usage, BIO *out, int indent);
 /*
 static PKEY_USAGE_PERIOD *v2i_PKEY_USAGE_PERIOD(X509V3_EXT_METHOD *method, X509V3_CTX *ctx, STACK *values);
 */
-#else
-
-static int i2r_PKEY_USAGE_PERIOD();
-static PKEY_USAGE_PERIOD *v2i_PKEY_USAGE_PERIOD();
-
-#endif
-
 X509V3_EXT_METHOD v3_pkey_usage_period = {
 NID_private_key_usage_period, 0,
 (X509V3_EXT_NEW)PKEY_USAGE_PERIOD_new,
@@ -85,15 +77,7 @@ NULL, NULL, NULL, NULL,
 NULL
 };
 
-
-/*
- * ASN1err(ASN1_F_PKEY_USAGE_PERIOD_NEW,ERR_R_MALLOC_FAILURE);
- * ASN1err(ASN1_F_D2I_PKEY_USAGE_PERIOD,ERR_R_MALLOC_FAILURE);
- */
-
-int i2d_PKEY_USAGE_PERIOD(a,pp)
-PKEY_USAGE_PERIOD *a;
-unsigned char **pp;
+int i2d_PKEY_USAGE_PERIOD(PKEY_USAGE_PERIOD *a, unsigned char **pp)
 {
 	M_ASN1_I2D_vars(a);
 
@@ -108,7 +92,7 @@ unsigned char **pp;
 	M_ASN1_I2D_finish();
 }
 
-PKEY_USAGE_PERIOD *PKEY_USAGE_PERIOD_new()
+PKEY_USAGE_PERIOD *PKEY_USAGE_PERIOD_new(void)
 {
 	PKEY_USAGE_PERIOD *ret=NULL;
 	ASN1_CTX c;
@@ -119,10 +103,8 @@ PKEY_USAGE_PERIOD *PKEY_USAGE_PERIOD_new()
 	M_ASN1_New_Error(ASN1_F_PKEY_USAGE_PERIOD_NEW);
 }
 
-PKEY_USAGE_PERIOD *d2i_PKEY_USAGE_PERIOD(a,pp,length)
-PKEY_USAGE_PERIOD **a;
-unsigned char **pp;
-long length;
+PKEY_USAGE_PERIOD *d2i_PKEY_USAGE_PERIOD(PKEY_USAGE_PERIOD **a,
+	     unsigned char **pp, long length)
 {
 	M_ASN1_D2I_vars(a,PKEY_USAGE_PERIOD *,PKEY_USAGE_PERIOD_new);
 	M_ASN1_D2I_Init();
@@ -134,8 +116,7 @@ long length;
 	M_ASN1_D2I_Finish(a, PKEY_USAGE_PERIOD_free, ASN1_F_D2I_PKEY_USAGE_PERIOD);
 }
 
-void PKEY_USAGE_PERIOD_free(a)
-PKEY_USAGE_PERIOD *a;
+void PKEY_USAGE_PERIOD_free(PKEY_USAGE_PERIOD *a)
 {
 	if (a == NULL) return;
 	ASN1_GENERALIZEDTIME_free(a->notBefore);
@@ -143,11 +124,10 @@ PKEY_USAGE_PERIOD *a;
 	Free ((char *)a);
 }
 
-static int i2r_PKEY_USAGE_PERIOD(method, usage, out)
-X509V3_EXT_METHOD *method;
-PKEY_USAGE_PERIOD *usage;
-BIO *out;
+static int i2r_PKEY_USAGE_PERIOD(X509V3_EXT_METHOD *method,
+	     PKEY_USAGE_PERIOD *usage, BIO *out, int indent)
 {
+	BIO_printf(out, "%*s", indent, "");
 	if(usage->notBefore) {
 		BIO_write(out, "Not Before: ", 12);
 		ASN1_GENERALIZEDTIME_print(out, usage->notBefore);

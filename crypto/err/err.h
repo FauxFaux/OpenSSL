@@ -63,6 +63,10 @@
 extern "C" {
 #endif
 
+#ifndef NO_FP_API
+#include <stdio.h>
+#endif
+
 /* The following is a bit of a trick to help the object files only contain
  * the 'name of the file' string once.  Since 'err.h' is protected by the
  * HEADER_ERR_H stuff, this should be included only once per file. */
@@ -87,7 +91,7 @@ typedef struct err_state_st
 	unsigned long err_buffer[ERR_NUM_ERRORS];
 	char *err_data[ERR_NUM_ERRORS];
 	int err_data_flags[ERR_NUM_ERRORS];
-	char *err_file[ERR_NUM_ERRORS];
+	const char *err_file[ERR_NUM_ERRORS];
 	int err_line[ERR_NUM_ERRORS];
 	int top,bottom;
 	} ERR_STATE;
@@ -117,6 +121,7 @@ typedef struct err_state_st
 #define ERR_LIB_BIO		32
 #define ERR_LIB_PKCS7		33
 #define ERR_LIB_X509V3		34
+#define ERR_LIB_PKCS12		35
 
 #define ERR_LIB_USER		128
 
@@ -143,6 +148,7 @@ typedef struct err_state_st
 #define PROXYerr(f,r) ERR_PUT_error(ERR_LIB_PROXY,(f),(r),ERR_file_name,__LINE__)
 #define PKCS7err(f,r) ERR_PUT_error(ERR_LIB_PKCS7,(f),(r),ERR_file_name,__LINE__)
 #define X509V3err(f,r) ERR_PUT_error(ERR_LIB_X509V3,(f),(r),ERR_file_name,__LINE__)
+#define PKCS12err(f,r) ERR_PUT_error(ERR_LIB_PKCS12,(f),(r),ERR_file_name,__LINE__)
 
 /* Borland C seems too stupid to be able to shift and do longs in
  * the pre-processor :-( */
@@ -189,6 +195,7 @@ typedef struct err_state_st
 #define ERR_R_PROXY_LIB	ERR_LIB_PROXY
 #define ERR_R_BIO_LIB	ERR_LIB_BIO
 #define ERR_R_PKCS7_LIB	ERR_LIB_PKCS7
+#define ERR_R_PKCS12_LIB ERR_LIB_PKCS12
 
 /* fatal error */
 #define	ERR_R_MALLOC_FAILURE			(1|ERR_R_FATAL)
@@ -204,32 +211,31 @@ typedef struct err_state_st
 typedef struct ERR_string_data_st
 	{
 	unsigned long error;
-	char *string;
+	const char *string;
 	} ERR_STRING_DATA;
 
-#ifndef NOPROTO
-void ERR_put_error(int lib, int func,int reason,char *file,int line);
+void ERR_put_error(int lib, int func,int reason,const char *file,int line);
 void ERR_set_error_data(char *data,int flags);
 
 unsigned long ERR_get_error(void );
-unsigned long ERR_get_error_line(char **file,int *line);
-unsigned long ERR_get_error_line_data(char **file,int *line,
-		char **data, int *flags);
+unsigned long ERR_get_error_line(const char **file,int *line);
+unsigned long ERR_get_error_line_data(const char **file,int *line,
+				      const char **data, int *flags);
 unsigned long ERR_peek_error(void );
-unsigned long ERR_peek_error_line(char **file,int *line);
-unsigned long ERR_peek_error_line_data(char **file,int *line,
-		char **data,int *flags);
+unsigned long ERR_peek_error_line(const char **file,int *line);
+unsigned long ERR_peek_error_line_data(const char **file,int *line,
+				       const char **data,int *flags);
 void ERR_clear_error(void );
 char *ERR_error_string(unsigned long e,char *buf);
-char *ERR_lib_error_string(unsigned long e);
-char *ERR_func_error_string(unsigned long e);
-char *ERR_reason_error_string(unsigned long e);
+const char *ERR_lib_error_string(unsigned long e);
+const char *ERR_func_error_string(unsigned long e);
+const char *ERR_reason_error_string(unsigned long e);
 #ifndef NO_FP_API
 void ERR_print_errors_fp(FILE *fp);
 #endif
 #ifdef HEADER_BIO_H
 void ERR_print_errors(BIO *bp);
-void ERR_add_error_data( VAR_PLIST( int, num ) );
+void ERR_add_error_data(int num, ...);
 #endif
 void ERR_load_strings(int lib,ERR_STRING_DATA str[]);
 void ERR_load_ERR_strings(void );
@@ -248,45 +254,6 @@ char *ERR_get_err_state_table(void );
 #endif
 
 int ERR_get_next_error_library(void );
-
-#else
-
-void ERR_put_error();
-void ERR_set_error_data();
-
-unsigned long ERR_get_error();
-unsigned long ERR_get_error_line();
-unsigned long ERR_peek_error();
-unsigned long ERR_peek_error_line();
-void ERR_clear_error();
-char *ERR_error_string();
-char *ERR_lib_error_string();
-char *ERR_func_error_string();
-char *ERR_reason_error_string();
-#ifndef NO_FP_API
-void ERR_print_errors_fp();
-#endif
-void ERR_print_errors();
-void ERR_add_error_data();
-void ERR_load_strings();
-void ERR_load_ERR_strings();
-void ERR_load_crypto_strings();
-void ERR_free_strings();
-
-void ERR_remove_state();
-ERR_STATE *ERR_get_state();
-
-#ifdef HEADER_LHASH_H
-LHASH *ERR_get_string_table();
-LHASH *ERR_get_err_state_table();
-#else
-char *ERR_get_string_table();
-char *ERR_get_err_state_table();
-#endif
-
-int ERR_get_next_error_library();
-
-#endif
 
 #ifdef	__cplusplus
 }

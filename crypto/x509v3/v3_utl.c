@@ -61,17 +61,14 @@
 #include <stdio.h>
 #include <ctype.h>
 #include "cryptlib.h"
-#include "conf.h"
-#include "x509v3.h"
+#include <openssl/conf.h>
+#include <openssl/x509v3.h>
 
 static char *strip_spaces(char *name);
 
 /* Add a CONF_VALUE name value pair to stack */
 
-int X509V3_add_value(name, value, extlist)
-char *name;
-char *value;
-STACK **extlist;
+int X509V3_add_value(const char *name, const char *value, STACK **extlist)
 {
 	CONF_VALUE *vtmp = NULL;
 	char *tname = NULL, *tvalue = NULL;
@@ -92,10 +89,15 @@ STACK **extlist;
 	return 0;
 }
 
+int X509V3_add_value_uchar(const char *name, const unsigned char *value,
+			   STACK **extlist)
+    {
+    return X509V3_add_value(name,(const char *)value,extlist);
+    }
+
 /* Free function for STACK of CONF_VALUE */
 
-void X509V3_conf_free(conf)
-CONF_VALUE *conf;
+void X509V3_conf_free(CONF_VALUE *conf)
 {
 	if(!conf) return;
 	if(conf->name) Free(conf->name);
@@ -104,28 +106,20 @@ CONF_VALUE *conf;
 	Free((char *)conf);
 }
 
-int X509V3_add_value_bool(name, asn1_bool, extlist)
-char *name;
-int asn1_bool;
-STACK **extlist;
+int X509V3_add_value_bool(const char *name, int asn1_bool, STACK **extlist)
 {
 	if(asn1_bool) return X509V3_add_value(name, "TRUE", extlist);
 	return X509V3_add_value(name, "FALSE", extlist);
 }
 
-int X509V3_add_value_bool_nf(name, asn1_bool, extlist)
-char *name;
-int asn1_bool;
-STACK **extlist;
+int X509V3_add_value_bool_nf(char *name, int asn1_bool, STACK **extlist)
 {
 	if(asn1_bool) return X509V3_add_value(name, "TRUE", extlist);
 	return 1;
 }
 
 
-char *i2s_ASN1_ENUMERATED(method, a)
-X509V3_EXT_METHOD *method;
-ASN1_ENUMERATED *a;
+char *i2s_ASN1_ENUMERATED(X509V3_EXT_METHOD *method, ASN1_ENUMERATED *a)
 {
 	BIGNUM *bntmp = NULL;
 	char *strtmp = NULL;
@@ -137,9 +131,7 @@ ASN1_ENUMERATED *a;
 	return strtmp;
 }
 
-char *i2s_ASN1_INTEGER(method, a)
-X509V3_EXT_METHOD *method;
-ASN1_INTEGER *a;
+char *i2s_ASN1_INTEGER(X509V3_EXT_METHOD *method, ASN1_INTEGER *a)
 {
 	BIGNUM *bntmp = NULL;
 	char *strtmp = NULL;
@@ -151,10 +143,30 @@ ASN1_INTEGER *a;
 	return strtmp;
 }
 
-int X509V3_add_value_int(name, aint, extlist)
-char *name;
-ASN1_INTEGER *aint;
-STACK **extlist;
+ASN1_INTEGER *s2i_ASN1_INTEGER(X509V3_EXT_METHOD *method, char *value)
+{
+	BIGNUM *bn = NULL;
+	ASN1_INTEGER *aint;
+	bn = BN_new();
+	if(!value) {
+		X509V3err(X509V3_F_S2I_ASN1_INTEGER,X509V3_R_INVALID_NULL_VALUE);
+		return 0;
+	}
+	if(!BN_dec2bn(&bn, value)) {
+		X509V3err(X509V3_F_S2I_ASN1_INTEGER,X509V3_R_BN_DEC2BN_ERROR);
+		return 0;
+	}
+
+	if(!(aint = BN_to_ASN1_INTEGER(bn, NULL))) {
+		X509V3err(X509V3_F_S2I_ASN1_INTEGER,X509V3_R_BN_TO_ASN1_INTEGER_ERROR);
+		return 0;
+	}
+	BN_free(bn);
+	return aint;
+}
+
+int X509V3_add_value_int(const char *name, ASN1_INTEGER *aint,
+	     STACK **extlist)
 {
 	char *strtmp;
 	int ret;
@@ -165,9 +177,7 @@ STACK **extlist;
 	return ret;
 }
 
-int X509V3_get_value_bool(value, asn1_bool)
-CONF_VALUE *value;
-int *asn1_bool;
+int X509V3_get_value_bool(CONF_VALUE *value, int *asn1_bool)
 {
 	char *btmp;
 	if(!(btmp = value->value)) goto err;
@@ -183,34 +193,19 @@ int *asn1_bool;
 		return 1;
 	}
 	err:
-	X509V3err(X509V3_F_X509V3_VALUE_GET_BOOL,X509V3_R_INVALID_BOOLEAN_STRING);
+	X509V3err(X509V3_F_X509V3_GET_VALUE_BOOL,X509V3_R_INVALID_BOOLEAN_STRING);
 	X509V3_conf_err(value);
 	return 0;
 }
 
-int X509V3_get_value_int(value, aint)
-CONF_VALUE *value;
-ASN1_INTEGER **aint;
+int X509V3_get_value_int(CONF_VALUE *value, ASN1_INTEGER **aint)
 {
-	BIGNUM *bn = NULL;
-	bn = BN_new();
-	if(!value->value) {
-		X509V3err(X509V3_F_X509V3_GET_VALUE_INT,X509V3_R_INVALID_NULL_VALUE);
+	ASN1_INTEGER *itmp;
+	if(!(itmp = s2i_ASN1_INTEGER(NULL, value->value))) {
 		X509V3_conf_err(value);
 		return 0;
 	}
-	if(!BN_dec2bn(&bn, value->value)) {
-		X509V3err(X509V3_F_X509V3_GET_VALUE_INT,X509V3_R_BN_DEC2BN_ERROR);
-		X509V3_conf_err(value);
-		return 0;
-	}
-
-	if(!(*aint = BN_to_ASN1_INTEGER(bn, NULL))) {
-		X509V3err(X509V3_F_X509V3_GET_VALUE_INT,X509V3_R_BN_TO_ASN1_INTEGER_ERROR);
-		X509V3_conf_err(value);
-		return 0;
-	}
-	BN_free(bn);
+	*aint = itmp;
 	return 1;
 }
 
@@ -219,8 +214,7 @@ ASN1_INTEGER **aint;
 
 /*#define DEBUG*/
 
-STACK *X509V3_parse_list(line)
-char *line;
+STACK *X509V3_parse_list(char *line)
 {
 	char *p, *q, c;
 	char *ntmp, *vtmp;
@@ -312,16 +306,15 @@ return NULL;
 }
 
 /* Delete leading and trailing spaces from a string */
-static char *strip_spaces(name)
-char *name;
+static char *strip_spaces(char *name)
 {
 	char *p, *q;
 	/* Skip over leading spaces */
 	p = name;
-	while(*p && isspace(*p)) p++;
+	while(*p && isspace((unsigned char)*p)) p++;
 	if(!*p) return NULL;
 	q = p + strlen(p) - 1;
-	while((q != p) && isspace(*q)) q--;
+	while((q != p) && isspace((unsigned char)*q)) q--;
 	if(p != q) q[1] = 0;
 	if(!*p) return NULL;
 	return p;
@@ -333,9 +326,7 @@ char *name;
  * hex representation
  */
 
-char *hex_to_string(buffer, len)
-unsigned char *buffer;
-long len;
+char *hex_to_string(unsigned char *buffer, long len)
 {
 	char *tmp, *q;
 	unsigned char *p;
@@ -360,9 +351,7 @@ long len;
  * a buffer
  */
 
-unsigned char *string_to_hex(str, len)
-char *str;
-long *len;
+unsigned char *string_to_hex(char *str, long *len)
 {
 	unsigned char *hexbuf, *q;
 	unsigned char ch, cl, *p;
@@ -414,9 +403,7 @@ long *len;
  * cmp or cmp.*
  */
 
-int name_cmp(name, cmp)
-char *name;
-char *cmp;
+int name_cmp(const char *name, const char *cmp)
 {
 	int len, ret;
 	char c;

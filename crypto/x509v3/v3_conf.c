@@ -62,27 +62,23 @@
 #include <stdio.h>
 #include <ctype.h>
 #include "cryptlib.h"
-#include "conf.h"
-#include "x509.h"
-#include "x509v3.h"
+#include <openssl/conf.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
-#ifndef NOPROTO
 static int v3_check_critical(char **value);
 static int v3_check_generic(char **value);
 static X509_EXTENSION *do_ext_conf(LHASH *conf, X509V3_CTX *ctx, int ext_nid, int crit, char *value);
-static X509_EXTENSION *v3_generic_extension(char *ext, char *value, int crit, int type);
-#else
-static int v3_check_critical();
-static int v3_check_generic();
-static X509_EXTENSION *do_ext_conf();
-static X509V3_EXTENSION *v3_generic_extension();
-#endif
-
-X509_EXTENSION *X509V3_EXT_conf(conf, ctx, name, value)
-LHASH *conf;	/* Config file */
-X509V3_CTX *ctx;
-char *name;	/* Name */
-char *value;	/* Value */
+static X509_EXTENSION *v3_generic_extension(const char *ext, char *value, int crit, int type);
+static char *conf_lhash_get_string(void *db, char *section, char *value);
+static STACK *conf_lhash_get_section(void *db, char *section);
+static X509_EXTENSION *do_ext_i2d(X509V3_EXT_METHOD *method, int ext_nid,
+						 int crit, void *ext_struc);
+/* LHASH *conf:  Config file    */
+/* char *name:  Name    */
+/* char *value:  Value    */
+X509_EXTENSION *X509V3_EXT_conf(LHASH *conf, X509V3_CTX *ctx, char *name,
+	     char *value)
 {
 	int crit;
 	int ext_type;
@@ -98,11 +94,10 @@ char *value;	/* Value */
 	return ret;
 }
 
-X509_EXTENSION *X509V3_EXT_conf_nid(conf, ctx, ext_nid, value)
-LHASH *conf;	/* Config file */
-X509V3_CTX *ctx;
-int ext_nid;
-char *value;	/* Value */
+/* LHASH *conf:  Config file    */
+/* char *value:  Value    */
+X509_EXTENSION *X509V3_EXT_conf_nid(LHASH *conf, X509V3_CTX *ctx, int ext_nid,
+	     char *value)
 {
 	int crit;
 	int ext_type;
@@ -113,20 +108,15 @@ char *value;	/* Value */
 	return do_ext_conf(conf, ctx, ext_nid, crit, value);
 }
 
-static X509_EXTENSION *do_ext_conf(conf, ctx, ext_nid, crit, value)
-LHASH *conf;	/* Config file */
-X509V3_CTX *ctx;
-int ext_nid;
-int crit;
-char *value;	/* Value */
+/* LHASH *conf:  Config file    */
+/* char *value:  Value    */
+static X509_EXTENSION *do_ext_conf(LHASH *conf, X509V3_CTX *ctx, int ext_nid,
+	     int crit, char *value)
 {
-	X509_EXTENSION *ext = NULL;
 	X509V3_EXT_METHOD *method;
+	X509_EXTENSION *ext;
 	STACK *nval;
-	char *ext_struc;
-	char *ext_der, *p;
-	int ext_len;
-	ASN1_OCTET_STRING *ext_oct;
+	void *ext_struc;
 	if(ext_nid == NID_undef) {
 		X509V3err(X509V3_F_DO_EXT_CONF,X509V3_R_UNKNOWN_EXTENSION_NAME);
 		return NULL;
@@ -149,59 +139,89 @@ char *value;	/* Value */
 		if(!ext_struc) return NULL;
 	} else if(method->s2i) {
 		if(!(ext_struc = method->s2i(method, ctx, value))) return NULL;
+	} else if(method->r2i) {
+		if(!ctx->db) {
+			X509V3err(X509V3_F_X509V3_EXT_CONF,X509V3_R_NO_CONFIG_DATABASE);
+			return NULL;
+		}
+		if(!(ext_struc = method->r2i(method, ctx, value))) return NULL;
 	} else {
 		X509V3err(X509V3_F_X509V3_EXT_CONF,X509V3_R_EXTENSION_SETTING_NOT_SUPPORTED);
 		ERR_add_error_data(2, "name=", OBJ_nid2sn(ext_nid));
 		return NULL;
 	}
 
-	/* We've now got the internal representation: convert to DER */
-	ext_len = method->i2d(ext_struc, NULL);
-	ext_der = Malloc(ext_len);
-	p = ext_der;
-	method->i2d(ext_struc, &p);
+	ext  = do_ext_i2d(method, ext_nid, crit, ext_struc);
 	method->ext_free(ext_struc);
-	ext_oct = ASN1_OCTET_STRING_new();
-	ext_oct->data = ext_der;
-	ext_oct->length = ext_len;
-	
-	ext = X509_EXTENSION_create_by_NID(NULL, ext_nid, crit, ext_oct);
-	ASN1_OCTET_STRING_free(ext_oct);
-
 	return ext;
 
 }
 
+static X509_EXTENSION *do_ext_i2d(X509V3_EXT_METHOD *method, int ext_nid,
+						 int crit, void *ext_struc)
+{
+	unsigned char *ext_der, *p;
+	int ext_len;
+	ASN1_OCTET_STRING *ext_oct;
+	X509_EXTENSION *ext;
+	/* Convert internal representation to DER */
+	ext_len = method->i2d(ext_struc, NULL);
+	if(!(ext_der = Malloc(ext_len))) goto merr;
+	p = ext_der;
+	method->i2d(ext_struc, &p);
+	if(!(ext_oct = ASN1_OCTET_STRING_new())) goto merr;
+	ext_oct->data = ext_der;
+	ext_oct->length = ext_len;
+	
+	ext = X509_EXTENSION_create_by_NID(NULL, ext_nid, crit, ext_oct);
+	if(!ext) goto merr;
+	ASN1_OCTET_STRING_free(ext_oct);
+
+	return ext;
+
+	merr:
+	X509V3err(X509V3_F_DO_EXT_I2D,ERR_R_MALLOC_FAILURE);
+	return NULL;
+
+}
+
+/* Given an internal structure, nid and critical flag create an extension */
+
+X509_EXTENSION *X509V3_EXT_i2d(int ext_nid, int crit, void *ext_struc)
+{
+	X509V3_EXT_METHOD *method;
+	if(!(method = X509V3_EXT_get_nid(ext_nid))) {
+		X509V3err(X509V3_F_X509V3_EXT_I2D,X509V3_R_UNKNOWN_EXTENSION);
+		return NULL;
+	}
+	return do_ext_i2d(method, ext_nid, crit, ext_struc);
+}
+
 /* Check the extension string for critical flag */
-static int v3_check_critical(value)
-char **value;
+static int v3_check_critical(char **value)
 {
 	char *p = *value;
 	if((strlen(p) < 9) || strncmp(p, "critical,", 9)) return 0;
 	p+=9;
-	while(isspace(*p)) p++;
+	while(isspace((unsigned char)*p)) p++;
 	*value = p;
 	return 1;
 }
 
 /* Check extension string for generic extension and return the type */
-static int v3_check_generic(value)
-char **value;
+static int v3_check_generic(char **value)
 {
 	char *p = *value;
-	if((strlen(p) < 4) || strncmp(p, "RAW:,", 4)) return 0;
+	if((strlen(p) < 4) || strncmp(p, "DER:,", 4)) return 0;
 	p+=4;
-	while(isspace(*p)) p++;
+	while(isspace((unsigned char)*p)) p++;
 	*value = p;
 	return 1;
 }
 
 /* Create a generic extension: for now just handle RAW type */
-static X509_EXTENSION *v3_generic_extension(ext, value, crit, type)
-char *ext;
-char *value;
-int crit;
-int type;
+static X509_EXTENSION *v3_generic_extension(const char *ext, char *value,
+	     int crit, int type)
 {
 unsigned char *ext_der=NULL;
 long ext_len;
@@ -243,11 +263,8 @@ return extension;
  * section
  */
 
-int X509V3_EXT_add_conf(conf, ctx, section, cert)
-LHASH *conf;
-X509V3_CTX *ctx;
-char *section;
-X509 *cert;
+int X509V3_EXT_add_conf(LHASH *conf, X509V3_CTX *ctx, char *section,
+	     X509 *cert)
 {
 	X509_EXTENSION *ext;
 	STACK *nval;
@@ -266,11 +283,8 @@ X509 *cert;
 
 /* Same as above but for a CRL */
 
-int X509V3_EXT_CRL_add_conf(conf, ctx, section, crl)
-LHASH *conf;
-X509V3_CTX *ctx;
-char *section;
-X509_CRL *crl;
+int X509V3_EXT_CRL_add_conf(LHASH *conf, X509V3_CTX *ctx, char *section,
+	     X509_CRL *crl)
 {
 	X509_EXTENSION *ext;
 	STACK *nval;
@@ -287,11 +301,65 @@ X509_CRL *crl;
 	return 1;
 }
 
-/* Just check syntax of config file as far as possible */
-int X509V3_EXT_check_conf(conf, section)
-LHASH *conf;
-char *section;
+/* Config database functions */
+
+char * X509V3_get_string(X509V3_CTX *ctx, char *name, char *section)
 {
-	static X509V3_CTX ctx_tst = { CTX_TEST, NULL, NULL, NULL, NULL };
-	return X509V3_EXT_add_conf(conf, &ctx_tst, section, NULL);
+	if(ctx->db_meth->get_string)
+			return ctx->db_meth->get_string(ctx->db, name, section);
+	return NULL;
+}
+
+STACK * X509V3_get_section(X509V3_CTX *ctx, char *section)
+{
+	if(ctx->db_meth->get_section)
+			return ctx->db_meth->get_section(ctx->db, section);
+	return NULL;
+}
+
+void X509V3_string_free(X509V3_CTX *ctx, char *str)
+{
+	if(!str) return;
+	if(ctx->db_meth->free_string)
+			ctx->db_meth->free_string(ctx->db, str);
+}
+
+void X509V3_section_free(X509V3_CTX *ctx, STACK *section)
+{
+	if(!section) return;
+	if(ctx->db_meth->free_section)
+			ctx->db_meth->free_section(ctx->db, section);
+}
+
+static char *conf_lhash_get_string(void *db, char *section, char *value)
+{
+	return CONF_get_string(db, section, value);
+}
+
+static STACK *conf_lhash_get_section(void *db, char *section)
+{
+	return CONF_get_section(db, section);
+}
+
+static X509V3_CONF_METHOD conf_lhash_method = {
+conf_lhash_get_string,
+conf_lhash_get_section,
+NULL,
+NULL
+};
+
+void X509V3_set_conf_lhash(X509V3_CTX *ctx, LHASH *lhash)
+{
+	ctx->db_meth = &conf_lhash_method;
+	ctx->db = lhash;
+}
+
+void X509V3_set_ctx(X509V3_CTX *ctx, X509 *issuer, X509 *subj, X509_REQ *req,
+	     X509_CRL *crl, int flags)
+{
+	ctx->issuer_cert = issuer;
+	ctx->subject_cert = subj;
+	ctx->crl = crl;
+	ctx->subject_req = req;
+	ctx->flags = flags;
 }

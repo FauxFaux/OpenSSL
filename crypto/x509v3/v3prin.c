@@ -60,15 +60,13 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "asn1.h"
-#include "asn1_mac.h"
-#include "conf.h"
-#include "x509.h"
-#include "x509v3.h"
+#include <openssl/asn1.h>
+#include <openssl/asn1_mac.h>
+#include <openssl/conf.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
-int main(argc, argv)
-int argc;
-char **argv;
+int main(int argc, char **argv)
 {
 	X509 *cert;
 	FILE *inf;
@@ -95,7 +93,7 @@ char **argv;
 	for(i = 0; i < count; i++) {
 		ext = X509_get_ext(cert, i);
 		printf("%s\n", OBJ_nid2ln(OBJ_obj2nid(ext->object)));
-		if(!X509V3_EXT_print_fp(stdout, ext, 0)) ERR_print_errors_fp(stderr);
+		if(!X509V3_EXT_print_fp(stdout, ext, 0, 0)) ERR_print_errors_fp(stderr);
 		printf("\n");
 		
 	}

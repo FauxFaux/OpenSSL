@@ -1,63 +1,65 @@
-/* lib/ssl/ssl_err.c */
-/* Copyright (C) 1995-1997 Eric Young (eay@cryptsoft.com)
- * All rights reserved.
+/* ssl/ssl_err.c */
+/* ====================================================================
+ * Copyright (c) 1999 The OpenSSL Project.  All rights reserved.
  *
- * This package is an SSL implementation written
- * by Eric Young (eay@cryptsoft.com).
- * The implementation was written so as to conform with Netscapes SSL.
- * 
- * This library is free for commercial and non-commercial use as long as
- * the following conditions are aheared to.  The following conditions
- * apply to all code found in this distribution, be it the RC4, RSA,
- * lhash, DES, etc., code; not just the SSL code.  The SSL documentation
- * included with this distribution is covered by the same copyright terms
- * except that the holder is Tim Hudson (tjh@cryptsoft.com).
- * 
- * Copyright remains Eric Young's, and as such any Copyright notices in
- * the code are not to be removed.
- * If this package is used in a product, Eric Young should be given attribution
- * as the author of the parts of the library used.
- * This can be in the form of a textual message at program startup or
- * in documentation (online or textual) provided with the package.
- * 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
- * 1. Redistributions of source code must retain the copyright
- *    notice, this list of conditions and the following disclaimer.
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer. 
+ *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:
- *    "This product includes cryptographic software written by
- *     Eric Young (eay@cryptsoft.com)"
- *    The word 'cryptographic' can be left out if the rouines from the library
- *    being used are not cryptographic related :-).
- * 4. If you include any Windows specific code (or a derivative thereof) from 
- *    the apps directory (application code) you must include an acknowledgement:
- *    "This product includes software written by Tim Hudson (tjh@cryptsoft.com)"
- * 
- * THIS SOFTWARE IS PROVIDED BY ERIC YOUNG ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- * 
- * The licence and distribution terms for any publically available version or
- * derivative of this code cannot be changed.  i.e. this code cannot simply be
- * copied and put under another distribution licence
- * [including the GNU Public Licence.]
+ *    notice, this list of conditions and the following disclaimer in
+ *    the documentation and/or other materials provided with the
+ *    distribution.
+ *
+ * 3. All advertising materials mentioning features or use of this
+ *    software must display the following acknowledgment:
+ *    "This product includes software developed by the OpenSSL Project
+ *    for use in the OpenSSL Toolkit. (http://www.OpenSSL.org/)"
+ *
+ * 4. The names "OpenSSL Toolkit" and "OpenSSL Project" must not be used to
+ *    endorse or promote products derived from this software without
+ *    prior written permission. For written permission, please contact
+ *    openssl-core@OpenSSL.org.
+ *
+ * 5. Products derived from this software may not be called "OpenSSL"
+ *    nor may "OpenSSL" appear in their names without prior written
+ *    permission of the OpenSSL Project.
+ *
+ * 6. Redistributions of any form whatsoever must retain the following
+ *    acknowledgment:
+ *    "This product includes software developed by the OpenSSL Project
+ *    for use in the OpenSSL Toolkit (http://www.OpenSSL.org/)"
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE OpenSSL PROJECT ``AS IS'' AND ANY
+ * EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE OpenSSL PROJECT OR
+ * ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ * ====================================================================
+ *
+ * This product includes cryptographic software written by Eric Young
+ * (eay@cryptsoft.com).  This product includes software written by Tim
+ * Hudson (tjh@cryptsoft.com).
+ *
  */
+
+/* NOTE: this file was auto generated by the mkerr.pl script: any changes
+ * made to it will be overwritten when the script next updates this file.
+ */
+
 #include <stdio.h>
-#include "err.h"
-#include "ssl.h"
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 
 /* BEGIN ERROR CODES */
 #ifndef NO_ERR
@@ -128,6 +130,8 @@ static ERR_STRING_DATA SSL_str_functs[]=
 {ERR_PACK(0,SSL_F_SSL_ADD_FILE_CERT_SUBJECTS_TO_STACK,0),	"SSL_add_file_cert_subjects_to_stack"},
 {ERR_PACK(0,SSL_F_SSL_BAD_METHOD,0),	"SSL_BAD_METHOD"},
 {ERR_PACK(0,SSL_F_SSL_BYTES_TO_CIPHER_LIST,0),	"SSL_BYTES_TO_CIPHER_LIST"},
+{ERR_PACK(0,SSL_F_SSL_CERT_DUP,0),	"SSL_CERT_DUP"},
+{ERR_PACK(0,SSL_F_SSL_CERT_INST,0),	"SSL_CERT_INST"},
 {ERR_PACK(0,SSL_F_SSL_CERT_INSTANTIATE,0),	"SSL_CERT_INSTANTIATE"},
 {ERR_PACK(0,SSL_F_SSL_CERT_NEW,0),	"SSL_CERT_NEW"},
 {ERR_PACK(0,SSL_F_SSL_CHECK_PRIVATE_KEY,0),	"SSL_check_private_key"},
@@ -136,9 +140,11 @@ static ERR_STRING_DATA SSL_str_functs[]=
 {ERR_PACK(0,SSL_F_SSL_CREATE_CIPHER_LIST,0),	"SSL_CREATE_CIPHER_LIST"},
 {ERR_PACK(0,SSL_F_SSL_CTX_CHECK_PRIVATE_KEY,0),	"SSL_CTX_check_private_key"},
 {ERR_PACK(0,SSL_F_SSL_CTX_NEW,0),	"SSL_CTX_new"},
+{ERR_PACK(0,SSL_F_SSL_CTX_SET_SESSION_ID_CONTEXT,0),	"SSL_CTX_set_session_id_context"},
 {ERR_PACK(0,SSL_F_SSL_CTX_SET_SSL_VERSION,0),	"SSL_CTX_set_ssl_version"},
 {ERR_PACK(0,SSL_F_SSL_CTX_USE_CERTIFICATE,0),	"SSL_CTX_use_certificate"},
 {ERR_PACK(0,SSL_F_SSL_CTX_USE_CERTIFICATE_ASN1,0),	"SSL_CTX_use_certificate_ASN1"},
+{ERR_PACK(0,SSL_F_SSL_CTX_USE_CERTIFICATE_CHAIN_FILE,0),	"SSL_CTX_use_certificate_chain_file"},
 {ERR_PACK(0,SSL_F_SSL_CTX_USE_CERTIFICATE_FILE,0),	"SSL_CTX_use_certificate_file"},
 {ERR_PACK(0,SSL_F_SSL_CTX_USE_PRIVATEKEY,0),	"SSL_CTX_use_PrivateKey"},
 {ERR_PACK(0,SSL_F_SSL_CTX_USE_PRIVATEKEY_ASN1,0),	"SSL_CTX_use_PrivateKey_ASN1"},
@@ -154,10 +160,12 @@ static ERR_STRING_DATA SSL_str_functs[]=
 {ERR_PACK(0,SSL_F_SSL_INIT_WBIO_BUFFER,0),	"SSL_INIT_WBIO_BUFFER"},
 {ERR_PACK(0,SSL_F_SSL_LOAD_CLIENT_CA_FILE,0),	"SSL_load_client_CA_file"},
 {ERR_PACK(0,SSL_F_SSL_NEW,0),	"SSL_new"},
+{ERR_PACK(0,SSL_F_SSL_READ,0),	"SSL_read"},
 {ERR_PACK(0,SSL_F_SSL_RSA_PRIVATE_DECRYPT,0),	"SSL_RSA_PRIVATE_DECRYPT"},
 {ERR_PACK(0,SSL_F_SSL_RSA_PUBLIC_ENCRYPT,0),	"SSL_RSA_PUBLIC_ENCRYPT"},
 {ERR_PACK(0,SSL_F_SSL_SESSION_NEW,0),	"SSL_SESSION_new"},
 {ERR_PACK(0,SSL_F_SSL_SESSION_PRINT_FP,0),	"SSL_SESSION_print_fp"},
+{ERR_PACK(0,SSL_F_SSL_SESS_CERT_NEW,0),	"SSL_SESS_CERT_NEW"},
 {ERR_PACK(0,SSL_F_SSL_SET_CERT,0),	"SSL_SET_CERT"},
 {ERR_PACK(0,SSL_F_SSL_SET_FD,0),	"SSL_set_fd"},
 {ERR_PACK(0,SSL_F_SSL_SET_PKEY,0),	"SSL_SET_PKEY"},
@@ -165,6 +173,7 @@ static ERR_STRING_DATA SSL_str_functs[]=
 {ERR_PACK(0,SSL_F_SSL_SET_SESSION,0),	"SSL_set_session"},
 {ERR_PACK(0,SSL_F_SSL_SET_SESSION_ID_CONTEXT,0),	"SSL_set_session_id_context"},
 {ERR_PACK(0,SSL_F_SSL_SET_WFD,0),	"SSL_set_wfd"},
+{ERR_PACK(0,SSL_F_SSL_SHUTDOWN,0),	"SSL_shutdown"},
 {ERR_PACK(0,SSL_F_SSL_UNDEFINED_FUNCTION,0),	"SSL_UNDEFINED_FUNCTION"},
 {ERR_PACK(0,SSL_F_SSL_USE_CERTIFICATE,0),	"SSL_use_certificate"},
 {ERR_PACK(0,SSL_F_SSL_USE_CERTIFICATE_ASN1,0),	"SSL_use_certificate_ASN1"},
@@ -181,7 +190,7 @@ static ERR_STRING_DATA SSL_str_functs[]=
 {ERR_PACK(0,SSL_F_TLS1_ENC,0),	"TLS1_ENC"},
 {ERR_PACK(0,SSL_F_TLS1_SETUP_KEY_BLOCK,0),	"TLS1_SETUP_KEY_BLOCK"},
 {ERR_PACK(0,SSL_F_WRITE_PENDING,0),	"WRITE_PENDING"},
-{0,NULL},
+{0,NULL}
 	};
 
 static ERR_STRING_DATA SSL_str_reasons[]=
@@ -249,6 +258,7 @@ static ERR_STRING_DATA SSL_str_reasons[]=
 {SSL_R_INVALID_CHALLENGE_LENGTH          ,"invalid challenge length"},
 {SSL_R_LENGTH_MISMATCH                   ,"length mismatch"},
 {SSL_R_LENGTH_TOO_SHORT                  ,"length too short"},
+{SSL_R_LIBRARY_BUG                       ,"library bug"},
 {SSL_R_LIBRARY_HAS_NO_CIPHERS            ,"library has no ciphers"},
 {SSL_R_MISSING_DH_DSA_CERT               ,"missing dh dsa cert"},
 {SSL_R_MISSING_DH_KEY                    ,"missing dh key"},
@@ -308,6 +318,7 @@ static ERR_STRING_DATA SSL_str_reasons[]=
 {SSL_R_REUSE_CERT_LENGTH_NOT_ZERO        ,"reuse cert length not zero"},
 {SSL_R_REUSE_CERT_TYPE_NOT_ZERO          ,"reuse cert type not zero"},
 {SSL_R_REUSE_CIPHER_LIST_NOT_ZERO        ,"reuse cipher list not zero"},
+{SSL_R_SESSION_ID_CONTEXT_UNINITIALIZED  ,"session id context uninitialized"},
 {SSL_R_SHORT_READ                        ,"short read"},
 {SSL_R_SIGNATURE_FOR_NON_SIGNING_CERTIFICATE,"signature for non signing certificate"},
 {SSL_R_SSL23_DOING_SESSION_ID_REUSE      ,"ssl23 doing session id reuse"},
@@ -359,6 +370,7 @@ static ERR_STRING_DATA SSL_str_reasons[]=
 {SSL_R_UNABLE_TO_LOAD_SSL3_SHA1_ROUTINES ,"unable to load ssl3 sha1 routines"},
 {SSL_R_UNEXPECTED_MESSAGE                ,"unexpected message"},
 {SSL_R_UNEXPECTED_RECORD                 ,"unexpected record"},
+{SSL_R_UNINITIALIZED                     ,"uninitialized"},
 {SSL_R_UNKNOWN_ALERT_TYPE                ,"unknown alert type"},
 {SSL_R_UNKNOWN_CERTIFICATE_TYPE          ,"unknown certificate type"},
 {SSL_R_UNKNOWN_CIPHER_RETURNED           ,"unknown cipher returned"},
@@ -383,12 +395,12 @@ static ERR_STRING_DATA SSL_str_reasons[]=
 {SSL_R_WRONG_VERSION_NUMBER              ,"wrong version number"},
 {SSL_R_X509_LIB                          ,"x509 lib"},
 {SSL_R_X509_VERIFICATION_SETUP_PROBLEMS  ,"x509 verification setup problems"},
-{0,NULL},
+{0,NULL}
 	};
 
 #endif
 
-void ERR_load_SSL_strings()
+void ERR_load_SSL_strings(void)
 	{
 	static int init=1;
 

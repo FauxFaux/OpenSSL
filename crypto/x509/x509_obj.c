@@ -58,27 +58,24 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "lhash.h"
-#include "objects.h"
-#include "x509.h"
-#include "buffer.h"
+#include <openssl/lhash.h>
+#include <openssl/objects.h>
+#include <openssl/x509.h>
+#include <openssl/buffer.h>
 
-char *X509_NAME_oneline(a,buf,len)
-X509_NAME *a;
-char *buf;
-int len;
+char *X509_NAME_oneline(X509_NAME *a, char *buf, int len)
 	{
 	X509_NAME_ENTRY *ne;
-	unsigned int i;
+int i;
 	int n,lold,l,l1,l2,num,j,type;
-	char *s,*p;
+	const char *s;
+	char *p;
 	unsigned char *q;
 	BUF_MEM *b=NULL;
 	static char hex[17]="0123456789ABCDEF";
 	int gs_doit[4];
 	char tmp_buf[80];
 
-	if (a == NULL) return("NO X509_NAME");
 	if (buf == NULL)
 		{
 		if ((b=BUF_MEM_new()) == NULL) goto err;
@@ -86,12 +83,22 @@ int len;
 		b->data[0]='\0';
 		len=200;
 		}
+	if (a == NULL)
+	    {
+	    if(b)
+		{
+		buf=b->data;
+		Free(b);
+		}
+	    strncpy(buf,"NO X509_NAME",len);
+	    return buf;
+	    }
 
 	len--; /* space for '\0' */
 	l=0;
-	for (i=0; (int)i<sk_num(a->entries); i++)
+	for (i=0; i<sk_X509_NAME_ENTRY_num(a->entries); i++)
 		{
-		ne=(X509_NAME_ENTRY *)sk_value(a->entries,i);
+		ne=sk_X509_NAME_ENTRY_value(a->entries,i);
 		n=OBJ_obj2nid(ne->object);
 		if ((n == NID_undef) || ((s=OBJ_nid2sn(n)) == NULL))
 			{
@@ -166,7 +173,7 @@ int len;
 	if (b != NULL)
 		{
 		p=b->data;
-		Free((char *)b);
+		Free(b);
 		}
 	else
 		p=buf;

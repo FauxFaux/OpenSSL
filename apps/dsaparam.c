@@ -56,18 +56,19 @@
  * [including the GNU Public Licence.]
  */
 
+#ifndef NO_DSA
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
 #include "apps.h"
-#include "bio.h"
-#include "err.h"
-#include "bn.h"
-#include "rand.h"
-#include "dsa.h"
-#include "x509.h"
-#include "pem.h"
+#include <openssl/bio.h>
+#include <openssl/err.h>
+#include <openssl/bn.h>
+#include <openssl/rand.h>
+#include <openssl/dsa.h>
+#include <openssl/x509.h>
+#include <openssl/pem.h>
 
 #undef PROG
 #define PROG	dsaparam_main
@@ -83,15 +84,8 @@
  * -genkey
  */
 
-#ifndef NOPROTO
 static void MS_CALLBACK dsa_cb(int p, int n, char *arg);
-#else
-static void MS_CALLBACK dsa_cb();
-#endif
-
-int MAIN(argc, argv)
-int argc;
-char **argv;
+int MAIN(int argc, char **argv)
 	{
 	DSA *dsa=NULL;
 	int i,badops=0,text=0;
@@ -342,10 +336,7 @@ end:
 	EXIT(ret);
 	}
 
-static void MS_CALLBACK dsa_cb(p, n, arg)
-int p;
-int n;
-char *arg;
+static void MS_CALLBACK dsa_cb(int p, int n, char *arg)
 	{
 	char c='*';
 
@@ -359,3 +350,4 @@ char *arg;
 	p=n;
 #endif
 	}
+#endif

@@ -56,7 +56,7 @@
  * [including the GNU Public Licence.]
  */
 
-#include "cast.h"
+#include <openssl/cast.h>
 #include "cast_lcl.h"
 #include "cast_s.h"
 
@@ -72,10 +72,7 @@
 #define S6 CAST_S_table6
 #define S7 CAST_S_table7
 
-void CAST_set_key(key,len,data)
-CAST_KEY *key;
-int len;
-unsigned char *data;
+void CAST_set_key(CAST_KEY *key, int len, unsigned char *data)
 	{
 	CAST_LONG x[16];
 	CAST_LONG z[16];

@@ -60,33 +60,37 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include "e_os.h"
-#include "bio.h"
-#include "crypto.h"
-#include "x509.h"
-#include "ssl.h"
-#include "err.h"
+
+#include "openssl/e_os.h"
+
+#include <openssl/bio.h>
+#include <openssl/crypto.h>
+#include <openssl/x509.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 #ifdef WINDOWS
 #include "../crypto/bio/bss_file.c"
 #endif
 
-#define TEST_SERVER_CERT "../apps/server.pem"
-#define TEST_CLIENT_CERT "../apps/client.pem"
+#if defined(NO_RSA) && !defined(NO_SSL2)
+#define NO_SSL2
+#endif
 
-#ifndef NOPROTO
+#ifdef VMS
+#  define TEST_SERVER_CERT "SYS$DISK:[-.APPS]SERVER.PEM"
+#  define TEST_CLIENT_CERT "SYS$DISK:[-.APPS]CLIENT.PEM"
+#else
+#  define TEST_SERVER_CERT "../apps/server.pem"
+#  define TEST_CLIENT_CERT "../apps/client.pem"
+#endif
+
 int MS_CALLBACK verify_callback(int ok, X509_STORE_CTX *ctx);
+#ifndef NO_RSA
 static RSA MS_CALLBACK *tmp_rsa_cb(SSL *s, int export,int keylength);
-#ifndef NO_DSA
+#endif
+#ifndef NO_DH
 static DH *get_dh512(void);
 #endif
-#else
-int MS_CALLBACK verify_callback();
-static RSA MS_CALLBACK *tmp_rsa_cb();
-#ifndef NO_DSA
-static DH *get_dh512();
-#endif
-#endif
-
 BIO *bio_err=NULL;
 BIO *bio_stdout=NULL;
 
@@ -98,13 +102,8 @@ static int s_nbio=0;
 #endif
 
 
-#ifndef  NOPROTO
 int doit(SSL *s_ssl,SSL *c_ssl,long bytes);
-#else
-int doit();
-#endif
-
-static void sv_usage()
+static void sv_usage(void)
 	{
 	fprintf(stderr,"usage: ssltest [args ...]\n");
 	fprintf(stderr,"\n");
@@ -132,9 +131,7 @@ static void sv_usage()
 	fprintf(stderr," -cipher arg   - The cipher list\n");
 	}
 
-int main(argc, argv)
-int argc;
-char *argv[];
+int main(int argc, char *argv[])
 	{
 	char *CApath=NULL,*CAfile=NULL;
 	int badop=0;
@@ -373,9 +370,7 @@ end:
 #define C_DONE	1
 #define S_DONE	2
 
-int doit(s_ssl,c_ssl,count)
-SSL *s_ssl,*c_ssl;
-long count;
+int doit(SSL *s_ssl, SSL *c_ssl, long count)
 	{
 	MS_STATIC char cbuf[1024*8],sbuf[1024*8];
 	long cw_num=count,cr_num=count;
@@ -674,9 +669,7 @@ err:
 	return(ret);
 	}
 
-int MS_CALLBACK verify_callback(ok, ctx)
-int ok;
-X509_STORE_CTX *ctx;
+int MS_CALLBACK verify_callback(int ok, X509_STORE_CTX *ctx)
 	{
 	char *s,buf[256];
 
@@ -717,7 +710,7 @@ static unsigned char dh512_g[]={
 	0x02,
 	};
 
-static DH *get_dh512()
+static DH *get_dh512(void)
 	{
 	DH *dh=NULL;
 
@@ -730,10 +723,8 @@ static DH *get_dh512()
 	}
 #endif
 
-static RSA MS_CALLBACK *tmp_rsa_cb(s,export,keylength)
-SSL *s;
-int export;
-int keylength;
+#ifndef NO_RSA
+static RSA MS_CALLBACK *tmp_rsa_cb(SSL *s, int export, int keylength)
 	{
 	static RSA *rsa_tmp=NULL;
 
@@ -741,13 +732,10 @@ int keylength;
 		{
 		BIO_printf(bio_err,"Generating temp (%d bit) RSA key...",keylength);
 		BIO_flush(bio_err);
-#ifndef NO_RSA
 		rsa_tmp=RSA_generate_key(keylength,RSA_F4,NULL,NULL);
-#endif
 		BIO_printf(bio_err,"\n");
 		BIO_flush(bio_err);
 		}
 	return(rsa_tmp);
 	}
-
-
+#endif

@@ -58,7 +58,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "cryptlib.h"
-#include "tmdiff.h"
+#include <openssl/tmdiff.h>
 
 #ifdef TIMEB
 #undef WIN32
@@ -67,27 +67,27 @@
 
 #ifndef MSDOS
 #  ifndef WIN32
-#    define TIMES
+#    if !defined(VMS) || defined(__DECC)
+#      define TIMES
+#    endif
 #  endif
 #endif
 
-#ifndef VMS
-#  ifndef _IRIX
-#   include <time.h>
-#  endif
-#  ifdef TIMES
-#    include <sys/types.h>
-#    include <sys/times.h>
-#  endif
-#else /* VMS */
-#  include <types.h>
-	struct tms {
-		time_t tms_utime;
-		time_t tms_stime;
-		time_t tms_uchild;      /* I dunno...  */
-		time_t tms_uchildsys;   /* so these names are a guess :-) */
-		}
-#endif /* VMS */
+#ifndef _IRIX
+#  include <time.h>
+#endif
+#ifdef TIMES
+#  include <sys/types.h>
+#  include <sys/times.h>
+#endif
+
+/* Depending on the VMS version, the tms structure is perhaps defined.
+   The __TMS macro will show if it was.  If it wasn't defined, we should
+   undefine TIMES, since that tells the rest of the program how things
+   should be handled.				-- Richard Levitte */
+#if defined(VMS) && defined(__DECC) && !defined(__TMS)
+#undef TIMES
+#endif
 
 #if defined(sun) || defined(__ultrix)
 #define _POSIX_SOURCE
@@ -107,11 +107,7 @@
 #ifndef HZ
 # ifndef CLK_TCK
 #  ifndef _BSD_CLK_TCK_ /* FreeBSD hack */
-#   ifndef VMS
-#    define HZ  100.0
-#   else /* VMS */
-#    define HZ  100.0
-#   endif
+#   define HZ  100.0
 #  else /* _BSD_CLK_TCK_ */
 #   define HZ ((double)_BSD_CLK_TCK_)
 #  endif
@@ -134,7 +130,7 @@ typedef struct ms_tm
 #endif
 	} MS_TM;
 
-char *ms_time_new()
+char *ms_time_new(void)
 	{
 	MS_TM *ret;
 
@@ -148,15 +144,13 @@ char *ms_time_new()
 	return((char *)ret);
 	}
 
-void ms_time_free(a)
-char *a;
+void ms_time_free(char *a)
 	{
 	if (a != NULL)
 		Free(a);
 	}
 
-void ms_time_get(a)
-char *a;
+void ms_time_get(char *a)
 	{
 	MS_TM *tm=(MS_TM *)a;
 #ifdef WIN32
@@ -174,8 +168,7 @@ char *a;
 #endif
 	}
 
-double ms_time_diff(ap,bp)
-char *ap,*bp;
+double ms_time_diff(char *ap, char *bp)
 	{
 	MS_TM *a=(MS_TM *)ap;
 	MS_TM *b=(MS_TM *)bp;
@@ -186,7 +179,11 @@ char *ap,*bp;
 #else
 # ifdef WIN32
 	{
+#ifdef __GNUC__
+	signed long long la,lb;
+#else
 	signed _int64 la,lb;
+#endif
 	la=a->ms_win32.dwHighDateTime;
 	lb=b->ms_win32.dwHighDateTime;
 	la<<=32;
@@ -204,8 +201,7 @@ char *ap,*bp;
 	return((ret < 0.0000001)?0.0000001:ret);
 	}
 
-int ms_time_cmp(ap,bp)
-char *ap,*bp;
+int ms_time_cmp(char *ap, char *bp)
 	{
 	MS_TM *a=(MS_TM *)ap,*b=(MS_TM *)bp;
 	double d;

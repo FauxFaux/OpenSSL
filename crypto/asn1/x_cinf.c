@@ -58,16 +58,9 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "asn1_mac.h"
+#include <openssl/asn1_mac.h>
 
-/*
- * ASN1err(ASN1_F_D2I_X509_CINF,ERR_R_ASN1_LENGTH_MISMATCH);
- * ASN1err(ASN1_F_X509_CINF_NEW,ERR_R_ASN1_LENGTH_MISMATCH);
- */
-
-int i2d_X509_CINF(a,pp)
-X509_CINF *a;
-unsigned char **pp;
+int i2d_X509_CINF(X509_CINF *a, unsigned char **pp)
 	{
 	int v1=0,v2=0;
 	M_ASN1_I2D_vars(a);
@@ -81,7 +74,9 @@ unsigned char **pp;
 	M_ASN1_I2D_len(a->key,			i2d_X509_PUBKEY);
 	M_ASN1_I2D_len_IMP_opt(a->issuerUID,	i2d_ASN1_BIT_STRING);
 	M_ASN1_I2D_len_IMP_opt(a->subjectUID,	i2d_ASN1_BIT_STRING);
-	M_ASN1_I2D_len_EXP_SEQUENCE_opt(a->extensions,i2d_X509_EXTENSION,3,V_ASN1_SEQUENCE,v2);
+	M_ASN1_I2D_len_EXP_SEQUENCE_opt_type(X509_EXTENSION,a->extensions,
+					     i2d_X509_EXTENSION,3,
+					     V_ASN1_SEQUENCE,v2);
 
 	M_ASN1_I2D_seq_total();
 
@@ -94,15 +89,14 @@ unsigned char **pp;
 	M_ASN1_I2D_put(a->key,			i2d_X509_PUBKEY);
 	M_ASN1_I2D_put_IMP_opt(a->issuerUID,	i2d_ASN1_BIT_STRING,1);
 	M_ASN1_I2D_put_IMP_opt(a->subjectUID,	i2d_ASN1_BIT_STRING,2);
-	M_ASN1_I2D_put_EXP_SEQUENCE_opt(a->extensions,i2d_X509_EXTENSION,3,V_ASN1_SEQUENCE,v2);
+	M_ASN1_I2D_put_EXP_SEQUENCE_opt_type(X509_EXTENSION,a->extensions,
+					     i2d_X509_EXTENSION,3,
+					     V_ASN1_SEQUENCE,v2);
 
 	M_ASN1_I2D_finish();
 	}
 
-X509_CINF *d2i_X509_CINF(a,pp,length)
-X509_CINF **a;
-unsigned char **pp;
-long length;
+X509_CINF *d2i_X509_CINF(X509_CINF **a, unsigned char **pp, long length)
 	{
 	int ver=0;
 	M_ASN1_D2I_vars(a,X509_CINF *,X509_CINF_new);
@@ -157,16 +151,18 @@ long length;
 #endif
 		{
 		if (ret->extensions != NULL)
-			while (sk_num(ret->extensions))
-				X509_EXTENSION_free((X509_EXTENSION *)
-					sk_pop(ret->extensions));
-		M_ASN1_D2I_get_EXP_set_opt(ret->extensions,d2i_X509_EXTENSION,
-			X509_EXTENSION_free,3,V_ASN1_SEQUENCE);
+			while (sk_X509_EXTENSION_num(ret->extensions))
+				X509_EXTENSION_free(
+				      sk_X509_EXTENSION_pop(ret->extensions));
+		M_ASN1_D2I_get_EXP_set_opt_type(X509_EXTENSION,ret->extensions,
+						d2i_X509_EXTENSION,
+						X509_EXTENSION_free,3,
+						V_ASN1_SEQUENCE);
 		}
 	M_ASN1_D2I_Finish(a,X509_CINF_free,ASN1_F_D2I_X509_CINF);
 	}
 
-X509_CINF *X509_CINF_new()
+X509_CINF *X509_CINF_new(void)
 	{
 	X509_CINF *ret=NULL;
 	ASN1_CTX c;
@@ -186,8 +182,7 @@ X509_CINF *X509_CINF_new()
 	M_ASN1_New_Error(ASN1_F_X509_CINF_NEW);
 	}
 
-void X509_CINF_free(a)
-X509_CINF *a;
+void X509_CINF_free(X509_CINF *a)
 	{
 	if (a == NULL) return;
 	ASN1_INTEGER_free(a->version);
@@ -199,7 +194,7 @@ X509_CINF *a;
 	X509_PUBKEY_free(a->key);
 	ASN1_BIT_STRING_free(a->issuerUID);
 	ASN1_BIT_STRING_free(a->subjectUID);
-	sk_pop_free(a->extensions,X509_EXTENSION_free);
-	Free((char *)a);
+	sk_X509_EXTENSION_pop_free(a->extensions,X509_EXTENSION_free);
+	Free(a);
 	}
 

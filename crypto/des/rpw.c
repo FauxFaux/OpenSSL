@@ -57,11 +57,9 @@
  */
 
 #include <stdio.h>
-#include "des.h"
+#include <openssl/des.h>
 
-int main(argc,argv)
-int argc;
-char *argv[];
+int main(int argc, char *argv[])
 	{
 	des_cblock k,k1;
 	int i;

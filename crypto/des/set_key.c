@@ -67,31 +67,24 @@
 #include "podd.h"
 #include "sk.h"
 
-#ifndef NOPROTO
-static int check_parity(const des_cblock key);
-#else
-static int check_parity();
-#endif
+static int check_parity(const_des_cblock *key);
+OPENSSL_GLOBAL int des_check_key=0;
 
-int des_check_key=0;
-
-void des_set_odd_parity(key)
-des_cblock key;
+void des_set_odd_parity(des_cblock *key)
 	{
 	int i;
 
 	for (i=0; i<DES_KEY_SZ; i++)
-		key[i]=odd_parity[key[i]];
+		(*key)[i]=odd_parity[(*key)[i]];
 	}
 
-static int check_parity(key)
-const des_cblock key;
+static int check_parity(const_des_cblock *key)
 	{
 	int i;
 
 	for (i=0; i<DES_KEY_SZ; i++)
 		{
-		if (key[i] != odd_parity[key[i]])
+		if ((*key)[i] != odd_parity[(*key)[i]])
 			return(0);
 		}
 	return(1);
@@ -127,8 +120,7 @@ static des_cblock weak_keys[NUM_WEAK_KEY]={
 	{0xE0,0xFE,0xE0,0xFE,0xF1,0xFE,0xF1,0xFE},
 	{0xFE,0xE0,0xFE,0xE0,0xFE,0xF1,0xFE,0xF1}};
 
-int des_is_weak_key(key)
-const des_cblock key;
+int des_is_weak_key(const_des_cblock *key)
 	{
 	int i;
 
@@ -157,13 +149,11 @@ const des_cblock key;
  * return -1 if key parity error,
  * return -2 if illegal weak key.
  */
-int des_set_key(key, schedule)
-const des_cblock key;
-des_key_schedule schedule;
+int des_set_key(const_des_cblock *key, des_key_schedule schedule)
 	{
 	static int shifts2[16]={0,0,1,1,1,1,1,1,0,1,1,1,1,1,1,0};
 	register DES_LONG c,d,t,s,t2;
-	register unsigned char *in;
+	register const unsigned char *in;
 	register DES_LONG *k;
 	register int i;
 
@@ -177,7 +167,7 @@ des_key_schedule schedule;
 		}
 
 	k=(DES_LONG *)schedule;
-	in=(unsigned char *)key;
+	in = &(*key)[0];
 
 	c2l(in,c);
 	c2l(in,d);
@@ -238,9 +228,7 @@ des_key_schedule schedule;
 	return(0);
 	}
 
-int des_key_sched(key, schedule)
-const des_cblock key;
-des_key_schedule schedule;
+int des_key_sched(const_des_cblock *key, des_key_schedule schedule)
 	{
 	return(des_set_key(key,schedule));
 	}

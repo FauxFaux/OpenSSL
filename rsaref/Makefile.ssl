@@ -7,6 +7,8 @@ TOP=	..
 CC=	cc
 INCLUDES= -I../crypto -I../include
 CFLAG=-g
+INSTALL_PREFIX=
+OPENSSLDIR=     /usr/local/ssl
 INSTALLTOP=/usr/local/ssl
 MAKE=		make -f Makefile.ssl
 MAKEDEPEND=	$(TOP)/util/domd $(TOP)
@@ -15,15 +17,13 @@ AR=		ar r
 
 CFLAGS= $(INCLUDES) $(CFLAG)
 
-ERR=rsaref
-ERRC=rsar_err
-GENERAL=Makefile
+GENERAL=Makefile rsaref-lib.com install.com
 TEST=
 APPS=
 
 LIB=$(TOP)/libRSAglue.a
-LIBSRC=	rsaref.c $(ERRC).c
-LIBOBJ= rsaref.o $(ERRC).o
+LIBSRC=	rsaref.c rsar_err.c
+LIBOBJ= rsaref.o rsar_err.o
 
 SRC= $(LIBSRC)
 
@@ -39,24 +39,24 @@ all:	lib
 
 lib:	$(LIBOBJ)
 	$(AR) $(LIB) $(LIBOBJ)
-	sh $(TOP)/util/ranlib.sh $(LIB)
+	$(RANLIB) $(LIB)
 	@touch lib
 
 files:
-	perl $(TOP)/util/files.pl Makefile.ssl >> $(TOP)/MINFO
+	$(PERL) $(TOP)/util/files.pl Makefile.ssl >> $(TOP)/MINFO
 
 links:
 	@$(TOP)/util/point.sh Makefile.ssl Makefile
-	@$(TOP)/util/mklink.sh ../include $(EXHEADER)
-	@$(TOP)/util/mklink.sh ../test $(TEST)
-	@$(TOP)/util/mklink.sh ../apps $(APPS)
+	@$(PERL) $(TOP)/util/mklink.pl ../include/openssl $(EXHEADER)
+	@$(PERL) $(TOP)/util/mklink.pl ../test $(TEST)
+	@$(PERL) $(TOP)/util/mklink.pl ../apps $(APPS)
 
 install:
 
 #	@for i in $(EXHEADER) ; \
 #	do  \
-#	(cp $$i $(INSTALLTOP)/include/$$i; \
-#	chmod 644 $(INSTALLTOP)/include/$$i ); \
+#	(cp $$i $(INSTALL_PREFIX)$(INSTALLTOP)/include/openssl/$$i; \
+#	chmod 644 $(INSTALL_PREFIX)$(INSTALLTOP)/include/openssl/$$i ); \
 #	done;
 
 tags:
@@ -71,23 +71,22 @@ depend:
 	$(MAKEDEPEND) $(INCLUDES) $(PROGS) $(LIBSRC)
 
 dclean:
-	perl -pe 'if (/^# DO NOT DELETE THIS LINE/) {print; exit(0);}' $(MAKEFILE) >Makefile.new
+	$(PERL) -pe 'if (/^# DO NOT DELETE THIS LINE/) {print; exit(0);}' $(MAKEFILE) >Makefile.new
 	mv -f Makefile.new $(MAKEFILE)
 
 clean:
 	rm -f *.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
 
-errors: $(ERRC).c
-
-$(ERRC).c: $(ERR).err
-	perl $(TOP)/util/err-ins.pl $(ERR).err $(ERR).h
-	perl ../crypto/err/err_genc.pl -s $(ERR).h $(ERRC).c
-
 # DO NOT DELETE THIS LINE -- make depend depends on it.
 
-rsar_err.o: ../crypto/crypto.h ../crypto/opensslv.h ../include/bn.h
-rsar_err.o: ../include/err.h ../include/rsa.h ../include/stack.h rsaref.h
-rsaref.o: ../crypto/cryptlib.h ../crypto/crypto.h ../crypto/opensslv.h
-rsaref.o: ../include/bio.h ../include/bn.h ../include/buffer.h
-rsaref.o: ../include/e_os.h ../include/err.h ../include/rand.h ../include/rsa.h
-rsaref.o: ../include/stack.h rsaref.h
+rsar_err.o: ../include/openssl/bn.h ../include/openssl/crypto.h
+rsar_err.o: ../include/openssl/err.h ../include/openssl/opensslconf.h
+rsar_err.o: ../include/openssl/opensslv.h ../include/openssl/rsa.h
+rsar_err.o: ../include/openssl/rsaref.h ../include/openssl/stack.h
+rsaref.o: ../crypto/cryptlib.h ../include/openssl/bio.h ../include/openssl/bn.h
+rsaref.o: ../include/openssl/buffer.h ../include/openssl/crypto.h
+rsaref.o: ../include/openssl/e_os.h ../include/openssl/e_os2.h
+rsaref.o: ../include/openssl/err.h ../include/openssl/opensslconf.h
+rsaref.o: ../include/openssl/opensslv.h ../include/openssl/rand.h
+rsaref.o: ../include/openssl/rsa.h ../include/openssl/rsaref.h
+rsaref.o: ../include/openssl/stack.h

@@ -58,30 +58,21 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "buffer.h"
-#include "objects.h"
-#include "x509.h"
+#include <openssl/buffer.h>
+#include <openssl/objects.h>
+#include <openssl/x509.h>
 
-#ifndef NOPROTO
 static int asn1_print_info(BIO *bp, int tag, int xclass,int constructed,
 	int indent);
 static int asn1_parse2(BIO *bp, unsigned char **pp, long length,
 	int offset, int depth, int indent);
-#else
-static int asn1_print_info();
-static int asn1_parse2();
-#endif
-
-static int asn1_print_info(bp, tag, xclass, constructed,indent)
-BIO *bp;
-int tag;
-int xclass;
-int constructed;
-int indent;
+static int asn1_print_info(BIO *bp, int tag, int xclass, int constructed,
+	     int indent)
 	{
-	static char *fmt="%-18s";
-	static char *fmt2="%2d %-15s";
-	char *p,str[128],*p2=NULL;
+	static const char fmt[]="%-18s";
+	static const char fmt2[]="%2d %-15s";
+	char str[128];
+	const char *p,*p2=NULL;
 
 	if (constructed & V_ASN1_CONSTRUCTED)
 		p="cons: ";
@@ -140,8 +131,8 @@ int indent;
 		p="GENERALIZEDTIME";
 	else if (tag == V_ASN1_GRAPHICSTRING)
 		p="GRAPHICSTRING";
-	else if (tag == V_ASN1_ISO64STRING)
-		p="ISO64STRING";
+	else if (tag == V_ASN1_VISIBLESTRING)
+		p="VISIBLESTRING";
 	else if (tag == V_ASN1_GENERALSTRING)
 		p="GENERALSTRING";
 	else if (tag == V_ASN1_UNIVERSALSTRING)
@@ -164,22 +155,13 @@ err:
 	return(0);
 	}
 
-int ASN1_parse(bp, pp, len, indent)
-BIO *bp;
-unsigned char *pp;
-long len;
-int indent;
+int ASN1_parse(BIO *bp, unsigned char *pp, long len, int indent)
 	{
 	return(asn1_parse2(bp,&pp,len,0,0,indent));
 	}
 
-static int asn1_parse2(bp, pp, length, offset, depth, indent)
-BIO *bp;
-unsigned char **pp;
-long length;
-int offset;
-int depth;
-int indent;
+static int asn1_parse2(BIO *bp, unsigned char **pp, long length, int offset,
+	     int depth, int indent)
 	{
 	unsigned char *p,*ep,*tot,*op,*opp;
 	long len;
@@ -268,6 +250,7 @@ int indent;
 			if (	(tag == V_ASN1_PRINTABLESTRING) ||
 				(tag == V_ASN1_T61STRING) ||
 				(tag == V_ASN1_IA5STRING) ||
+				(tag == V_ASN1_VISIBLESTRING) ||
 				(tag == V_ASN1_UTCTIME) ||
 				(tag == V_ASN1_GENERALIZEDTIME))
 				{

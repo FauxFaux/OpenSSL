@@ -59,61 +59,19 @@
 #include <stdio.h>
 #include <errno.h>
 #define USE_SOCKETS
-#include "evp.h"
-#include "buffer.h"
+#include <openssl/evp.h>
+#include <openssl/buffer.h>
 #include "ssl_locl.h"
 
-/* SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_SSLV3_ALERT_PEER_ERROR_NO_CIPHER);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_SSLV3_ALERT_PEER_ERROR_NO_CERTIFICATE);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_SSLV3_ALERT_PEER_ERROR_CERTIFICATE);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_SSLV3_ALERT_PEER_ERROR_UNSUPPORTED_CERTIFICATE_TYPE);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_SSLV3_ALERT_UNKNOWN_REMOTE_ERROR_TYPE);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_SSLV3_ALERT_UNEXPECTED_MESSAGE);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_SSLV3_ALERT_BAD_RECORD_MAC);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_SSLV3_ALERT_DECOMPRESSION_FAILURE);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_SSLV3_ALERT_HANDSHAKE_FAILURE);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_SSLV3_ALERT_NO_CERTIFICATE);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_SSLV3_ALERT_BAD_CERTIFICATE);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_SSLV3_ALERT_UNSUPPORTED_CERTIFICATE);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_SSLV3_ALERT_CERTIFICATE_REVOKED);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_SSLV3_ALERT_CERTIFICATE_EXPIRED);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_SSLV3_ALERT_CERTIFICATE_UNKNOWN);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_SSLV3_ALERT_ILLEGAL_PARAMETER);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_TLSV1_ALERT_DECRYPTION_FAILED);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_TLSV1_ALERT_RECORD_OVERFLOW);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_TLSV1_ALERT_UNKNOWN_CA);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_TLSV1_ALERT_ACCESS_DENIED);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_TLSV1_ALERT_DECODE_ERROR);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_TLSV1_ALERT_DECRYPT_ERROR);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_TLSV1_ALERT_EXPORT_RESTRICION);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_TLSV1_ALERT_PROTOCOL_VERSION);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_TLSV1_ALERT_INSUFFICIENT_SECURITY);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_TLSV1_ALERT_INTERNAL_ERROR);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_TLSV1_ALERT_USER_CANCLED);
- * SSLerr(SSL_F_GET_SERVER_HELLO,SSL_R_TLSV1_ALERT_NO_RENEGOTIATION);
- */
-
-#ifndef NOPROTO
-static int do_ssl3_write(SSL *s, int type, char *buf, unsigned int len);
-static int ssl3_write_pending(SSL *s, int type, char *buf, unsigned int len);
+static int do_ssl3_write(SSL *s, int type, const unsigned char *buf,
+			 unsigned int len);
+static int ssl3_write_pending(SSL *s, int type, const unsigned char *buf,
+			      unsigned int len);
 static int ssl3_get_record(SSL *s);
 static int do_compress(SSL *ssl);
 static int do_uncompress(SSL *ssl);
 static int do_change_cipher_spec(SSL *ssl);
-#else
-static int do_ssl3_write();
-static int ssl3_write_pending();
-static int ssl3_get_record();
-static int do_compress();
-static int do_uncompress();
-static int do_change_cipher_spec();
-#endif
-
-static int ssl3_read_n(s,n,max,extend)
-SSL *s;
-int n;
-int max;
-int extend;
+static int ssl3_read_n(SSL *s, int n, int max, int extend)
 	{
 	int i,off,newb;
 
@@ -222,8 +180,7 @@ int extend;
  * ssl->s3->rrec.data, 	- data
  * ssl->s3->rrec.length, - number of bytes
  */
-static int ssl3_get_record(s)
-SSL *s;
+static int ssl3_get_record(SSL *s)
 	{
 	int ssl_major,ssl_minor,al;
 	int n,i,ret= -1;
@@ -434,8 +391,7 @@ err:
 	return(ret);
 	}
 
-static int do_uncompress(ssl)
-SSL *ssl;
+static int do_uncompress(SSL *ssl)
 	{
 	int i;
 	SSL3_RECORD *rr;
@@ -452,8 +408,7 @@ SSL *ssl;
 	return(1);
 	}
 
-static int do_compress(ssl)
-SSL *ssl;
+static int do_compress(SSL *ssl)
 	{
 	int i;
 	SSL3_RECORD *wr;
@@ -474,12 +429,9 @@ SSL *ssl;
 /* Call this to write data
  * It will return <= 0 if not all data has been sent or non-blocking IO.
  */
-int ssl3_write_bytes(s,type,buf,len)
-SSL *s;
-int type;
-char *buf;
-int len;
+int ssl3_write_bytes(SSL *s, int type, const void *_buf, int len)
 	{
+	const unsigned char *buf=_buf;
 	unsigned int tot,n,nw;
 	int i;
 
@@ -514,7 +466,7 @@ int len;
 			}
 
 		if (type == SSL3_RT_HANDSHAKE)
-			ssl3_finish_mac(s,(unsigned char *)&(buf[tot]),i);
+			ssl3_finish_mac(s,&(buf[tot]),i);
 
 		if (i == (int)n) return(tot+i);
 
@@ -523,11 +475,8 @@ int len;
 		}
 	}
 
-static int do_ssl3_write(s,type,buf,len)
-SSL *s;
-int type;
-char *buf;
-unsigned int len;
+static int do_ssl3_write(SSL *s, int type, const unsigned char *buf,
+			 unsigned int len)
 	{
 	unsigned char *p,*plen;
 	int i,mac_size,clear=0;
@@ -641,11 +590,8 @@ err:
 	}
 
 /* if s->s3->wbuf.left != 0, we need to call this */
-static int ssl3_write_pending(s,type,buf,len)
-SSL *s;
-int type;
-char *buf;
-unsigned int len;
+static int ssl3_write_pending(SSL *s, int type, const unsigned char *buf,
+			      unsigned int len)
 	{
 	int i;
 
@@ -685,11 +631,7 @@ unsigned int len;
 		}
 	}
 
-int ssl3_read_bytes(s,type,buf,len)
-SSL *s;
-int type;
-char *buf;
-int len;
+int ssl3_read_bytes(SSL *s, int type, unsigned char *buf, int len)
 	{
 	int al,i,j,n,ret;
 	SSL3_RECORD *rr;
@@ -975,7 +917,7 @@ start:
 		}
 
 	if (type == SSL3_RT_HANDSHAKE)
-		ssl3_finish_mac(s,(unsigned char *)buf,n);
+		ssl3_finish_mac(s,buf,n);
 	return(n);
 f_err:
 	ssl3_send_alert(s,SSL3_AL_FATAL,al);
@@ -983,8 +925,7 @@ err:
 	return(-1);
 	}
 
-static int do_change_cipher_spec(s)
-SSL *s;
+static int do_change_cipher_spec(SSL *s)
 	{
 	int i;
 	unsigned char *sender;
@@ -1026,14 +967,12 @@ SSL *s;
 	return(1);
 	}
 
-int ssl3_do_write(s,type)
-SSL *s;
-int type;
+int ssl3_do_write(SSL *s, int type)
 	{
 	int ret;
 
-	ret=ssl3_write_bytes(s,type,(char *)
-		&(s->init_buf->data[s->init_off]),s->init_num);
+	ret=ssl3_write_bytes(s,type,&s->init_buf->data[s->init_off],
+			     s->init_num);
 	if (ret == s->init_num)
 		return(1);
 	if (ret < 0) return(-1);
@@ -1042,10 +981,7 @@ int type;
 	return(0);
 	}
 
-void ssl3_send_alert(s,level,desc)
-SSL *s;
-int level;
-int desc;
+void ssl3_send_alert(SSL *s, int level, int desc)
 	{
 	/* Map tls/ssl alert value to correct one */
 	desc=s->method->ssl3_enc->alert_value(desc);
@@ -1063,14 +999,13 @@ int desc;
 	 * some time in the future */
 	}
 
-int ssl3_dispatch_alert(s)
-SSL *s;
+int ssl3_dispatch_alert(SSL *s)
 	{
 	int i,j;
 	void (*cb)()=NULL;
 
 	s->s3->alert_dispatch=0;
-	i=do_ssl3_write(s,SSL3_RT_ALERT,&(s->s3->send_alert[0]),2);
+	i=do_ssl3_write(s,SSL3_RT_ALERT,&s->s3->send_alert[0],2);
 	if (i <= 0)
 		{
 		s->s3->alert_dispatch=1;

@@ -58,22 +58,15 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "buffer.h"
-#include "bn.h"
-#include "objects.h"
-#include "x509.h"
-#include "x509v3.h"
+#include <openssl/buffer.h>
+#include <openssl/bn.h>
+#include <openssl/objects.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
-#ifndef NOPROTO
 static void ext_print(BIO *out, X509_EXTENSION *ex);
-#else
-static void ext_print();
-#endif
-
 #ifndef NO_FP_API
-int X509_CRL_print_fp(fp,x)
-FILE *fp;
-X509_CRL *x;
+int X509_CRL_print_fp(FILE *fp, X509_CRL *x)
         {
         BIO *b;
         int ret;
@@ -90,9 +83,7 @@ X509_CRL *x;
         }
 #endif
 
-int X509_CRL_print(out, x)
-BIO *out;
-X509_CRL *x;
+int X509_CRL_print(BIO *out, X509_CRL *x)
 {
 	char buf[256];
 	unsigned char *s;
@@ -157,9 +148,7 @@ X509_CRL *x;
 
 }
 
-static void ext_print(out, ex)
-BIO *out;
-X509_EXTENSION *ex;
+static void ext_print(BIO *out, X509_EXTENSION *ex)
 {
 	ASN1_OBJECT *obj;
 	int j;
@@ -167,8 +156,10 @@ X509_EXTENSION *ex;
 	obj=X509_EXTENSION_get_object(ex);
 	i2a_ASN1_OBJECT(out,obj);
 	j=X509_EXTENSION_get_critical(ex);
-	BIO_printf(out, ": %s\n%16s", j ? "critical":"","");
-	if(!X509V3_EXT_print(out, ex, 0))
-				 ASN1_OCTET_STRING_print(out,ex->value);
+	BIO_printf(out, ": %s\n", j ? "critical":"","");
+	if(!X509V3_EXT_print(out, ex, 0, 16)) {
+		BIO_printf(out, "%16s", "");
+		ASN1_OCTET_STRING_print(out,ex->value);
+	}
 	BIO_write(out,"\n",1);
 }

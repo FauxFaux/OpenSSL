@@ -64,16 +64,16 @@
 #define APPS_WIN16
 #endif
 #include "apps.h"
-#include "bio.h"
-#include "evp.h"
-#include "rand.h"
-#include "conf.h"
-#include "err.h"
-#include "asn1.h"
-#include "x509.h"
-#include "x509v3.h"
-#include "objects.h"
-#include "pem.h"
+#include <openssl/bio.h>
+#include <openssl/evp.h>
+#include <openssl/rand.h>
+#include <openssl/conf.h>
+#include <openssl/err.h>
+#include <openssl/asn1.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
+#include <openssl/objects.h>
+#include <openssl/pem.h>
 
 #define SECTION		"req"
 
@@ -107,26 +107,16 @@
  *		  require.  This format is wrong
  */
 
-#ifndef NOPROTO
 static int make_REQ(X509_REQ *req,EVP_PKEY *pkey,int attribs);
-static int add_attribute_object(STACK *n, char *text, char *def, 
-	char *value, int nid,int min,int max);
+static int add_attribute_object(STACK_OF(X509_ATTRIBUTE) *n, char *text,
+				char *def, char *value, int nid, int min,
+				int max);
 static int add_DN_object(X509_NAME *n, char *text, char *def, char *value,
 	int nid,int min,int max);
 static void MS_CALLBACK req_cb(int p,int n,char *arg);
 static int req_fix_data(int nid,int *type,int len,int min,int max);
 static int check_end(char *str, char *end);
 static int add_oid_section(LHASH *conf);
-#else
-static int make_REQ();
-static int add_attribute_object();
-static int add_DN_object();
-static void MS_CALLBACK req_cb();
-static int req_fix_data();
-static int check_end();
-static int add_oid_section();
-#endif
-
 #ifndef MONOLITH
 static char *default_config_file=NULL;
 static LHASH *config=NULL;
@@ -137,9 +127,7 @@ static LHASH *req_conf=NULL;
 #define TYPE_DSA	2
 #define TYPE_DH		3
 
-int MAIN(argc, argv)
-int argc;
-char **argv;
+int MAIN(int argc, char **argv)
 	{
 #ifndef NO_DSA
 	DSA *dsa_params=NULL;
@@ -157,7 +145,7 @@ char **argv;
 	EVP_CIPHER *cipher=NULL;
 	int modulus=0;
 	char *p;
-	EVP_MD *md_alg=NULL,*digest=EVP_md5();
+	const EVP_MD *md_alg=NULL,*digest=EVP_md5();
 #ifndef MONOLITH
 	MS_STATIC char config_name[256];
 #endif
@@ -373,7 +361,9 @@ bad:
 	if (p == NULL)
 		{
 		strcpy(config_name,X509_get_default_cert_area());
-		strcat(config_name,"/lib/");
+#ifndef VMS
+		strcat(config_name,"/");
+#endif
 		strcat(config_name,OPENSSL_CONF);
 		p=config_name;
 		}
@@ -438,7 +428,10 @@ bad:
 	extensions = CONF_get_string(req_conf, SECTION, V3_EXTENSIONS);
 	if(extensions) {
 		/* Check syntax of file */
-		if(!X509V3_EXT_check_conf(req_conf, extensions)) {
+		X509V3_CTX ctx;
+		X509V3_set_ctx_test(&ctx);
+		X509V3_set_conf_lhash(&ctx, req_conf);
+		if(!X509V3_EXT_add_conf(req_conf, &ctx, extensions, NULL)) {
 			BIO_printf(bio_err,
 			 "Error Loading extension section %s\n", extensions);
 			goto end;
@@ -666,11 +659,8 @@ loop:
 
 			/* Set up V3 context struct */
 
-			ext_ctx.issuer_cert = x509ss;
-			ext_ctx.subject_cert = x509ss;
-			ext_ctx.subject_req = NULL;
-			ext_ctx.crl = NULL;
-			ext_ctx.flags = 0;
+			X509V3_set_ctx(&ext_ctx, x509ss, x509ss, NULL, NULL, 0);
+			X509V3_set_conf_lhash(&ext_ctx, req_conf);
 
 			/* Add extensions */
 			if(extensions && !X509V3_EXT_add_conf(req_conf, 
@@ -825,13 +815,10 @@ end:
 	EXIT(ex);
 	}
 
-static int make_REQ(req,pkey,attribs)
-X509_REQ *req;
-EVP_PKEY *pkey;
-int attribs;
+static int make_REQ(X509_REQ *req, EVP_PKEY *pkey, int attribs)
 	{
 	int ret=0,i;
-	unsigned char *p,*q;
+	char *p,*q;
 	X509_REQ_INFO *ri;
 	char buf[100];
 	int nid,min,max;
@@ -923,7 +910,7 @@ start:		for (;;)
 				min,max))
 				goto err;
 			}
-		if (sk_num(ri->subject->entries) == 0)
+		if (sk_X509_NAME_ENTRY_num(ri->subject->entries) == 0)
 			{
 			BIO_printf(bio_err,"error, no objects specified in config file\n");
 			goto err;
@@ -984,14 +971,8 @@ err:
 	return(ret);
 	}
 
-static int add_DN_object(n,text,def,value,nid,min,max)
-X509_NAME *n;
-char *text;
-char *def;
-char *value;
-int nid;
-int min;
-int max;
+static int add_DN_object(X509_NAME *n, char *text, char *def, char *value,
+	     int nid, int min, int max)
 	{
 	int i,j,ret=0;
 	X509_NAME_ENTRY *ne=NULL;
@@ -1044,14 +1025,9 @@ err:
 	return(ret);
 	}
 
-static int add_attribute_object(n,text,def,value,nid,min,max)
-STACK *n;
-char *text;
-char *def;
-char *value;
-int nid;
-int min;
-int max;
+static int add_attribute_object(STACK_OF(X509_ATTRIBUTE) *n, char *text,
+				char *def, char *value, int nid, int min,
+				int max)
 	{
 	int i,z;
 	X509_ATTRIBUTE *xa=NULL;
@@ -1095,7 +1071,7 @@ start:
 	/* add object plus value */
 	if ((xa=X509_ATTRIBUTE_new()) == NULL)
 		goto err;
-	if ((xa->value.set=sk_new_null()) == NULL)
+	if ((xa->value.set=sk_ASN1_TYPE_new_null()) == NULL)
 		goto err;
 	xa->set=1;
 
@@ -1121,12 +1097,12 @@ start:
 		{ BIO_printf(bio_err,"Malloc failure\n"); goto err; }
 
 	ASN1_TYPE_set(at,bs->type,(char *)bs);
-	sk_push(xa->value.set,(char *)at);
+	sk_ASN1_TYPE_push(xa->value.set,at);
 	bs=NULL;
 	at=NULL;
 	/* only one item per attribute */
 
-	if (!sk_push(n,(char *)xa)) goto err;
+	if (!sk_X509_ATTRIBUTE_push(n,xa)) goto err;
 	return(1);
 err:
 	if (xa != NULL) X509_ATTRIBUTE_free(xa);
@@ -1135,10 +1111,7 @@ err:
 	return(0);
 	}
 
-static void MS_CALLBACK req_cb(p,n,arg)
-int p;
-int n;
-char *arg;
+static void MS_CALLBACK req_cb(int p, int n, char *arg)
 	{
 	char c='*';
 
@@ -1153,10 +1126,7 @@ char *arg;
 #endif
 	}
 
-static int req_fix_data(nid,type,len,min,max)
-int nid;
-int *type;
-int len,min,max;
+static int req_fix_data(int nid, int *type, int len, int min, int max)
 	{
 	if (nid == NID_pkcs9_emailAddress)
 		*type=V_ASN1_IA5STRING;
@@ -1189,9 +1159,7 @@ int len,min,max;
 	}
 
 /* Check if the end of a string matches 'end' */
-static int check_end(str, end)
-char *str;
-char *end;
+static int check_end(char *str, char *end)
 {
 	int elen, slen;	
 	char *tmp;
@@ -1202,8 +1170,7 @@ char *end;
 	return strcmp(tmp, end);
 }
 
-static int add_oid_section(conf)
-LHASH *conf;
+static int add_oid_section(LHASH *conf)
 {	
 	char *p;
 	STACK *sktmp;

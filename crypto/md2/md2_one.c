@@ -58,15 +58,12 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "md2.h"
+#include <openssl/md2.h>
 
 /* This is a separate file so that #defines in cryptlib.h can
  * map my MD functions to different names */
 
-unsigned char *MD2(d, n, md)
-unsigned char *d;
-unsigned long n;
-unsigned char *md;
+unsigned char *MD2(unsigned char *d, unsigned long n, unsigned char *md)
 	{
 	MD2_CTX c;
 	static unsigned char m[MD2_DIGEST_LENGTH];

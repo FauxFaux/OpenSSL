@@ -57,11 +57,11 @@
  */
 
 #include <stdio.h>
-#include "objects.h"
-#include "lhash.h"
+#include <openssl/objects.h>
+#include <openssl/lhash.h>
 #include "ssl_locl.h"
 
-int SSL_library_init()
+int SSL_library_init(void)
 	{
 #ifndef NO_DES
 	EVP_add_cipher(EVP_des_cbc());
@@ -85,11 +85,11 @@ int SSL_library_init()
 	EVP_add_digest_alias(SN_md5,"ssl2-md5");
 	EVP_add_digest_alias(SN_md5,"ssl3-md5");
 #endif
-#ifndef NO_SHA1
+#ifndef NO_SHA
 	EVP_add_digest(EVP_sha1()); /* RSA with sha1 */
 	EVP_add_digest_alias(SN_sha1,"ssl3-sha1");
 #endif
-#if !defined(NO_SHA1) && !defined(NO_DSA)
+#if !defined(NO_SHA) && !defined(NO_DSA)
 	EVP_add_digest(EVP_dss1()); /* DSA with sha1 */
 #endif
 

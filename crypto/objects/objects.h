@@ -754,8 +754,129 @@ extern "C" {
 #define NID_invalidity_date		142
 #define OBJ_invalidity_date		OBJ_ld_ce,24L
 
-#include "bio.h"
-#include "asn1.h"
+#define SN_sxnet			"SXNetID"
+#define LN_sxnet			"Strong Extranet ID"
+#define NID_sxnet			143
+#define OBJ_sxnet			1L,3L,101L,1L,4L,1L
+
+/* PKCS12 and related OBJECT IDENTIFIERS */
+
+#define OBJ_pkcs12			OBJ_pkcs,12L
+#define OBJ_pkcs12_pbeids		OBJ_pkcs12, 1
+
+#define LN_pbe_WithSHA1And128BitRC4	"pbeWithSHA1And128BitRC4"
+#define NID_pbe_WithSHA1And128BitRC4	144
+#define OBJ_pbe_WithSHA1And128BitRC4	OBJ_pkcs12_pbeids, 1L
+
+#define LN_pbe_WithSHA1And40BitRC4	"pbeWithSHA1And40BitRC4"
+#define NID_pbe_WithSHA1And40BitRC4	145
+#define OBJ_pbe_WithSHA1And40BitRC4	OBJ_pkcs12_pbeids, 2L
+
+#define LN_pbe_WithSHA1And3_Key_TripleDES_CBC	"pbeWithSHA1And3-KeyTripleDES-CBC"
+#define NID_pbe_WithSHA1And3_Key_TripleDES_CBC	146
+#define OBJ_pbe_WithSHA1And3_Key_TripleDES_CBC	OBJ_pkcs12_pbeids, 3L
+
+#define LN_pbe_WithSHA1And2_Key_TripleDES_CBC	"pbeWithSHA1And2-KeyTripleDES-CBC"
+#define NID_pbe_WithSHA1And2_Key_TripleDES_CBC	147
+#define OBJ_pbe_WithSHA1And2_Key_TripleDES_CBC	OBJ_pkcs12_pbeids, 4L
+
+#define LN_pbe_WithSHA1And128BitRC2_CBC		"pbeWithSHA1And128BitRC2-CBC"
+#define NID_pbe_WithSHA1And128BitRC2_CBC	148
+#define OBJ_pbe_WithSHA1And128BitRC2_CBC	OBJ_pkcs12_pbeids, 5L
+
+#define LN_pbe_WithSHA1And40BitRC2_CBC	"pbeWithSHA1And40BitRC2-CBC"
+#define NID_pbe_WithSHA1And40BitRC2_CBC	149
+#define OBJ_pbe_WithSHA1And40BitRC2_CBC	OBJ_pkcs12_pbeids, 6L
+
+#define OBJ_pkcs12_Version1	OBJ_pkcs12, 10L
+
+#define OBJ_pkcs12_BagIds	OBJ_pkcs12_Version1, 1L
+
+#define LN_keyBag		"keyBag"
+#define NID_keyBag		150
+#define OBJ_keyBag		OBJ_pkcs12_BagIds, 1L
+
+#define LN_pkcs8ShroudedKeyBag	"pkcs8ShroudedKeyBag"
+#define NID_pkcs8ShroudedKeyBag	151
+#define OBJ_pkcs8ShroudedKeyBag	OBJ_pkcs12_BagIds, 2L
+
+#define LN_certBag		"certBag"
+#define NID_certBag		152
+#define OBJ_certBag		OBJ_pkcs12_BagIds, 3L
+
+#define LN_crlBag		"crlBag"
+#define NID_crlBag		153
+#define OBJ_crlBag		OBJ_pkcs12_BagIds, 4L
+
+#define LN_secretBag		"secretBag"
+#define NID_secretBag		154
+#define OBJ_secretBag		OBJ_pkcs12_BagIds, 5L
+
+#define LN_safeContentsBag	"safeContentsBag"
+#define NID_safeContentsBag	155
+#define OBJ_safeContentsBag	OBJ_pkcs12_BagIds, 6L
+
+#define LN_friendlyName		"friendlyName"
+#define	NID_friendlyName	156
+#define OBJ_friendlyName	OBJ_pkcs9, 20L
+
+#define LN_localKeyID		"localKeyID"
+#define	NID_localKeyID		157
+#define OBJ_localKeyID		OBJ_pkcs9, 21L
+
+#define OBJ_certTypes		OBJ_pkcs9, 22L
+
+#define LN_x509Certificate	"x509Certificate"
+#define	NID_x509Certificate	158
+#define OBJ_x509Certificate	OBJ_certTypes, 1L
+
+#define LN_sdsiCertificate	"sdsiCertificate"
+#define	NID_sdsiCertificate	159
+#define OBJ_sdsiCertificate	OBJ_certTypes, 2L
+
+#define OBJ_crlTypes		OBJ_pkcs9, 23L
+
+#define LN_x509Crl		"x509Crl"
+#define	NID_x509Crl		160
+#define OBJ_x509Crl		OBJ_crlTypes, 1L
+
+/* PKCS#5 v2 OIDs */
+
+#define LN_pbes2		"PBES2"
+#define NID_pbes2		161
+#define OBJ_pbes2		OBJ_pkcs,5L,13L
+
+#define LN_pbmac1		"PBMAC1"
+#define NID_pbmac1		162
+#define OBJ_pbmac1		OBJ_pkcs,5L,14L
+
+#define LN_hmacWithSHA1		"hmacWithSHA1"
+#define NID_hmacWithSHA1	163
+#define OBJ_hmacWithSHA1	OBJ_rsadsi,2L,7L
+
+/* Policy Qualifier Ids */
+
+#define LN_id_qt_cps		"Policy Qualifier CPS"
+#define SN_id_qt_cps		"id-qt-cps"
+#define NID_id_qt_cps		164
+#define OBJ_id_qt_cps		OBJ_id_pkix,2L,1L
+
+#define LN_id_qt_unotice	"Policy Qualifier User Notice"
+#define SN_id_qt_unotice	"id-qt-unotice"
+#define NID_id_qt_unotice	165
+#define OBJ_id_qt_unotice	OBJ_id_pkix,2L,2L
+
+#define SN_rc2_64_cbc			"RC2-64-CBC"
+#define LN_rc2_64_cbc			"rc2-64-cbc"
+#define NID_rc2_64_cbc			166
+
+#define SN_SMIMECapabilities		"SMIME-CAPS"
+#define LN_SMIMECapabilities		"S/MIME Capabilities"
+#define NID_SMIMECapabilities		167
+#define OBJ_SMIMECapabilities		OBJ_id_pkcs9,15L
+
+#include <openssl/bio.h>
+#include <openssl/asn1.h>
 
 #define	OBJ_NAME_TYPE_UNDEF		0x00
 #define	OBJ_NAME_TYPE_MD_METH		0x01
@@ -771,31 +892,30 @@ typedef struct obj_name_st
 	{
 	int type;
 	int alias;
-	char *name;
-	char *data;
+	const char *name;
+	const char *data;
 	} OBJ_NAME;
 
 #define		OBJ_create_and_add_object(a,b,c) OBJ_create(a,b,c)
 
-#ifndef NOPROTO
 
 int OBJ_NAME_init(void);
 int OBJ_NAME_new_index(unsigned long (*hash_func)(),int (*cmp_func)(),
 	void (*free_func)());
-char *OBJ_NAME_get(char *name,int type);
-int OBJ_NAME_add(char *name,int type,char *data);
-int OBJ_NAME_remove(char *name,int type);
+const char *OBJ_NAME_get(const char *name,int type);
+int OBJ_NAME_add(const char *name,int type,const char *data);
+int OBJ_NAME_remove(const char *name,int type);
 void OBJ_NAME_cleanup(int type); /* -1 for everything */
 
 ASN1_OBJECT *	OBJ_dup(ASN1_OBJECT *o);
 ASN1_OBJECT *	OBJ_nid2obj(int n);
-char *		OBJ_nid2ln(int n);
-char *		OBJ_nid2sn(int n);
+const char *	OBJ_nid2ln(int n);
+const char *	OBJ_nid2sn(int n);
 int		OBJ_obj2nid(ASN1_OBJECT *o);
-ASN1_OBJECT *	OBJ_txt2obj(char *s, int no_name);
+ASN1_OBJECT *	OBJ_txt2obj(const char *s, int no_name);
 int		OBJ_txt2nid(char *s);
-int		OBJ_ln2nid(char *s);
-int		OBJ_sn2nid(char *s);
+int		OBJ_ln2nid(const char *s);
+int		OBJ_sn2nid(const char *s);
 int		OBJ_cmp(ASN1_OBJECT *a,ASN1_OBJECT *b);
 char *		OBJ_bsearch(char *key,char *base,int num,int size,int (*cmp)());
 
@@ -807,38 +927,11 @@ int		OBJ_create(char *oid,char *sn,char *ln);
 void		OBJ_cleanup(void );
 int		OBJ_create_objects(BIO *in);
 
-#else
-
-int OBJ_NAME_init();
-int OBJ_NAME_new_index();
-char *OBJ_NAME_get();
-int OBJ_NAME_add();
-int OBJ_NAME_remove();
-void OBJ_NAME_cleanup();
-
-ASN1_OBJECT *	OBJ_dup();
-ASN1_OBJECT *	OBJ_nid2obj();
-char *		OBJ_nid2ln();
-char *		OBJ_nid2sn();
-int		OBJ_obj2nid();
-ASN1_OBJECT *	OBJ_txt2obj();
-int		OBJ_txt2nid();
-int		OBJ_ln2nid();
-int		OBJ_sn2nid();
-int		OBJ_cmp();
-char *		OBJ_bsearch();
-
-void		ERR_load_OBJ_strings();
-
-int		OBJ_new_nid();
-int		OBJ_add_object();
-int		OBJ_create();
-void		OBJ_cleanup();
-int		OBJ_create_objects();
-
-#endif
-
 /* BEGIN ERROR CODES */
+/* The following lines are auto generated by the script mkerr.pl. Any changes
+ * made after this point may be overwritten when the script is next run.
+ */
+
 /* Error codes for the OBJ functions. */
 
 /* Function codes. */
@@ -851,7 +944,7 @@ int		OBJ_create_objects();
 /* Reason codes. */
 #define OBJ_R_MALLOC_FAILURE				 100
 #define OBJ_R_UNKNOWN_NID				 101
- 
+
 #ifdef  __cplusplus
 }
 #endif

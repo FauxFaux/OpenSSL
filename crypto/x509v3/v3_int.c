@@ -58,9 +58,9 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "x509v3.h"
+#include <openssl/x509v3.h>
 
-static ASN1_INTEGER *asn1_integer_new();
+static ASN1_INTEGER *asn1_integer_new(void);
 
 X509V3_EXT_METHOD v3_crl_num = { 
 NID_crl_number, 0,
@@ -72,7 +72,7 @@ i2d_ASN1_INTEGER,
 NULL, NULL, NULL, NULL, NULL};
 
 
-static ASN1_INTEGER *asn1_integer_new()
+static ASN1_INTEGER *asn1_integer_new(void)
 {
 	return ASN1_INTEGER_new();
 }

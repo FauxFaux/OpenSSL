@@ -58,17 +58,10 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "objects.h"
-#include "asn1_mac.h"
+#include <openssl/objects.h>
+#include <openssl/asn1_mac.h>
 
-/*
- * ASN1err(ASN1_F_D2I_X509_EXTENSION,ERR_R_ASN1_LENGTH_MISMATCH);
- * ASN1err(ASN1_F_X509_EXTENSION_NEW,ERR_R_ASN1_LENGTH_MISMATCH);
- */
-
-int i2d_X509_EXTENSION(a,pp)
-X509_EXTENSION *a;
-unsigned char **pp;
+int i2d_X509_EXTENSION(X509_EXTENSION *a, unsigned char **pp)
 	{
 	int k=0;
 	int r=0,ret=0;
@@ -96,10 +89,8 @@ unsigned char **pp;
 		}
 	}
 
-X509_EXTENSION *d2i_X509_EXTENSION(a,pp,length)
-X509_EXTENSION **a;
-unsigned char **pp;
-long length;
+X509_EXTENSION *d2i_X509_EXTENSION(X509_EXTENSION **a, unsigned char **pp,
+	     long length)
 	{
 	int i;
 	M_ASN1_D2I_vars(a,X509_EXTENSION *,X509_EXTENSION_new);
@@ -127,7 +118,7 @@ long length;
 	M_ASN1_D2I_Finish(a,X509_EXTENSION_free,ASN1_F_D2I_X509_EXTENSION);
 	}
 
-X509_EXTENSION *X509_EXTENSION_new()
+X509_EXTENSION *X509_EXTENSION_new(void)
 	{
 	X509_EXTENSION *ret=NULL;
 	ASN1_CTX c;
@@ -144,8 +135,7 @@ X509_EXTENSION *X509_EXTENSION_new()
 	M_ASN1_New_Error(ASN1_F_X509_EXTENSION_NEW);
 	}
 	
-void X509_EXTENSION_free(a)
-X509_EXTENSION *a;
+void X509_EXTENSION_free(X509_EXTENSION *a)
 	{
 	if (a == NULL) return;
 	if ((a->argp != NULL) && (a->ex_free != NULL))

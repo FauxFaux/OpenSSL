@@ -58,13 +58,8 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "evp.h"
-#include "asn1_mac.h"
-
-/*
- * ASN1err(ASN1_F_D2I_X509,ERR_R_ASN1_LENGTH_MISMATCH);
- * ASN1err(ASN1_F_X509_NEW,ERR_R_BAD_GET_ASN1_OBJECT_CALL);
- */
+#include <openssl/evp.h>
+#include <openssl/asn1_mac.h>
 
 static ASN1_METHOD meth={
 	(int (*)())  i2d_X509,
@@ -72,14 +67,12 @@ static ASN1_METHOD meth={
 	(char *(*)())X509_new,
 	(void (*)()) X509_free};
 
-ASN1_METHOD *X509_asn1_meth()
+ASN1_METHOD *X509_asn1_meth(void)
 	{
 	return(&meth);
 	}
 
-int i2d_X509(a,pp)
-X509 *a;
-unsigned char **pp;
+int i2d_X509(X509 *a, unsigned char **pp)
 	{
 	M_ASN1_I2D_vars(a);
 
@@ -96,10 +89,7 @@ unsigned char **pp;
 	M_ASN1_I2D_finish();
 	}
 
-X509 *d2i_X509(a,pp,length)
-X509 **a;
-unsigned char **pp;
-long length;
+X509 *d2i_X509(X509 **a, unsigned char **pp, long length)
 	{
 	M_ASN1_D2I_vars(a,X509 *,X509_new);
 
@@ -108,13 +98,13 @@ long length;
 	M_ASN1_D2I_get(ret->cert_info,d2i_X509_CINF);
 	M_ASN1_D2I_get(ret->sig_alg,d2i_X509_ALGOR);
 	M_ASN1_D2I_get(ret->signature,d2i_ASN1_BIT_STRING);
-if (ret->name != NULL) Free(ret->name);
-ret->name=X509_NAME_oneline(ret->cert_info->subject,NULL,0);
+	if (ret->name != NULL) Free(ret->name);
+	ret->name=X509_NAME_oneline(ret->cert_info->subject,NULL,0);
 
 	M_ASN1_D2I_Finish(a,X509_free,ASN1_F_D2I_X509);
 	}
 
-X509 *X509_new()
+X509 *X509_new(void)
 	{
 	X509 *ret=NULL;
 	ASN1_CTX c;
@@ -130,8 +120,7 @@ X509 *X509_new()
 	M_ASN1_New_Error(ASN1_F_X509_NEW);
 	}
 
-void X509_free(a)
-X509 *a;
+void X509_free(X509 *a)
 	{
 	int i;
 

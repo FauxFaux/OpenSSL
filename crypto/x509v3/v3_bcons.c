@@ -59,21 +59,13 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "asn1.h"
-#include "asn1_mac.h"
-#include "conf.h"
-#include "x509v3.h"
+#include <openssl/asn1.h>
+#include <openssl/asn1_mac.h>
+#include <openssl/conf.h>
+#include <openssl/x509v3.h>
 
-#ifndef NOPROTO
 static STACK *i2v_BASIC_CONSTRAINTS(X509V3_EXT_METHOD *method, BASIC_CONSTRAINTS *bcons, STACK *extlist);
 static BASIC_CONSTRAINTS *v2i_BASIC_CONSTRAINTS(X509V3_EXT_METHOD *method, X509V3_CTX *ctx, STACK *values);
-
-#else
-
-static STACK *i2v_BASIC_CONSTRAINTS();
-static BASIC_CONSTRAINTS *v2i_BASIC_CONSTRAINTS();
-
-#endif
 
 X509V3_EXT_METHOD v3_bcons = {
 NID_basic_constraints, 0,
@@ -89,14 +81,7 @@ NULL
 };
 
 
-/*
- * ASN1err(ASN1_F_BASIC_CONSTRAINTS_NEW,ERR_R_MALLOC_FAILURE);
- * ASN1err(ASN1_F_D2I_BASIC_CONSTRAINTS,ERR_R_MALLOC_FAILURE);
- */
-
-int i2d_BASIC_CONSTRAINTS(a,pp)
-BASIC_CONSTRAINTS *a;
-unsigned char **pp;
+int i2d_BASIC_CONSTRAINTS(BASIC_CONSTRAINTS *a, unsigned char **pp)
 {
 	M_ASN1_I2D_vars(a);
 	if(a->ca) M_ASN1_I2D_len (a->ca, i2d_ASN1_BOOLEAN);
@@ -109,7 +94,7 @@ unsigned char **pp;
 	M_ASN1_I2D_finish();
 }
 
-BASIC_CONSTRAINTS *BASIC_CONSTRAINTS_new()
+BASIC_CONSTRAINTS *BASIC_CONSTRAINTS_new(void)
 {
 	BASIC_CONSTRAINTS *ret=NULL;
 	ASN1_CTX c;
@@ -120,10 +105,8 @@ BASIC_CONSTRAINTS *BASIC_CONSTRAINTS_new()
 	M_ASN1_New_Error(ASN1_F_BASIC_CONSTRAINTS_NEW);
 }
 
-BASIC_CONSTRAINTS *d2i_BASIC_CONSTRAINTS(a,pp,length)
-BASIC_CONSTRAINTS **a;
-unsigned char **pp;
-long length;
+BASIC_CONSTRAINTS *d2i_BASIC_CONSTRAINTS(BASIC_CONSTRAINTS **a,
+	     unsigned char **pp, long length)
 {
 	M_ASN1_D2I_vars(a,BASIC_CONSTRAINTS *,BASIC_CONSTRAINTS_new);
 	M_ASN1_D2I_Init();
@@ -136,28 +119,23 @@ long length;
 	M_ASN1_D2I_Finish(a, BASIC_CONSTRAINTS_free, ASN1_F_D2I_BASIC_CONSTRAINTS);
 }
 
-void BASIC_CONSTRAINTS_free(a)
-BASIC_CONSTRAINTS *a;
+void BASIC_CONSTRAINTS_free(BASIC_CONSTRAINTS *a)
 {
 	if (a == NULL) return;
 	ASN1_INTEGER_free (a->pathlen);
 	Free ((char *)a);
 }
 
-static STACK *i2v_BASIC_CONSTRAINTS(method, bcons, extlist)
-X509V3_EXT_METHOD *method;
-BASIC_CONSTRAINTS *bcons;
-STACK *extlist;
+static STACK *i2v_BASIC_CONSTRAINTS(X509V3_EXT_METHOD *method,
+	     BASIC_CONSTRAINTS *bcons, STACK *extlist)
 {
 	X509V3_add_value_bool("CA", bcons->ca, &extlist);
 	X509V3_add_value_int("pathlen", bcons->pathlen, &extlist);
 	return extlist;
 }
 
-static BASIC_CONSTRAINTS *v2i_BASIC_CONSTRAINTS(method, ctx, values)
-X509V3_EXT_METHOD *method;
-X509V3_CTX *ctx;
-STACK *values;
+static BASIC_CONSTRAINTS *v2i_BASIC_CONSTRAINTS(X509V3_EXT_METHOD *method,
+	     X509V3_CTX *ctx, STACK *values)
 {
 	BASIC_CONSTRAINTS *bcons=NULL;
 	CONF_VALUE *val;

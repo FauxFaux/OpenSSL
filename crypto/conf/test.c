@@ -58,7 +58,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "conf.h"
+#include <openssl/conf.h>
+#include <openssl/err.h>
 
 main()
 	{

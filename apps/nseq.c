@@ -57,22 +57,17 @@
  */
 
 #include <stdio.h>
-#include "pem.h"
-#include "err.h"
+#include <string.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
 #include "apps.h"
 
 #undef PROG
 #define PROG nseq_main
 
-#ifdef NOPROTO
 static int dump_cert_text(BIO *out, X509 *x);
-#else
-static int dump_cert_text();
-#endif
 
-int MAIN(argc, argv)
-int argc;
-char **argv;
+int MAIN(int argc, char **argv)
 {
 	char **args, *infile = NULL, *outfile = NULL;
 	BIO *in = NULL, *out = NULL;
@@ -83,7 +78,6 @@ char **argv;
 	int badarg = 0;
 	if (bio_err == NULL) bio_err = BIO_new_fp (stderr, BIO_NOCLOSE);
 	ERR_load_crypto_strings();
-        SSLeay_add_all_algorithms();
 	args = argv + 1;
 	while (!badarg && *args && *args[0] == '-') {
 		if (!strcmp (*args, "-toseq")) toseq = 1;
@@ -164,9 +158,7 @@ end:
 	EXIT(ret);
 }
 
-static int dump_cert_text(out, x)
-BIO *out;
-X509 *x;
+static int dump_cert_text(BIO *out, X509 *x)
 {
         char buf[256];
         X509_NAME_oneline(X509_get_subject_name(x),buf,256);

@@ -59,12 +59,11 @@
 #include <stdio.h>
 #include <errno.h>
 #define USE_SOCKETS
-#include "evp.h"
-#include "buffer.h"
+#include <openssl/evp.h>
+#include <openssl/buffer.h>
 #include "ssl_locl.h"
 
-int ssl23_write_bytes(s)
-SSL *s;
+int ssl23_write_bytes(SSL *s)
 	{
 	int i,num,tot;
 	char *buf;
@@ -91,9 +90,7 @@ SSL *s;
 	}
 
 /* only return when we have read 'n' bytes */
-int ssl23_read_bytes(s,n)
-SSL *s;
-int n;
+int ssl23_read_bytes(SSL *s, int n)
 	{
 	unsigned char *p;
 	int j;

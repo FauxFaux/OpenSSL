@@ -67,30 +67,25 @@
 #include <errno.h>
 
 #ifndef WIN32
+#ifdef __ultrix
+#include <sys/syslog.h>
+#else
 #include <syslog.h>
+#endif
 #endif
 
 #include "cryptlib.h"
-#include "buffer.h"
-#include "err.h"
+#include <openssl/buffer.h>
+#include <openssl/err.h>
 #ifndef NO_SYSLOG
 
 
-#ifndef NOPROTO
 static int MS_CALLBACK slg_write(BIO *h,char *buf,int num);
 static int MS_CALLBACK slg_puts(BIO *h,char *str);
 static long MS_CALLBACK slg_ctrl(BIO *h,int cmd,long arg1,char *arg2);
 static int MS_CALLBACK slg_new(BIO *h);
 static int MS_CALLBACK slg_free(BIO *data);
-#else
-static int MS_CALLBACK slg_write();
-static int MS_CALLBACK slg_puts();
-static long MS_CALLBACK slg_ctrl();
-static int MS_CALLBACK slg_new();
-static int MS_CALLBACK slg_free();
-#endif
-
-static int xopenlog(BIO* bp, char* name, int level);
+static int xopenlog(BIO* bp, const char* name, int level);
 static int xcloselog(BIO* bp);
 
 static BIO_METHOD methods_slg=
@@ -105,13 +100,12 @@ static BIO_METHOD methods_slg=
 	slg_free,
 	};
 
-BIO_METHOD *BIO_s_log()
+BIO_METHOD *BIO_s_log(void)
 	{
 	return(&methods_slg);
 	}
 
-static int MS_CALLBACK slg_new(bi)
-BIO *bi;
+static int MS_CALLBACK slg_new(BIO *bi)
 	{
 	bi->init=1;
 	bi->num=0;
@@ -124,18 +118,14 @@ BIO *bi;
 	return(1);
 	}
 
-static int MS_CALLBACK slg_free(a)
-BIO *a;
+static int MS_CALLBACK slg_free(BIO *a)
 	{
 	if (a == NULL) return(0);
 	xcloselog(a);
 	return(1);
 	}
 	
-static int MS_CALLBACK slg_write(b,in,inl)
-BIO *b;
-char *in;
-int inl;
+static int MS_CALLBACK slg_write(BIO *b, char *in, int inl)
 	{
 	int ret= inl;
 	char* buf= in;
@@ -192,11 +182,7 @@ int inl;
 	return(ret);
 	}
 
-static long MS_CALLBACK slg_ctrl(b,cmd,num,ptr)
-BIO *b;
-int cmd;
-long num;
-char *ptr;
+static long MS_CALLBACK slg_ctrl(BIO *b, int cmd, long num, char *ptr)
 	{
 	switch (cmd)
 		{
@@ -210,9 +196,7 @@ char *ptr;
 	return(0);
 	}
 
-static int MS_CALLBACK slg_puts(bp,str)
-BIO *bp;
-char *str;
+static int MS_CALLBACK slg_puts(BIO *bp, char *str)
 	{
 	int n,ret;
 
@@ -221,7 +205,7 @@ char *str;
 	return(ret);
 	}
 
-static int xopenlog(BIO* bp, char* name, int level)
+static int xopenlog(BIO* bp, const char* name, int level)
 {
 #if defined(WIN32)
 	if((bp->ptr= (char *)RegisterEventSource(NULL, name)) == NULL){

@@ -58,21 +58,13 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "conf.h"
-#include "x509v3.h"
+#include <openssl/conf.h>
+#include <openssl/x509v3.h>
 
-#ifndef NOPROTO
-static STACK *v2i_subject_alt(X509V3_EXT_METHOD *method, X509V3_CTX *ctx, STACK *nval);
-static STACK *v2i_issuer_alt(X509V3_EXT_METHOD *method, X509V3_CTX *ctx, STACK *nval);
-static int copy_email(X509V3_CTX *ctx, STACK *gens);
-static int copy_issuer(X509V3_CTX *ctx, STACK *gens);
-#else
-static STACK *v2i_issuer_alt();
-static STACK *v2i_subject_alt();
-static int copy_email();
-static int copy_issuer();
-#endif
-
+static STACK_OF(GENERAL_NAME) *v2i_subject_alt(X509V3_EXT_METHOD *method, X509V3_CTX *ctx, STACK *nval);
+static STACK_OF(GENERAL_NAME) *v2i_issuer_alt(X509V3_EXT_METHOD *method, X509V3_CTX *ctx, STACK *nval);
+static int copy_email(X509V3_CTX *ctx, STACK_OF(GENERAL_NAME) *gens);
+static int copy_issuer(X509V3_CTX *ctx, STACK_OF(GENERAL_NAME) *gens);
 X509V3_EXT_METHOD v3_alt[] = {
 { NID_subject_alt_name, 0,
 (X509V3_EXT_NEW)GENERAL_NAMES_new,
@@ -95,24 +87,21 @@ NULL, NULL, NULL},
 EXT_END
 };
 
-STACK *i2v_GENERAL_NAMES(method, gens, ret)
-X509V3_EXT_METHOD *method;
-STACK *gens;
-STACK *ret;
+STACK *i2v_GENERAL_NAMES(X509V3_EXT_METHOD *method,
+				 STACK_OF(GENERAL_NAME) *gens, STACK *ret)
 {
 	int i;
 	GENERAL_NAME *gen;
-	for(i = 0; i < sk_num(gens); i++) {
-		gen = (GENERAL_NAME *)sk_value(gens, i);
+	for(i = 0; i < sk_GENERAL_NAME_num(gens); i++) {
+		gen = sk_GENERAL_NAME_value(gens, i);
 		ret = i2v_GENERAL_NAME(method, gen, ret);
 	}
+	if(!ret) return sk_new_null();
 	return ret;
 }
 
-STACK *i2v_GENERAL_NAME(method, gen, ret)
-X509V3_EXT_METHOD *method;
-GENERAL_NAME *gen;
-STACK *ret;
+STACK *i2v_GENERAL_NAME(X509V3_EXT_METHOD *method, GENERAL_NAME *gen,
+								 STACK *ret)
 {
 	char oline[256];
 	unsigned char *p;
@@ -131,15 +120,15 @@ STACK *ret;
 		break;
 
 		case GEN_EMAIL:
-		X509V3_add_value("email",gen->d.ia5->data, &ret);
+		X509V3_add_value_uchar("email",gen->d.ia5->data, &ret);
 		break;
 
 		case GEN_DNS:
-		X509V3_add_value("DNS",gen->d.ia5->data, &ret);
+		X509V3_add_value_uchar("DNS",gen->d.ia5->data, &ret);
 		break;
 
 		case GEN_URI:
-		X509V3_add_value("URI",gen->d.ia5->data, &ret);
+		X509V3_add_value_uchar("URI",gen->d.ia5->data, &ret);
 		break;
 
 		case GEN_DIRNAME:
@@ -166,15 +155,13 @@ STACK *ret;
 	return ret;
 }
 
-static STACK *v2i_issuer_alt(method, ctx, nval)
-X509V3_EXT_METHOD *method;
-X509V3_CTX *ctx;
-STACK *nval;
+static STACK_OF(GENERAL_NAME) *v2i_issuer_alt(X509V3_EXT_METHOD *method,
+						 X509V3_CTX *ctx, STACK *nval)
 {
-	STACK *gens = NULL;
+	STACK_OF(GENERAL_NAME) *gens = NULL;
 	CONF_VALUE *cnf;
 	int i;
-	if(!(gens = sk_new(NULL))) {
+	if(!(gens = sk_GENERAL_NAME_new(NULL))) {
 		X509V3err(X509V3_F_V2I_GENERAL_NAMES,ERR_R_MALLOC_FAILURE);
 		return NULL;
 	}
@@ -187,23 +174,21 @@ STACK *nval;
 			GENERAL_NAME *gen;
 			if(!(gen = v2i_GENERAL_NAME(method, ctx, cnf)))
 								 goto err; 
-			sk_push(gens, (char *)gen);
+			sk_GENERAL_NAME_push(gens, gen);
 		}
 	}
 	return gens;
 	err:
-	sk_pop_free(gens, GENERAL_NAME_free);
+	sk_GENERAL_NAME_pop_free(gens, GENERAL_NAME_free);
 	return NULL;
 }
 
 /* Append subject altname of issuer to issuer alt name of subject */
 
-static int copy_issuer(ctx, gens)
-X509V3_CTX *ctx;
-STACK *gens;
+static int copy_issuer(X509V3_CTX *ctx, STACK_OF(GENERAL_NAME) *gens)
 {
-	STACK *ialt;
-	char *gen;
+	STACK_OF(GENERAL_NAME) *ialt;
+	GENERAL_NAME *gen;
 	X509_EXTENSION *ext;
 	int i;
 	if(ctx && (ctx->flags == CTX_TEST)) return 1;
@@ -214,19 +199,19 @@ STACK *gens;
         i = X509_get_ext_by_NID(ctx->issuer_cert, NID_subject_alt_name, -1);
 	if(i < 0) return 1;
         if(!(ext = X509_get_ext(ctx->issuer_cert, i)) ||
-                        !(ialt = (STACK *) X509V3_EXT_d2i(ext)) ) {
+                        !(ialt = X509V3_EXT_d2i(ext)) ) {
 		X509V3err(X509V3_F_COPY_ISSUER,X509V3_R_ISSUER_DECODE_ERROR);
 		goto err;
 	}
 
-	for(i = 0; i < sk_num(ialt); i++) {
-		gen = sk_value(ialt, i);
-		if(!sk_push(gens, gen)) {
+	for(i = 0; i < sk_GENERAL_NAME_num(ialt); i++) {
+		gen = sk_GENERAL_NAME_value(ialt, i);
+		if(!sk_GENERAL_NAME_push(gens, gen)) {
 			X509V3err(X509V3_F_COPY_ISSUER,ERR_R_MALLOC_FAILURE);
 			goto err;
 		}
 	}
-	sk_free(ialt);
+	sk_GENERAL_NAME_free(ialt);
 
 	return 1;
 		
@@ -235,15 +220,13 @@ STACK *gens;
 	
 }
 
-static STACK *v2i_subject_alt(method, ctx, nval)
-X509V3_EXT_METHOD *method;
-X509V3_CTX *ctx;
-STACK *nval;
+static STACK_OF(GENERAL_NAME) *v2i_subject_alt(X509V3_EXT_METHOD *method,
+						 X509V3_CTX *ctx, STACK *nval)
 {
-	STACK *gens = NULL;
+	STACK_OF(GENERAL_NAME) *gens = NULL;
 	CONF_VALUE *cnf;
 	int i;
-	if(!(gens = sk_new(NULL))) {
+	if(!(gens = sk_GENERAL_NAME_new(NULL))) {
 		X509V3err(X509V3_F_V2I_GENERAL_NAMES,ERR_R_MALLOC_FAILURE);
 		return NULL;
 	}
@@ -256,12 +239,12 @@ STACK *nval;
 			GENERAL_NAME *gen;
 			if(!(gen = v2i_GENERAL_NAME(method, ctx, cnf)))
 								 goto err; 
-			sk_push(gens, (char *)gen);
+			sk_GENERAL_NAME_push(gens, gen);
 		}
 	}
 	return gens;
 	err:
-	sk_pop_free(gens, GENERAL_NAME_free);
+	sk_GENERAL_NAME_pop_free(gens, GENERAL_NAME_free);
 	return NULL;
 }
 
@@ -269,9 +252,7 @@ STACK *nval;
  * GENERAL_NAMES
  */
 
-static int copy_email(ctx, gens)
-X509V3_CTX *ctx;
-STACK *gens;
+static int copy_email(X509V3_CTX *ctx, STACK_OF(GENERAL_NAME) *gens)
 {
 	X509_NAME *nm;
 	ASN1_IA5STRING *email = NULL;
@@ -300,7 +281,7 @@ STACK *gens;
 		gen->d.ia5 = email;
 		email = NULL;
 		gen->type = GEN_EMAIL;
-		if(!sk_push(gens, (char *)gen)) {
+		if(!sk_GENERAL_NAME_push(gens, gen)) {
 			X509V3err(X509V3_F_COPY_EMAIL,ERR_R_MALLOC_FAILURE);
 			goto err;
 		}
@@ -317,34 +298,30 @@ STACK *gens;
 	
 }
 
-STACK *v2i_GENERAL_NAMES(method, ctx, nval)
-X509V3_EXT_METHOD *method;
-X509V3_CTX *ctx;
-STACK *nval;
+STACK_OF(GENERAL_NAME) *v2i_GENERAL_NAMES(X509V3_EXT_METHOD *method,
+						 X509V3_CTX *ctx, STACK *nval)
 {
 	GENERAL_NAME *gen;
-	STACK *gens = NULL;
+	STACK_OF(GENERAL_NAME) *gens = NULL;
 	CONF_VALUE *cnf;
 	int i;
-	if(!(gens = sk_new(NULL))) {
+	if(!(gens = sk_GENERAL_NAME_new(NULL))) {
 		X509V3err(X509V3_F_V2I_GENERAL_NAMES,ERR_R_MALLOC_FAILURE);
 		return NULL;
 	}
 	for(i = 0; i < sk_num(nval); i++) {
 		cnf = (CONF_VALUE *)sk_value(nval, i);
 		if(!(gen = v2i_GENERAL_NAME(method, ctx, cnf))) goto err; 
-		sk_push(gens, (char *)gen);
+		sk_GENERAL_NAME_push(gens, gen);
 	}
 	return gens;
 	err:
-	sk_pop_free(gens, GENERAL_NAME_free);
+	sk_GENERAL_NAME_pop_free(gens, GENERAL_NAME_free);
 	return NULL;
 }
 
-GENERAL_NAME *v2i_GENERAL_NAME(method, ctx, cnf)
-X509V3_EXT_METHOD *method;
-X509V3_CTX *ctx;
-CONF_VALUE *cnf;
+GENERAL_NAME *v2i_GENERAL_NAME(X509V3_EXT_METHOD *method, X509V3_CTX *ctx,
+							 CONF_VALUE *cnf)
 {
 char is_string = 0;
 int type;
@@ -408,7 +385,8 @@ if(!name_cmp(name, "email")) {
 
 if(is_string) {
 	if(!(gen->d.ia5 = ASN1_IA5STRING_new()) ||
-		      !ASN1_STRING_set(gen->d.ia5, value, strlen(value))) {
+		      !ASN1_STRING_set(gen->d.ia5, (unsigned char*)value,
+				       strlen(value))) {
 		X509V3err(X509V3_F_V2I_GENERAL_NAME,ERR_R_MALLOC_FAILURE);
 		goto err;
 	}

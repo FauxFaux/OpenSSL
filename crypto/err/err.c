@@ -57,35 +57,25 @@
  */
 
 #include <stdio.h>
-#include "lhash.h"
-#include "crypto.h"
+#include <stdarg.h>
+#include <openssl/lhash.h>
+#include <openssl/crypto.h>
 #include "cryptlib.h"
-#include "buffer.h"
-#include "err.h"
-#include "crypto.h"
+#include <openssl/buffer.h>
+#include <openssl/err.h>
+#include <openssl/crypto.h>
 
 
 static LHASH *error_hash=NULL;
 static LHASH *thread_hash=NULL;
 
-#ifndef NOPROTO
 static unsigned long err_hash(ERR_STRING_DATA *a);
 static int err_cmp(ERR_STRING_DATA *a, ERR_STRING_DATA *b);
 static unsigned long pid_hash(ERR_STATE *pid);
 static int pid_cmp(ERR_STATE *a,ERR_STATE *pid);
-static unsigned long get_error_values(int inc,char **file,int *line,
-	char **data,int *flags);
+static unsigned long get_error_values(int inc,const char **file,int *line,
+				      const char **data,int *flags);
 static void ERR_STATE_free(ERR_STATE *s);
-#else
-static unsigned long err_hash();
-static int err_cmp();
-static unsigned long pid_hash();
-static int pid_cmp();
-static unsigned long get_error_values();
-static void ERR_STATE_free();
-ERR_STATE *s;
-#endif
-
 #ifndef NO_ERR
 static ERR_STRING_DATA ERR_str_libraries[]=
 	{
@@ -109,6 +99,7 @@ static ERR_STRING_DATA ERR_str_libraries[]=
 {ERR_PACK(ERR_LIB_BIO,0,0)		,"BIO routines"},
 {ERR_PACK(ERR_LIB_PKCS7,0,0)		,"PKCS7 routines"},
 {ERR_PACK(ERR_LIB_X509V3,0,0)		,"X509 V3 routines"},
+{ERR_PACK(ERR_LIB_PKCS12,0,0)		,"PKCS12 routines"},
 {0,NULL},
 	};
 
@@ -148,6 +139,7 @@ static ERR_STRING_DATA ERR_str_reasons[]=
 {ERR_R_PROXY_LIB			,"PROXY lib"},
 {ERR_R_BIO_LIB				,"BIO lib"},
 {ERR_R_PKCS7_LIB			,"PKCS7 lib"},
+{ERR_R_PKCS12_LIB			,"PKCS12 lib"},
 {ERR_R_MALLOC_FAILURE			,"Malloc failure"},
 {ERR_R_SHOULD_NOT_HAVE_BEEN_CALLED	,"called a fuction you should not call"},
 {ERR_R_PASSED_NULL_PARAMETER		,"passed a null parameter"},
@@ -171,8 +163,7 @@ static ERR_STRING_DATA ERR_str_reasons[]=
 		} \
 	(p)->err_data_flags[i]=0;
 
-static void ERR_STATE_free(s)
-ERR_STATE *s;
+static void ERR_STATE_free(ERR_STATE *s)
 	{
 	int i;
 
@@ -186,7 +177,7 @@ ERR_STATE *s;
 	Free(s);
 	}
 
-void ERR_load_ERR_strings()
+void ERR_load_ERR_strings(void)
 	{
 	static int init=1;
 
@@ -209,9 +200,7 @@ void ERR_load_ERR_strings()
 		}
 	}
 
-void ERR_load_strings(lib,str)
-int lib;
-ERR_STRING_DATA *str;
+void ERR_load_strings(int lib, ERR_STRING_DATA *str)
 	{
 	if (error_hash == NULL)
 		{
@@ -237,7 +226,7 @@ ERR_STRING_DATA *str;
 	CRYPTO_w_unlock(CRYPTO_LOCK_ERR_HASH);
 	}
 
-void ERR_free_strings()
+void ERR_free_strings(void)
 	{
 	CRYPTO_w_lock(CRYPTO_LOCK_ERR);
 
@@ -252,10 +241,8 @@ void ERR_free_strings()
 
 /********************************************************/
 
-void ERR_put_error(lib,func,reason,file,line)
-int lib,func,reason;
-char *file;
-int line;
+void ERR_put_error(int lib, int func, int reason, const char *file,
+	     int line)
 	{
 	ERR_STATE *es;
 
@@ -270,7 +257,7 @@ int line;
 	err_clear_data(es,es->top);
 	}
 
-void ERR_clear_error()
+void ERR_clear_error(void)
 	{
 	ERR_STATE *es;
 
@@ -290,42 +277,32 @@ void ERR_clear_error()
 	}
 
 
-unsigned long ERR_get_error()
+unsigned long ERR_get_error(void)
 	{ return(get_error_values(1,NULL,NULL,NULL,NULL)); }
 
-unsigned long ERR_get_error_line(file,line)
-char **file;
-int *line;
+unsigned long ERR_get_error_line(const char **file,
+	     int *line)
 	{ return(get_error_values(1,file,line,NULL,NULL)); }
 
-unsigned long ERR_get_error_line_data(file,line,data,flags)
-char **file;
-int *line;
-char **data;
-int *flags;
-	{ return(get_error_values(1,file,line,data,flags)); }
+unsigned long ERR_get_error_line_data(const char **file, int *line,
+	     const char **data, int *flags)
+	{ return(get_error_values(1,file,line,
+	     data,flags)); }
 
-unsigned long ERR_peek_error()
+unsigned long ERR_peek_error(void)
 	{ return(get_error_values(0,NULL,NULL,NULL,NULL)); }
 
-unsigned long ERR_peek_error_line(file,line)
-char **file;
-int *line;
+unsigned long ERR_peek_error_line(const char **file,
+	     int *line)
 	{ return(get_error_values(0,file,line,NULL,NULL)); }
 
-unsigned long ERR_peek_error_line_data(file,line,data,flags)
-char **file;
-int *line;
-char **data;
-int *flags;
-	{ return(get_error_values(0,file,line,data,flags)); }
+unsigned long ERR_peek_error_line_data(const char **file, int *line,
+	     const char **data, int *flags)
+	{ return(get_error_values(0,file,line,
+	     data,flags)); }
 
-static unsigned long get_error_values(inc,file,line,data,flags)
-int inc;
-char **file;
-int *line;
-char **data;
-int *flags;
+static unsigned long get_error_values(int inc, const char **file, int *line,
+	     const char **data, int *flags)
 	{	
 	int i=0;
 	ERR_STATE *es;
@@ -374,12 +351,10 @@ int *flags;
 	}
 
 /* BAD for multi-threaded, uses a local buffer if ret == NULL */
-char *ERR_error_string(e,ret)
-unsigned long e;
-char *ret;
+char *ERR_error_string(unsigned long e, char *ret)
 	{
 	static char buf[256];
-	char *ls,*fs,*rs;
+	const char *ls,*fs,*rs;
 	unsigned long l,f,r;
 	int i;
 
@@ -410,18 +385,17 @@ char *ret;
 	return(ret);
 	}
 
-LHASH *ERR_get_string_table()
+LHASH *ERR_get_string_table(void)
 	{
 	return(error_hash);
 	}
 
-LHASH *ERR_get_err_state_table()
+LHASH *ERR_get_err_state_table(void)
 	{
 	return(thread_hash);
 	}
 
-char *ERR_lib_error_string(e)
-unsigned long e;
+const char *ERR_lib_error_string(unsigned long e)
 	{
 	ERR_STRING_DATA d,*p=NULL;
 	unsigned long l;
@@ -441,8 +415,7 @@ unsigned long e;
 	return((p == NULL)?NULL:p->string);
 	}
 
-char *ERR_func_error_string(e)
-unsigned long e;
+const char *ERR_func_error_string(unsigned long e)
 	{
 	ERR_STRING_DATA d,*p=NULL;
 	unsigned long l,f;
@@ -463,8 +436,7 @@ unsigned long e;
 	return((p == NULL)?NULL:p->string);
 	}
 
-char *ERR_reason_error_string(e)
-unsigned long e;
+const char *ERR_reason_error_string(unsigned long e)
 	{
 	ERR_STRING_DATA d,*p=NULL;
 	unsigned long l,r;
@@ -491,8 +463,7 @@ unsigned long e;
 	return((p == NULL)?NULL:p->string);
 	}
 
-static unsigned long err_hash(a)
-ERR_STRING_DATA *a;
+static unsigned long err_hash(ERR_STRING_DATA *a)
 	{
 	unsigned long ret,l;
 
@@ -501,26 +472,22 @@ ERR_STRING_DATA *a;
 	return(ret^ret%19*13);
 	}
 
-static int err_cmp(a,b)
-ERR_STRING_DATA *a,*b;
+static int err_cmp(ERR_STRING_DATA *a, ERR_STRING_DATA *b)
 	{
 	return((int)(a->error-b->error));
 	}
 
-static unsigned long pid_hash(a)
-ERR_STATE *a;
+static unsigned long pid_hash(ERR_STATE *a)
 	{
 	return(a->pid*13);
 	}
 
-static int pid_cmp(a,b)
-ERR_STATE *a,*b;
+static int pid_cmp(ERR_STATE *a, ERR_STATE *b)
 	{
 	return((int)((long)a->pid - (long)b->pid));
 	}
 
-void ERR_remove_state(pid)
-unsigned long pid;
+void ERR_remove_state(unsigned long pid)
 	{
 	ERR_STATE *p,tmp;
 
@@ -536,7 +503,7 @@ unsigned long pid;
 	if (p != NULL) ERR_STATE_free(p);
 	}
 
-ERR_STATE *ERR_get_state()
+ERR_STATE *ERR_get_state(void)
 	{
 	static ERR_STATE fallback;
 	ERR_STATE *ret=NULL,tmp,*tmpp;
@@ -592,16 +559,14 @@ ERR_STATE *ERR_get_state()
 	return(ret);
 	}
 
-int ERR_get_next_error_library()
+int ERR_get_next_error_library(void)
 	{
 	static int value=ERR_LIB_USER;
 
 	return(value++);
 	}
 
-void ERR_set_error_data(data,flags)
-char *data;
-int flags;
+void ERR_set_error_data(char *data, int flags)
 	{
 	ERR_STATE *es;
 	int i;
@@ -616,10 +581,9 @@ int flags;
 	es->err_data_flags[es->top]=flags;
 	}
 
-void ERR_add_error_data( VAR_PLIST(int , num))
-VAR_ALIST
+void ERR_add_error_data(int num, ...)
         {
-        VAR_BDEFN(args, int, num);
+	va_list args;
 	int i,n,s;
 	char *str,*p,*a;
 
@@ -628,11 +592,11 @@ VAR_ALIST
 	if (str == NULL) return;
 	str[0]='\0';
 
-	VAR_INIT(args,int,num);
+	va_start(args, num);
 	n=0;
 	for (i=0; i<num; i++)
 		{
-		VAR_ARG(args,char *,a);
+		a=va_arg(args, char*);
 		/* ignore NULLs, thanks to Bob Beck <beck@obtuse.com> */
 		if (a != NULL)
 			{
@@ -654,6 +618,6 @@ VAR_ALIST
 		}
 	ERR_set_error_data(str,ERR_TXT_MALLOCED|ERR_TXT_STRING);
 
-	VAR_END( args );
+	va_end(args);
 	}
 

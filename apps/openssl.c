@@ -63,19 +63,19 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "bio.h"
-#include "crypto.h"
-#include "lhash.h"
-#include "conf.h"
-#include "x509.h"
-#include "pem.h"
-#include "ssl.h"
+#include <openssl/bio.h>
+#include <openssl/crypto.h>
+#include <openssl/lhash.h>
+#include <openssl/conf.h>
+#include <openssl/x509.h>
+#include <openssl/pem.h>
+#include <openssl/ssl.h>
 #define SSLEAY	/* turn off a few special case MONOLITH macros */
 #define USE_SOCKETS /* needed for the _O_BINARY defs in the MS world */
 #define SSLEAY_SRC
 #include "apps.h"
 #include "s_apps.h"
-#include "err.h"
+#include <openssl/err.h>
 
 /*
 #ifdef WINDOWS
@@ -83,24 +83,15 @@
 #endif
 */
 
-#ifndef NOPROTO
 static unsigned long MS_CALLBACK hash(FUNCTION *a);
 static int MS_CALLBACK cmp(FUNCTION *a,FUNCTION *b);
 static LHASH *prog_init(void );
 static int do_cmd(LHASH *prog,int argc,char *argv[]);
-#else
-static unsigned long MS_CALLBACK hash();
-static int MS_CALLBACK cmp();
-static LHASH *prog_init();
-static int do_cmd();
-#endif
-
 LHASH *config=NULL;
 char *default_config_file=NULL;
 
 #ifdef DEBUG
-static void sig_stop(i)
-int i;
+static void sig_stop(int i)
 	{
 	char *a=NULL;
 
@@ -113,9 +104,7 @@ int i;
 BIO *bio_err=NULL;
 #endif
 
-int main(Argc,Argv)
-int Argc;
-char *Argv[];
+int main(int Argc, char *Argv[])
 	{
 	ARGS arg;
 #define PROG_NAME_SIZE	16
@@ -158,7 +147,9 @@ char *Argv[];
 	if (p == NULL)
 		{
 		strcpy(config_name,X509_get_default_cert_area());
-		strcat(config_name,"/lib/");
+#ifndef VMS
+		strcat(config_name,"/");
+#endif
 		strcat(config_name,OPENSSL_CONF);
 		p=config_name;
 		}
@@ -254,10 +245,11 @@ end:
 	EXIT(ret);
 	}
 
-static int do_cmd(prog,argc,argv)
-LHASH *prog;
-int argc;
-char *argv[];
+#define LIST_STANDARD_COMMANDS "list-standard-commands"
+#define LIST_MESSAGE_DIGEST_COMMANDS "list-message-digest-commands"
+#define LIST_CIPHER_COMMANDS "list-cipher-commands"
+
+static int do_cmd(LHASH *prog, int argc, char *argv[])
 	{
 	FUNCTION f,*fp;
 	int i,ret=1,tp,nl;
@@ -276,6 +268,28 @@ char *argv[];
 		(strcmp(argv[0],"bye") == 0))
 		{
 		ret= -1;
+		goto end;
+		}
+	else if ((strcmp(argv[0],LIST_STANDARD_COMMANDS) == 0) ||
+		(strcmp(argv[0],LIST_MESSAGE_DIGEST_COMMANDS) == 0) ||
+		(strcmp(argv[0],LIST_CIPHER_COMMANDS) == 0))
+		{
+		int list_type;
+		BIO *bio_stdout;
+
+		if (strcmp(argv[0],LIST_STANDARD_COMMANDS) == 0)
+			list_type = FUNC_TYPE_GENERAL;
+		else if (strcmp(argv[0],LIST_MESSAGE_DIGEST_COMMANDS) == 0)
+			list_type = FUNC_TYPE_MD;
+		else /* strcmp(argv[0],LIST_CIPHER_COMMANDS) == 0 */
+			list_type = FUNC_TYPE_CIPHER;
+		bio_stdout = BIO_new_fp(stdout,BIO_NOCLOSE);
+		
+		for (fp=functions; fp->name != NULL; fp++)
+			if (fp->type == list_type)
+				BIO_printf(bio_stdout, "%s\n", fp->name);
+		BIO_free(bio_stdout);
+		ret=0;
 		goto end;
 		}
 	else
@@ -328,7 +342,7 @@ static int SortFnByName(const void *_f1,const void *_f2)
     return strcmp(f1->name,f2->name);
     }
 
-static LHASH *prog_init()
+static LHASH *prog_init(void)
 	{
 	LHASH *ret;
 	FUNCTION *f;
@@ -346,14 +360,12 @@ static LHASH *prog_init()
 	return(ret);
 	}
 
-static int MS_CALLBACK cmp(a,b)
-FUNCTION *a,*b;
+static int MS_CALLBACK cmp(FUNCTION *a, FUNCTION *b)
 	{
 	return(strncmp(a->name,b->name,8));
 	}
 
-static unsigned long MS_CALLBACK hash(a)
-FUNCTION *a;
+static unsigned long MS_CALLBACK hash(FUNCTION *a)
 	{
 	return(lh_strhash(a->name));
 	}

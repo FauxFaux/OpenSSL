@@ -58,17 +58,15 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "buffer.h"
-#include "x509.h"
+#include <openssl/buffer.h>
+#include <openssl/x509.h>
 
 /* Based on a_int.c: equivalent ENUMERATED functions */
 
-int i2a_ASN1_ENUMERATED(bp, a)
-BIO *bp;
-ASN1_ENUMERATED *a;
+int i2a_ASN1_ENUMERATED(BIO *bp, ASN1_ENUMERATED *a)
 	{
 	int i,n=0;
-	static char *h="0123456789ABCDEF";
+	static const char *h="0123456789ABCDEF";
 	char buf[2];
 
 	if (a == NULL) return(0);
@@ -98,11 +96,7 @@ err:
 	return(-1);
 	}
 
-int a2i_ASN1_ENUMERATED(bp,bs,buf,size)
-BIO *bp;
-ASN1_ENUMERATED *bs;
-char *buf;
-int size;
+int a2i_ASN1_ENUMERATED(BIO *bp, ASN1_ENUMERATED *bs, char *buf, int size)
 	{
 	int ret=0;
 	int i,j,k,m,n,again,bufsize;

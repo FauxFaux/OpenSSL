@@ -58,9 +58,9 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "x509v3.h"
+#include <openssl/x509v3.h>
 
-static ASN1_ENUMERATED *asn1_enumerated_new();
+static ASN1_ENUMERATED *asn1_enumerated_new(void);
 
 static ENUMERATED_NAMES crl_reasons[] = {
 {0, "Unspecified", "unspecified"},
@@ -84,19 +84,18 @@ i2d_ASN1_ENUMERATED,
 NULL, NULL, NULL, NULL, (char *)crl_reasons};
 
 
-static ASN1_ENUMERATED *asn1_enumerated_new()
+static ASN1_ENUMERATED *asn1_enumerated_new(void)
 {
 	return ASN1_ENUMERATED_new();
 }
 
-char *i2s_ASN1_ENUMERATED_TABLE(method, e)
-X509V3_EXT_METHOD *method;
-ASN1_ENUMERATED *e;
+char *i2s_ASN1_ENUMERATED_TABLE(X509V3_EXT_METHOD *method,
+	     ASN1_ENUMERATED *e)
 {
 	ENUMERATED_NAMES *enam;
 	long strval;
 	strval = ASN1_ENUMERATED_get(e);
-	for(enam =(ENUMERATED_NAMES *)method->usr_data; enam->lname; enam++) {
+	for(enam = method->usr_data; enam->lname; enam++) {
 		if(strval == enam->bitnum) return BUF_strdup(enam->lname);
 	}
 	return i2s_ASN1_ENUMERATED(method, e);

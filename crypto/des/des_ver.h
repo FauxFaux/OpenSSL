@@ -56,5 +56,5 @@
  * [including the GNU Public Licence.]
  */
 
-extern char *DES_version;	/* SSLeay version string */
-extern char *libdes_version;	/* old libdes version string */
+OPENSSL_EXTERN char *DES_version;	/* SSLeay version string */
+OPENSSL_EXTERN char *libdes_version;	/* old libdes version string */

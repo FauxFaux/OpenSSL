@@ -57,12 +57,10 @@
  */
 
 #include <stdio.h>
-#include "md5_locl.h"
+#include <string.h>
+#include <openssl/md5.h>
 
-unsigned char *MD5(d, n, md)
-unsigned char *d;
-unsigned long n;
-unsigned char *md;
+unsigned char *MD5(unsigned char *d, unsigned long n, unsigned char *md)
 	{
 	MD5_CTX c;
 	static unsigned char m[MD5_DIGEST_LENGTH];

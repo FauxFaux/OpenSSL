@@ -57,30 +57,20 @@
  */
 
 #include <stdio.h>
-#include "buffer.h"
-#include "rand.h"
-#include "objects.h"
-#include "evp.h"
+#include <openssl/buffer.h>
+#include <openssl/rand.h>
+#include <openssl/objects.h>
+#include <openssl/evp.h>
 #include "ssl_locl.h"
 
-#define BREAK break
-
-#ifndef NOPROTO
 static SSL_METHOD *ssl23_get_client_method(int ver);
 static int ssl23_client_hello(SSL *s);
 static int ssl23_get_server_hello(SSL *s);
-#else
-static SSL_METHOD *ssl23_get_client_method();
-static int ssl23_client_hello();
-static int ssl23_get_server_hello();
-#endif
-
-static SSL_METHOD *ssl23_get_client_method(ver)
-int ver;
+static SSL_METHOD *ssl23_get_client_method(int ver)
 	{
 	if (ver == SSL2_VERSION)
 		return(SSLv2_client_method());
-	else if (ver == SSL3_VERSION)
+	if (ver == SSL3_VERSION)
 		return(SSLv3_client_method());
 	else if (ver == TLS1_VERSION)
 		return(TLSv1_client_method());
@@ -88,24 +78,23 @@ int ver;
 		return(NULL);
 	}
 
-SSL_METHOD *SSLv23_client_method()
+SSL_METHOD *SSLv23_client_method(void)
 	{
 	static int init=1;
 	static SSL_METHOD SSLv23_client_data;
 
 	if (init)
 		{
-		init=0;
 		memcpy((char *)&SSLv23_client_data,
 			(char *)sslv23_base_method(),sizeof(SSL_METHOD));
 		SSLv23_client_data.ssl_connect=ssl23_connect;
 		SSLv23_client_data.get_ssl_method=ssl23_get_client_method;
+		init=0;
 		}
 	return(&SSLv23_client_data);
 	}
 
-int ssl23_connect(s)
-SSL *s;
+int ssl23_connect(SSL *s)
 	{
 	BUF_MEM *buf;
 	unsigned long Time=time(NULL);
@@ -215,8 +204,7 @@ end:
 	}
 
 
-static int ssl23_client_hello(s)
-SSL *s;
+static int ssl23_client_hello(SSL *s)
 	{
 	unsigned char *buf;
 	unsigned char *p,*d;
@@ -315,8 +303,7 @@ SSL *s;
 	return(ssl23_write_bytes(s));
 	}
 
-static int ssl23_get_server_hello(s)
-SSL *s;
+static int ssl23_get_server_hello(SSL *s)
 	{
 	char buf[8];
 	unsigned char *p;

@@ -56,6 +56,15 @@
  * [including the GNU Public Licence.]
  */
 
+/* With IPv6, it looks like Digital has mixed up the proper order of
+   recursive header file inclusion, resulting in the compiler complaining
+   that u_int isn't defined, but only if _POSIX_C_SOURCE is defined, which
+   is needed to have fileno() declared correctly...  So let's define u_int */
+#if defined(__DECC) && !defined(__U_INT)
+#define __U_INT
+typedef unsigned int u_int;
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -64,20 +73,30 @@
 #ifdef NO_STDIO
 #define APPS_WIN16
 #endif
-#include "lhash.h"
-#include "bn.h"
+#include <openssl/lhash.h>
+#include <openssl/bn.h>
 #define USE_SOCKETS
 #include "apps.h"
-#include "err.h"
-#include "pem.h"
-#include "x509.h"
-#include "ssl.h"
+#include <openssl/err.h>
+#include <openssl/pem.h>
+#include <openssl/x509.h>
+#include <openssl/ssl.h>
 #include "s_apps.h"
 
-#ifndef NOPROTO
+#if (defined(VMS) && __VMS_VER < 70000000)
+/* FIONBIO used as a switch to enable ioctl, and that isn't in VMS < 7.0 */
+#undef FIONBIO
+#endif
+
+#if defined(NO_RSA) && !defined(NO_SSL2)
+#define NO_SSL2
+#endif
+
+#ifndef NO_RSA
 static RSA MS_CALLBACK *tmp_rsa_cb(SSL *s, int export,int keylength);
-static int sv_body(char *hostname, int s, char *context);
-static int www_body(char *hostname, int s, char *context);
+#endif
+static int sv_body(char *hostname, int s, unsigned char *context);
+static int www_body(char *hostname, int s, unsigned char *context);
 static void close_accept_socket(void );
 static void sv_usage(void);
 static int init_ssl_connection(SSL *s);
@@ -87,24 +106,13 @@ static DH *load_dh_param(void );
 static DH *get_dh512(void);
 #endif
 /* static void s_server_init(void);*/
-#else
-static RSA MS_CALLBACK *tmp_rsa_cb();
-static int sv_body();
-static int www_body();
-static void close_accept_socket();
-static void sv_usage();
-static int init_ssl_connection();
-static void print_stats();
-#ifndef NO_DH
-static DH *load_dh_param();
-static DH *get_dh512();
-#endif
-/* static void s_server_init(); */
-#endif
-
 
 #ifndef S_ISDIR
+#if defined(VMS) && !defined(__DECC)
+#define S_ISDIR(a)	(((a) & S_IFMT) == S_IFDIR)
+#else
 #define S_ISDIR(a)	(((a) & _S_IFMT) == _S_IFDIR)
+#endif
 #endif
 
 #ifndef NO_DH
@@ -120,7 +128,7 @@ static unsigned char dh512_g[]={
 	0x02,
 	};
 
-static DH *get_dh512()
+static DH *get_dh512(void)
 	{
 	DH *dh=NULL;
 
@@ -150,6 +158,7 @@ extern int verify_depth;
 
 static char *cipher=NULL;
 static int s_server_verify=SSL_VERIFY_NONE;
+static int s_server_session_id_context = 1; /* anything will do */
 static char *s_cert_file=TEST_CERT,*s_key_file=NULL;
 static char *s_dcert_file=NULL,*s_dkey_file=NULL;
 #ifdef FIONBIO
@@ -164,7 +173,7 @@ static int s_debug=0;
 static int s_quiet=0;
 
 #if 0
-static void s_server_init()
+static void s_server_init(void)
 	{
 	cipher=NULL;
 	s_server_verify=SSL_VERIFY_NONE;
@@ -185,7 +194,7 @@ static void s_server_init()
 	}
 #endif
 
-static void sv_usage()
+static void sv_usage(void)
 	{
 	BIO_printf(bio_err,"usage: s_server [args ...]\n");
 	BIO_printf(bio_err,"\n");
@@ -226,9 +235,7 @@ static int local_argc=0;
 static char **local_argv;
 static int hack=0;
 
-int MAIN(argc, argv)
-int argc;
-char *argv[];
+int MAIN(int argc, char *argv[])
 	{
 	short port=PORT;
 	char *CApath=NULL,*CAfile=NULL;
@@ -488,6 +495,7 @@ bad:
 			goto end;
 		}
 
+#ifndef NO_RSA
 #if 1
 	SSL_CTX_set_tmp_rsa_callback(ctx,tmp_rsa_cb);
 #else
@@ -509,10 +517,13 @@ bad:
 		BIO_printf(bio_s_out,"\n");
 		}
 #endif
+#endif
 
 	if (cipher != NULL)
 		SSL_CTX_set_cipher_list(ctx,cipher);
 	SSL_CTX_set_verify(ctx,s_server_verify,verify_callback);
+	SSL_CTX_set_session_id_context(ctx,(void*)&s_server_session_id_context,
+		sizeof s_server_session_id_context);
 
 	SSL_CTX_set_client_CA_list(ctx,SSL_load_client_CA_file(CAfile));
 
@@ -533,9 +544,7 @@ end:
 	EXIT(ret);
 	}
 
-static void print_stats(bio,ssl_ctx)
-BIO *bio;
-SSL_CTX *ssl_ctx;
+static void print_stats(BIO *bio, SSL_CTX *ssl_ctx)
 	{
 	BIO_printf(bio,"%4ld items in the session cache\n",
 		SSL_CTX_sess_number(ssl_ctx));
@@ -560,10 +569,7 @@ SSL_CTX *ssl_ctx;
 		SSL_CTX_sess_get_cache_size(ssl_ctx));
 	}
 
-static int sv_body(hostname, s, context)
-char *hostname;
-int s;
-char *context;
+static int sv_body(char *hostname, int s, unsigned char *context)
 	{
 	char *buf=NULL;
 	fd_set readfds;
@@ -593,7 +599,8 @@ char *context;
 	if (con == NULL) {
 		con=(SSL *)SSL_new(ctx);
 		if(context)
-		      SSL_set_session_id_context(con, context, strlen(context));
+		      SSL_set_session_id_context(con, context,
+						 strlen((char *)context));
 	}
 	SSL_clear(con);
 
@@ -624,7 +631,13 @@ char *context;
 		FD_SET(fileno(stdin),&readfds);
 #endif
 		FD_SET(s,&readfds);
-		i=select(width,&readfds,NULL,NULL,NULL);
+		/* Note: under VMS with SOCKETSHR the second parameter is
+		 * currently of type (int *) whereas under other systems
+		 * it is (void *) if you don't have a cast it will choke
+		 * the compiler: if you do have a cast then you can either
+		 * go for (int *) or (void *).
+		 */
+		i=select(width,(void *)&readfds,NULL,NULL,NULL);
 		if (i <= 0) continue;
 		if (FD_ISSET(fileno(stdin),&readfds))
 			{
@@ -779,7 +792,7 @@ err:
 	return(ret);
 	}
 
-static void close_accept_socket()
+static void close_accept_socket(void)
 	{
 	BIO_printf(bio_err,"shutdown accept socket\n");
 	if (accept_socket >= 0)
@@ -788,11 +801,10 @@ static void close_accept_socket()
 		}
 	}
 
-static int init_ssl_connection(con)
-SSL *con;
+static int init_ssl_connection(SSL *con)
 	{
 	int i;
-	char *str;
+	const char *str;
 	X509 *peer;
 	long verify_error;
 	MS_STATIC char buf[BUFSIZ];
@@ -844,7 +856,7 @@ SSL *con;
 	}
 
 #ifndef NO_DH
-static DH *load_dh_param()
+static DH *load_dh_param(void)
 	{
 	DH *ret=NULL;
 	BIO *bio;
@@ -859,9 +871,7 @@ err:
 #endif
 
 #if 0
-static int load_CA(ctx,file)
-SSL_CTX *ctx;
-char *file;
+static int load_CA(SSL_CTX *ctx, char *file)
 	{
 	FILE *in;
 	X509 *x=NULL;
@@ -881,10 +891,7 @@ char *file;
 	}
 #endif
 
-static int www_body(hostname, s, context)
-char *hostname;
-int s;
-char *context;
+static int www_body(char *hostname, int s, unsigned char *context)
 	{
 	char *buf=NULL;
 	int ret=1;
@@ -917,7 +924,8 @@ char *context;
 	if (!BIO_set_write_buffer_size(io,bufsize)) goto err;
 
 	if ((con=(SSL *)SSL_new(ctx)) == NULL) goto err;
-	if(context) SSL_set_session_id_context(con, context, strlen(context));
+	if(context) SSL_set_session_id_context(con, context,
+					       strlen((char *)context));
 
 	sbio=BIO_new_socket(s,BIO_NOCLOSE);
 	if (s_nbio_test)
@@ -998,7 +1006,7 @@ char *context;
 			{
 			char *p;
 			X509 *peer;
-			STACK *sk;
+			STACK_OF(SSL_CIPHER) *sk;
 			static char *space="                          ";
 
 			BIO_puts(io,"HTTP/1.0 200 ok\r\nContent-type: text/html\r\n\r\n");
@@ -1017,10 +1025,10 @@ char *context;
 			 * be done */
 			BIO_printf(io,"Ciphers supported in s_server binary\n");
 			sk=SSL_get_ciphers(con);
-			j=sk_num(sk);
+			j=sk_SSL_CIPHER_num(sk);
 			for (i=0; i<j; i++)
 				{
-				c=(SSL_CIPHER *)sk_value(sk,i);
+				c=sk_SSL_CIPHER_value(sk,i);
 				BIO_printf(io,"%-11s:%-25s",
 					SSL_CIPHER_get_version(c),
 					SSL_CIPHER_get_name(c));
@@ -1226,10 +1234,8 @@ err:
 	return(ret);
 	}
 
-static RSA MS_CALLBACK *tmp_rsa_cb(s,export,keylength)
-SSL *s;
-int export;
-int keylength;
+#ifndef NO_RSA
+static RSA MS_CALLBACK *tmp_rsa_cb(SSL *s, int export, int keylength)
 	{
 	static RSA *rsa_tmp=NULL;
 
@@ -1240,9 +1246,7 @@ int keylength;
 			BIO_printf(bio_err,"Generating temp (%d bit) RSA key...",keylength);
 			BIO_flush(bio_err);
 			}
-#ifndef NO_RSA
 		rsa_tmp=RSA_generate_key(keylength,RSA_F4,NULL,NULL);
-#endif
 		if (!s_quiet)
 			{
 			BIO_printf(bio_err,"\n");
@@ -1251,3 +1255,4 @@ int keylength;
 		}
 	return(rsa_tmp);
 	}
+#endif

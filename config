@@ -1,17 +1,11 @@
 #!/bin/sh
 #
-# config - this is a merge of minarch and GuessOS from the Apache Group
-#          which then automatically runs Configure from SSLeay after
-#	   mapping the Apache names for OSs into SSLeay names
+# OpenSSL config: determine the operating system and run ./Configure
 #
-# 29-May-97 eay		Added no-asm option
-# 27-May-97 eay		Alpha linux mods
-# ??-May-97 eay		IRIX mods
-# 16-Sep-97 tjh		first cut of merged version
+# "config -h" for usage information.
 #
-# Tim Hudson
-# tjh@cryptsoft.com
-#
+#          this is a merge of minarch and GuessOS from the Apache Group.
+#          Originally written by Tim Hudson <tjh@cryptsoft.com>.
 
 # Original Apache Group comments on GuessOS
 
@@ -88,8 +82,11 @@ case "${SYSTEM}:${RELEASE}:${VERSION}:${MACHINE}" in
     HP-UX:*)
 	HPUXVER=`echo ${RELEASE}|sed -e 's/[^.]*.[0B]*//'`
 	case "$HPUXVER" in
+	    11.*)
+		echo "${MACHINE}-hp-hpux11"; exit 0
+		;;
 	    10.*)
-		echo "${MACHINE}-hp-hpux10."; exit 0
+		echo "${MACHINE}-hp-hpux10"; exit 0
 		;;
 	    *)
 		echo "${MACHINE}-hp-hpux"; exit 0
@@ -129,16 +126,23 @@ case "${SYSTEM}:${RELEASE}:${VERSION}:${MACHINE}" in
 	echo "${MACHINE}-whatever-freebsd3"; exit 0
 	;;
 
-    FreeBSD:*:*:*486*)
-	echo "i486-whatever-freebsd"; exit 0
+    FreeBSD:*:*:*386*)
+        case `sysctl -n hw.model` in
+	    Pentium*)
+                echo "i586-whatever-freebsd"; exit 0
+                ;;
+            *)
+                echo "i386-whatever-freebsd"; exit 0
+                ;;
+            esac;
 	;;
 
     FreeBSD:*)
 	echo "${MACHINE}-whatever-freebsd"; exit 0
 	;;
 
-    NetBSD:*:*:*486*)
-	echo "i486-whatever-netbsd"; exit 0
+    NetBSD:*:*:*386*)
+        echo "`sysctl -n hw.model | sed 's,.*\(.\)86-class.*,i\186,'`-whateve\r-netbsd"; exit 0
 	;;
 
     NetBSD:*)
@@ -197,8 +201,8 @@ case "${SYSTEM}:${RELEASE}:${VERSION}:${MACHINE}" in
 	echo "${MACHINE}-unknown-ultrix"; exit 0
 	;;
 
-    SINIX*)
-	echo "${MACHINE}-sni-sysv4"; exit 0
+    SINIX*|ReliantUNIX*)
+	echo "${MACHINE}-siemens-sysv4"; exit 0
 	;;
 
     machten:*)
@@ -239,7 +243,7 @@ esac
 # At this point we gone through all the one's
 # we know of: Punt
 
-echo "${MACHINE}-whatever-${SYSTEM}|${RELEASE}|${VERSION}" 
+echo "${MACHINE}-whatever-${SYSTEM}" 
 exit 0
 ) 2>/dev/null | (
 
@@ -249,7 +253,6 @@ exit 0
 
 PREFIX=""
 SUFFIX=""
-VERBOSE="false"
 TEST="false"
 
 # pick up any command line args to config
@@ -257,25 +260,16 @@ for i
 do
 case "$i" in 
 -d*) PREFIX="debug-";;
--v*) VERBOSE="true";;
 -t*) TEST="true";;
--h*) cat <<EOF
-usage: config [options]
+-h*) TEST="true"; cat <<EOF
+Usage: config [options]
  -d	Add a debug- prefix to machine choice.
- -v	Verbose mode.
  -t	Test mode, do not run the Configure perl script.
  -h	This help.
 
-Any other text will be passed to ther Configure perl script.
-Usefull options include
- no-asm Build with no assember code.
- -Dxxx	Add xxx define to compilation.
- -Lxxx	Add xxx library include path to build.
- -lxxx	Add xxx library to build.
+Any other text will be passed to the Configure perl script.
+See INSTALL for instructions.
 
-eg, to build using RSAref, without assember, building to allow anon-DH
-ciphers and null encryption ciphers,
- config no-asm -DRSAref -DSSL_ALLOW_ADH -DSSL_ALLOW_ENULL -lrsaref
 EOF
 ;;
 *) options=$options" $i" ;;
@@ -284,30 +278,40 @@ done
 
 # figure out if gcc is available and if so we use it otherwise
 # we fallback to whatever cc does on the system
-GCCVER=`gcc -v 2>&1`
+GCCVER=`(gcc -v) 2>&1`
 if [ $? = "0" ]; then
   CC=gcc
 else
   CC=cc
+  if [ "$SYSTEM" = "SunOS" ]
+  then
+   case `cc -V 2>&1` in
+    *4*) CC=cc;;
+    *5*) CC=cc;;
+    *) CC=sc3;;
+   esac
+  fi
 fi
 
 # read the output of the embedded GuessOS 
 read GUESSOS
 
-if [ "$VERBOSE" = "true" ]; then
-  echo GUESSOS $GUESSOS
-fi
+echo Operating system: $GUESSOS
 
 # now map the output into SSLeay terms ... really should hack into the
 # script above so we end up with values in vars but that would take
 # more time that I want to waste at the moment
 case "$GUESSOS" in
   alpha-*-linux2) OUT="alpha-gcc" ;;
+  ppc-*-linux2) OUT="linux-ppc" ;;
+  mips-*-linux?) OUT="linux-mips" ;;
   *-*-linux2) OUT="linux-elf" ;;
   *-*-linux1) OUT="linux-aout" ;;
+  sun4u-sun-solaris2) OUT="solaris-usparc-$CC" ;;
   sun4*-sun-solaris2) OUT="solaris-sparc-$CC" ;;
   *86*-sun-solaris2) OUT="solaris-x86-$CC" ;;
   *-*-sunos4) OUT="sunos-$CC" ;;
+  alpha*-*-freebsd3) OUT="FreeBSD-alpha" ;;
   *-freebsd3) OUT="FreeBSD-elf" ;;
   *-freebsd) OUT="FreeBSD" ;;
   *86*-*-netbsd) OUT="NetBSD-x86" ;;
@@ -319,38 +323,81 @@ case "$GUESSOS" in
   *-*-openbsd) OUT="OpenBSD" ;;
   *-*-osf) OUT="alpha-cc" ;;
   *-*-unixware*) OUT="unixware-2.0" ;;
-  *-sni-sysv4) OUT="SINIX" ;;
-  *-hpux*) OUT="hpux-$CC" ;;
+  RM*-siemens-sysv4) OUT="ReliantUNIX" ;;
+  *-siemens-sysv4) OUT="SINIX" ;;
   # these are all covered by the catchall below
+  # *-hpux*) OUT="hpux-$CC" ;;
   # *-aix) OUT="aix-$CC" ;;
   # *-dgux) OUT="dgux" ;;
   *) OUT=`echo $GUESSOS | awk -F- '{print $3}'`;;
+esac
+
+# gcc < 2.8 does not support -mcpu=ultrasparc
+if [ "$OUT" = solaris-usparc-gcc ]
+then
+ GCCVERMAJOR="`echo $GCCVER | sed 's/.*version \([^.]*\).*/\1/`"
+ GCCVERMINOR="`echo $GCCVER | sed 's/.*version[^.]*\.\([^.]*\).*/\1/`"
+ echo "gcc version $GCCVERMAJOR.$GCCVERMINOR.x"
+ if [ $GCCVERMAJOR$GCCVERMINOR -lt 28 ]
+ then
+  OUT=solaris-usparc-oldgcc
+ fi
+fi
+
+case "$GUESSOS" in
+  i386-*) options="$options 386" ;;
 esac
 
 if [ -z "$OUT" ]; then
   OUT="$CC"
 fi
 
+if [ ".$PERL" = . ] ; then
+	for i in . `echo $PATH | sed 's/:/ /g'`; do
+		if [ -f "$i/perl5" ] ; then
+			PERL="$i/perl5"
+			break;
+		fi;
+	done
+fi
+
+if [ ".$PERL" = . ] ; then
+	for i in . `echo $PATH | sed 's/:/ /g'`; do
+		if [ -f "$i/perl" ] ; then
+			if "$i/perl" -e 'exit($]<5.0)'; then
+				PERL="$i/perl"
+				break;
+			fi;
+		fi;
+	done
+fi
+
+if [ ".$PERL" = . ] ; then
+	echo "You need Perl 5."
+	exit 1
+fi
+
 # run Configure to check to see if we need to specify the 
 # compiler for the platform ... in which case we add it on
 # the end ... otherwise we leave it off
-perl ./Configure 2>&1 | grep "$OUT-$CC" > /dev/null
+
+$PERL ./Configure 2>&1 | grep "$OUT-$CC" > /dev/null
 if [ $? = "0" ]; then
   OUT="$OUT-$CC"
 fi
 
 OUT="$PREFIX$OUT"
 
-# at this point we have the answer ... which we could check again
-# and then fallback to a vanilla SSLeay build but then this script
-# wouldn't get updated
-echo Configuring for $OUT
+$PERL ./Configure 2>&1 | grep "$OUT" > /dev/null
+if [ $? = "0" ]; then
+  echo Configuring for $OUT
 
-if [ "$TEST" = "true" ]; then
-  echo ./Configure $OUT $options
+  if [ "$TEST" = "true" ]; then
+    echo $PERL ./Configure $OUT $options
+  else
+    $PERL ./Configure $OUT $options
+  fi
 else
-  perl ./Configure $OUT $options
+  echo "This system ($OUT) is not supported. See file INSTALL for details."
 fi
-
 )
-

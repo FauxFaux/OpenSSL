@@ -64,11 +64,9 @@
 #include <stdio.h>
 #include <time.h>
 #include "cryptlib.h"
-#include "asn1.h"
+#include <openssl/asn1.h>
 
-int i2d_ASN1_TIME(a,pp)
-ASN1_TIME *a;
-unsigned char **pp;
+int i2d_ASN1_TIME(ASN1_TIME *a, unsigned char **pp)
 	{
 	if(a->type == V_ASN1_UTCTIME || a->type == V_ASN1_GENERALIZEDTIME)
 				return(i2d_ASN1_bytes((ASN1_STRING *)a,pp,
@@ -78,10 +76,7 @@ unsigned char **pp;
 	}
 
 
-ASN1_TIME *d2i_ASN1_TIME(a, pp, length)
-ASN1_TIME **a;
-unsigned char **pp;
-long length;
+ASN1_TIME *d2i_ASN1_TIME(ASN1_TIME **a, unsigned char **pp, long length)
 	{
 	unsigned char tag;
 	tag = **pp & ~V_ASN1_CONSTRUCTED;
@@ -94,9 +89,7 @@ long length;
 	}
 
 
-ASN1_TIME *ASN1_TIME_set(s, t)
-ASN1_TIME *s;
-time_t t;
+ASN1_TIME *ASN1_TIME_set(ASN1_TIME *s, time_t t)
 	{
 	struct tm *ts;
 #if defined(THREADS) && !defined(WIN32)
@@ -104,11 +97,12 @@ time_t t;
 #endif
 
 #if defined(THREADS) && !defined(WIN32)
-	ts=(struct tm *)gmtime_r(&t,&data);
+	gmtime_r(&t,&data);
+	ts=&data; /* should return &data, but doesn't on some systems, so we don't even look at the return value */
 #else
-	ts=(struct tm *)gmtime(&t);
+	ts=gmtime(&t);
 #endif
-	if((ts->tm_year >= 1950) && (ts->tm_year < 2050))
+	if((ts->tm_year >= 50) && (ts->tm_year < 150))
 					return ASN1_UTCTIME_set(s, t);
 	return ASN1_GENERALIZEDTIME_set(s,t);
 	}

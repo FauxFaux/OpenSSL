@@ -60,20 +60,22 @@
 #include <sys/types.h>
 #include <time.h>
 #include <string.h>
-#include "e_os.h"
-#include "crypto.h"
+
+#include "openssl/e_os.h"
+
+#include <openssl/crypto.h>
 
 #if !defined(USE_MD5_RAND) && !defined(USE_SHA1_RAND) && !defined(USE_MDC2_RAND) && !defined(USE_MD2_RAND)
-#ifndef NO_MD5
-#define USE_MD5_RAND
-#elif !defined(NO_SHA1)
+#if !defined(NO_SHA) && !defined(NO_SHA1)
 #define USE_SHA1_RAND
-#elif !defined(NO_MDC2)
+#elif !defined(NO_MD5)
+#define USE_MD5_RAND
+#elif !defined(NO_MDC2) && !defined(NO_DES)
 #define USE_MDC2_RAND
 #elif !defined(NO_MD2)
 #define USE_MD2_RAND
 #else
-We need a message digest of some type 
+#error No message digest algorithm available
 #endif
 #endif
 
@@ -84,7 +86,7 @@ We need a message digest of some type
  */
 
 #if defined(USE_MD5_RAND)
-#include "md5.h"
+#include <openssl/md5.h>
 #define MD_DIGEST_LENGTH	MD5_DIGEST_LENGTH
 #define MD_CTX			MD5_CTX
 #define MD_Init(a)		MD5_Init(a)
@@ -92,7 +94,7 @@ We need a message digest of some type
 #define	MD_Final(a,b)		MD5_Final(a,b)
 #define	MD(a,b,c)		MD5(a,b,c)
 #elif defined(USE_SHA1_RAND)
-#include "sha.h"
+#include <openssl/sha.h>
 #define MD_DIGEST_LENGTH	SHA_DIGEST_LENGTH
 #define MD_CTX			SHA_CTX
 #define MD_Init(a)		SHA1_Init(a)
@@ -100,7 +102,7 @@ We need a message digest of some type
 #define	MD_Final(a,b)		SHA1_Final(a,b)
 #define	MD(a,b,c)		SHA1(a,b,c)
 #elif defined(USE_MDC2_RAND)
-#include "mdc2.h"
+#include <openssl/mdc2.h>
 #define MD_DIGEST_LENGTH	MDC2_DIGEST_LENGTH
 #define MD_CTX			MDC2_CTX
 #define MD_Init(a)		MDC2_Init(a)
@@ -108,7 +110,7 @@ We need a message digest of some type
 #define	MD_Final(a,b)		MDC2_Final(a,b)
 #define	MD(a,b,c)		MDC2(a,b,c)
 #elif defined(USE_MD2_RAND)
-#include "md2.h"
+#include <openssl/md2.h>
 #define MD_DIGEST_LENGTH	MD2_DIGEST_LENGTH
 #define MD_CTX			MD2_CTX
 #define MD_Init(a)		MD2_Init(a)
@@ -117,7 +119,7 @@ We need a message digest of some type
 #define	MD(a,b,c)		MD2(a,b,c)
 #endif
 
-#include "rand.h"
+#include <openssl/rand.h>
 
 /* #define NORAND	1 */
 /* #define PREDICT	1 */
@@ -128,7 +130,7 @@ static unsigned char state[STATE_SIZE+MD_DIGEST_LENGTH];
 static unsigned char md[MD_DIGEST_LENGTH];
 static long md_count[2]={0,0};
 
-char *RAND_version="RAND" OPENSSL_VERSION_PTEXT;
+const char *RAND_version="RAND" OPENSSL_VERSION_PTEXT;
 
 static void ssleay_rand_cleanup(void);
 static void ssleay_rand_seed(const void *buf, int num);
@@ -140,12 +142,12 @@ RAND_METHOD rand_ssleay_meth={
 	ssleay_rand_cleanup,
 	}; 
 
-RAND_METHOD *RAND_SSLeay()
+RAND_METHOD *RAND_SSLeay(void)
 	{
 	return(&rand_ssleay_meth);
 	}
 
-static void ssleay_rand_cleanup()
+static void ssleay_rand_cleanup(void)
 	{
 	memset(state,0,sizeof(state));
 	state_num=0;
@@ -155,9 +157,7 @@ static void ssleay_rand_cleanup()
 	md_count[1]=0;
 	}
 
-static void ssleay_rand_seed(buf,num)
-const void *buf;
-int num;
+static void ssleay_rand_seed(const void *buf, int num)
 	{
 	int i,j,k,st_idx,st_num;
 	MD_CTX m;
@@ -204,7 +204,7 @@ int num;
 		MD_Final(md,&m);
 		md_count[1]++;
 
-		buf=(char *)buf + j;
+		buf=(const char *)buf + j;
 
 		for (k=0; k<j; k++)
 			{
@@ -219,9 +219,7 @@ int num;
 	memset((char *)&m,0,sizeof(m));
 	}
 
-static void ssleay_rand_bytes(buf,num)
-unsigned char *buf;
-int num;
+static void ssleay_rand_bytes(unsigned char *buf, int num)
 	{
 	int i,j,k,st_num,st_idx;
 	MD_CTX m;
@@ -245,7 +243,6 @@ int num;
 
 	if (init)
 		{
-		init=0;
 		CRYPTO_w_unlock(CRYPTO_LOCK_RAND);
 		/* put in some default random data, we need more than
 		 * just this */
@@ -285,6 +282,7 @@ int num;
 		memset(md,0,MD_DIGEST_LENGTH);
 #endif
 		CRYPTO_w_lock(CRYPTO_LOCK_RAND);
+		init=0;
 		}
 
 	st_idx=state_index;
@@ -334,7 +332,7 @@ int num;
 
 #ifdef WINDOWS
 #include <windows.h>
-#include <rand.h>
+#include <openssl/rand.h>
 
 /*****************************************************************************
  * Initialisation function for the SSL random generator.  Takes the contents

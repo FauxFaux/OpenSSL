@@ -59,7 +59,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "cast.h"
+
+#ifdef NO_CAST
+int main(int argc, char *argv[])
+{
+    printf("No CAST support\n");
+    return(0);
+}
+#else
+#include <openssl/cast.h>
 
 #define FULL_TEST
 
@@ -120,9 +128,7 @@ static unsigned char cfb_cipher64[CFB_TEST_SIZE]={
 	}; 
 #endif
 
-int main(argc,argv)
-int argc;
-char *argv[];
+int main(int argc, char *argv[])
     {
 #ifdef FULL_TEST
     long l;
@@ -221,4 +227,4 @@ char *argv[];
     exit(err);
     return(err);
     }
-
+#endif

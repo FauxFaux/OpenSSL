@@ -59,18 +59,12 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "asn1.h"
-#include "conf.h"
-#include "x509v3.h"
+#include <openssl/asn1.h>
+#include <openssl/conf.h>
+#include <openssl/x509v3.h>
 
-#ifndef NOPROTO
 static STACK *v2i_ext_ku(X509V3_EXT_METHOD *method, X509V3_CTX *ctx, STACK *nval);
 static STACK *i2v_ext_ku(X509V3_EXT_METHOD *method, STACK *eku, STACK *extlist);
-#else
-static STACK *v2i_ext_ku();
-static STACK *i2v_ext_ku();
-#endif
-
 X509V3_EXT_METHOD v3_ext_ku = {
 NID_ext_key_usage, 0,
 (X509V3_EXT_NEW)ext_ku_new,
@@ -84,30 +78,24 @@ NULL,NULL,
 NULL
 };
 
-STACK *ext_ku_new()
+STACK *ext_ku_new(void)
 {
 	return sk_new_null();
 }
 
-void ext_ku_free(eku)
-STACK *eku;
+void ext_ku_free(STACK *eku)
 {
 	sk_pop_free(eku, ASN1_OBJECT_free);
 	return;
 }
 
-int i2d_ext_ku(a,pp)
-STACK *a;
-unsigned char **pp;
+int i2d_ext_ku(STACK *a, unsigned char **pp)
 {
 	return i2d_ASN1_SET(a, pp, i2d_ASN1_OBJECT, V_ASN1_SEQUENCE,
 						 V_ASN1_UNIVERSAL, IS_SEQUENCE);
 }
 
-STACK *d2i_ext_ku(a,pp,length)
-STACK **a;
-unsigned char **pp;
-long length;
+STACK *d2i_ext_ku(STACK **a, unsigned char **pp, long length)
 {
 	return d2i_ASN1_SET(a, pp, length, (char *(*)())(d2i_ASN1_OBJECT),
 			 ASN1_OBJECT_free, V_ASN1_SEQUENCE, V_ASN1_UNIVERSAL);
@@ -115,10 +103,8 @@ long length;
 
 
 
-static STACK *i2v_ext_ku(method, eku, ext_list)
-X509V3_EXT_METHOD *method;
-STACK  *eku;
-STACK *ext_list;
+static STACK *i2v_ext_ku(X509V3_EXT_METHOD *method, STACK *eku,
+	     STACK *ext_list)
 {
 int i;
 ASN1_OBJECT *obj;
@@ -131,10 +117,8 @@ for(i = 0; i < sk_num(eku); i++) {
 return ext_list;
 }
 
-static STACK *v2i_ext_ku(method, ctx, nval)
-X509V3_EXT_METHOD *method;
-X509V3_CTX *ctx;
-STACK *nval;
+static STACK *v2i_ext_ku(X509V3_EXT_METHOD *method, X509V3_CTX *ctx,
+	     STACK *nval)
 {
 STACK *extku;
 char *extval;

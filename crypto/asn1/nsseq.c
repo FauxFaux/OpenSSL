@@ -58,21 +58,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "asn1_mac.h"
-#include "err.h"
-#include "x509.h"
-#include "objects.h"
+#include <openssl/asn1_mac.h>
+#include <openssl/err.h>
+#include <openssl/x509.h>
+#include <openssl/objects.h>
 
 /* Netscape certificate sequence structure */
 
-/*
- * ASN1err(ASN1_F_NETSCAPE_CERT_SEQUENCE_NEW,ERR_R_MALLOC_FAILURE);
- * ASN1err(ASN1_F_D2I_NETSCAPE_CERT_SEQUENCE,ERR_R_MALLOC_FAILURE);
- */
-
-int i2d_NETSCAPE_CERT_SEQUENCE(a,pp)
-NETSCAPE_CERT_SEQUENCE *a;
-unsigned char **pp;
+int i2d_NETSCAPE_CERT_SEQUENCE(NETSCAPE_CERT_SEQUENCE *a, unsigned char **pp)
 {
 	int v = 0;
 	M_ASN1_I2D_vars(a);
@@ -89,7 +82,7 @@ unsigned char **pp;
 	M_ASN1_I2D_finish();
 }
 
-NETSCAPE_CERT_SEQUENCE *NETSCAPE_CERT_SEQUENCE_new()
+NETSCAPE_CERT_SEQUENCE *NETSCAPE_CERT_SEQUENCE_new(void)
 {
 	NETSCAPE_CERT_SEQUENCE *ret=NULL;
 	ASN1_CTX c;
@@ -101,10 +94,8 @@ NETSCAPE_CERT_SEQUENCE *NETSCAPE_CERT_SEQUENCE_new()
 	M_ASN1_New_Error(ASN1_F_NETSCAPE_CERT_SEQUENCE_NEW);
 }
 
-NETSCAPE_CERT_SEQUENCE *d2i_NETSCAPE_CERT_SEQUENCE(a,pp,length)
-NETSCAPE_CERT_SEQUENCE **a;
-unsigned char **pp;
-long length;
+NETSCAPE_CERT_SEQUENCE *d2i_NETSCAPE_CERT_SEQUENCE(NETSCAPE_CERT_SEQUENCE **a,
+	     unsigned char **pp, long length)
 {
 	M_ASN1_D2I_vars(a,NETSCAPE_CERT_SEQUENCE *,
 					NETSCAPE_CERT_SEQUENCE_new);
@@ -116,8 +107,7 @@ long length;
 	M_ASN1_D2I_Finish(a, NETSCAPE_CERT_SEQUENCE_free, ASN1_F_D2I_NETSCAPE_CERT_SEQUENCE);
 }
 
-void NETSCAPE_CERT_SEQUENCE_free (a)
-NETSCAPE_CERT_SEQUENCE *a;
+void NETSCAPE_CERT_SEQUENCE_free (NETSCAPE_CERT_SEQUENCE *a)
 {
 	if (a == NULL) return;
 	ASN1_OBJECT_free(a->type);

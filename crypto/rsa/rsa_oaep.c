@@ -4,22 +4,18 @@
 
 /* EME_OAEP as defined in RFC 2437 (PKCS #1 v2.0) */
 
+#if !defined(NO_SHA) && !defined(NO_SHA1)
 #include <stdio.h>
 #include "cryptlib.h"
-#include "bn.h"
-#include "rsa.h"
-#include "sha.h"
-#include "rand.h"
+#include <openssl/bn.h>
+#include <openssl/rsa.h>
+#include <openssl/sha.h>
+#include <openssl/rand.h>
 
 int MGF1(unsigned char *mask, long len, unsigned char *seed, long seedlen);
 
-int RSA_padding_add_PKCS1_OAEP(to, tlen, from, flen, param, plen)
-     unsigned char *to;
-     int tlen;
-     unsigned char *from;
-     int flen;
-     unsigned char *param;
-     int plen;
+int RSA_padding_add_PKCS1_OAEP(unsigned char *to, int tlen,
+	     unsigned char *from, int flen, unsigned char *param, int plen)
     {
     int i, emlen = tlen - 1;
     unsigned char *db, *seed;
@@ -73,26 +69,22 @@ int RSA_padding_add_PKCS1_OAEP(to, tlen, from, flen, param, plen)
     return (1);
     }
 
-int RSA_padding_check_PKCS1_OAEP(to, tlen, from, flen, num, param, plen)
-     unsigned char *to;
-     int tlen;
-     unsigned char *from;
-     int flen;
-     int num;
-     unsigned char *param;
-     int plen;
+int RSA_padding_check_PKCS1_OAEP(unsigned char *to, int tlen,
+	     unsigned char *from, int flen, int num, unsigned char *param,
+	     int plen)
     {
     int i, dblen, mlen = -1;
     unsigned char *maskeddb;
+    int lzero;
     unsigned char *db, seed[SHA_DIGEST_LENGTH], phash[SHA_DIGEST_LENGTH];
 
-    if (flen < 2 * SHA_DIGEST_LENGTH + 1)
+    if (--num < 2 * SHA_DIGEST_LENGTH + 1)
 	{
 	RSAerr(RSA_F_RSA_PADDING_CHECK_PKCS1_OAEP, RSA_R_OAEP_DECODING_ERROR);
 	return (-1);
 	}
 
-    dblen = flen - SHA_DIGEST_LENGTH;
+    dblen = num - SHA_DIGEST_LENGTH;
     db = Malloc(dblen);
     if (db == NULL)
 	{
@@ -100,11 +92,12 @@ int RSA_padding_check_PKCS1_OAEP(to, tlen, from, flen, num, param, plen)
 	return (-1);
 	}
 
-    maskeddb = from + SHA_DIGEST_LENGTH;
+    lzero = num - flen;
+    maskeddb = from - lzero + SHA_DIGEST_LENGTH;
     
     MGF1(seed, SHA_DIGEST_LENGTH, maskeddb, dblen);
-    for (i = 0; i < SHA_DIGEST_LENGTH; i++)
-	seed[i] ^= from[i];
+    for (i = lzero; i < SHA_DIGEST_LENGTH; i++)
+	seed[i] ^= from[i - lzero];
   
     MGF1(db, dblen, seed, SHA_DIGEST_LENGTH);
     for (i = 0; i < dblen; i++)
@@ -166,3 +159,4 @@ int MGF1(unsigned char *mask, long len, unsigned char *seed, long seedlen)
 	}
     return (0);
     }
+#endif

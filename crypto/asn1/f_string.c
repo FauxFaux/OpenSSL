@@ -58,16 +58,13 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "buffer.h"
-#include "x509.h"
+#include <openssl/buffer.h>
+#include <openssl/x509.h>
 
-int i2a_ASN1_STRING(bp, a, type)
-BIO *bp;
-ASN1_STRING *a;
-int type;
+int i2a_ASN1_STRING(BIO *bp, ASN1_STRING *a, int type)
 	{
 	int i,n=0;
-	static char *h="0123456789ABCDEF";
+	static const char *h="0123456789ABCDEF";
 	char buf[2];
 
 	if (a == NULL) return(0);
@@ -97,11 +94,7 @@ err:
 	return(-1);
 	}
 
-int a2i_ASN1_STRING(bp,bs,buf,size)
-BIO *bp;
-ASN1_STRING *bs;
-char *buf;
-int size;
+int a2i_ASN1_STRING(BIO *bp, ASN1_STRING *bs, char *buf, int size)
 	{
 	int ret=0;
 	int i,j,k,m,n,again,bufsize;

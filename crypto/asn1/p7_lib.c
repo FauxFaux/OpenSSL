@@ -58,17 +58,10 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "asn1_mac.h"
-#include "objects.h"
+#include <openssl/asn1_mac.h>
+#include <openssl/objects.h>
 
-/* ASN1err(ASN1_F_D2I_PKCS7,ASN1_R_BAD_PKCS7_CONTENT);
- * ASN1err(ASN1_F_I2D_PKCS7,ASN1_R_BAD_PKCS7_TYPE);
- * ASN1err(ASN1_F_PKCS7_NEW,ASN1_R_BAD_PKCS7_TYPE);
- */
-
-int i2d_PKCS7(a,pp)
-PKCS7 *a;
-unsigned char **pp;
+int i2d_PKCS7(PKCS7 *a, unsigned char **pp)
 	{
 	M_ASN1_I2D_vars(a);
 
@@ -150,10 +143,7 @@ unsigned char **pp;
 	M_ASN1_I2D_finish();
 	}
 
-PKCS7 *d2i_PKCS7(a,pp,length)
-PKCS7 **a;
-unsigned char **pp;
-long length;
+PKCS7 *d2i_PKCS7(PKCS7 **a, unsigned char **pp, long length)
 	{
 	M_ASN1_D2I_vars(a,PKCS7 *,PKCS7_new);
 
@@ -236,7 +226,7 @@ long length;
 	M_ASN1_D2I_Finish(a,PKCS7_free,ASN1_F_D2I_PKCS7);
 	}
 
-PKCS7 *PKCS7_new()
+PKCS7 *PKCS7_new(void)
 	{
 	PKCS7 *ret=NULL;
 	ASN1_CTX c;
@@ -251,8 +241,7 @@ PKCS7 *PKCS7_new()
 	M_ASN1_New_Error(ASN1_F_PKCS7_NEW);
 	}
 
-void PKCS7_free(a)
-PKCS7 *a;
+void PKCS7_free(PKCS7 *a)
 	{
 	if (a == NULL) return;
 
@@ -264,8 +253,7 @@ PKCS7 *a;
 	Free((char *)(char *)a);
 	}
 
-void PKCS7_content_free(a)
-PKCS7 *a;
+void PKCS7_content_free(PKCS7 *a)
 	{
 	if(a == NULL)
 	    return;

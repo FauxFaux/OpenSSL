@@ -57,28 +57,19 @@
  */
 
 #include <stdio.h>
-#include "buffer.h"
-#include "rand.h"
-#include "objects.h"
-#include "evp.h"
+#include <openssl/buffer.h>
+#include <openssl/rand.h>
+#include <openssl/objects.h>
+#include <openssl/evp.h>
 #include "ssl_locl.h"
 
-#define BREAK break
-
-#ifndef NOPROTO
 static SSL_METHOD *ssl23_get_server_method(int ver);
 int ssl23_get_client_hello(SSL *s);
-#else
-static SSL_METHOD *ssl23_get_server_method();
-int ssl23_get_client_hello();
-#endif
-
-static SSL_METHOD *ssl23_get_server_method(ver)
-int ver;
+static SSL_METHOD *ssl23_get_server_method(int ver)
 	{
 	if (ver == SSL2_VERSION)
 		return(SSLv2_server_method());
-	else if (ver == SSL3_VERSION)
+	if (ver == SSL3_VERSION)
 		return(SSLv3_server_method());
 	else if (ver == TLS1_VERSION)
 		return(TLSv1_server_method());
@@ -86,24 +77,23 @@ int ver;
 		return(NULL);
 	}
 
-SSL_METHOD *SSLv23_server_method()
+SSL_METHOD *SSLv23_server_method(void)
 	{
 	static int init=1;
 	static SSL_METHOD SSLv23_server_data;
 
 	if (init)
 		{
-		init=0;
 		memcpy((char *)&SSLv23_server_data,
 			(char *)sslv23_base_method(),sizeof(SSL_METHOD));
 		SSLv23_server_data.ssl_accept=ssl23_accept;
 		SSLv23_server_data.get_ssl_method=ssl23_get_server_method;
+		init=0;
 		}
 	return(&SSLv23_server_data);
 	}
 
-int ssl23_accept(s)
-SSL *s;
+int ssl23_accept(SSL *s)
 	{
 	BUF_MEM *buf;
 	unsigned long Time=time(NULL);
@@ -194,8 +184,7 @@ end:
 	}
 
 
-int ssl23_get_client_hello(s)
-SSL *s;
+int ssl23_get_client_hello(SSL *s)
 	{
 	char buf_space[8];
 	char *buf= &(buf_space[0]);
@@ -213,7 +202,7 @@ SSL *s;
 		if (!ssl3_setup_buffers(s)) goto err;
 
 		n=ssl23_read_bytes(s,7);
-		if (n != 7) return(n);
+		if (n != 7) return(n); /* n == -1 || n == 0 */
 
 		p=s->packet;
 
@@ -256,7 +245,7 @@ SSL *s;
 
 				if (s->options & SSL_OP_NON_EXPORT_FIRST)
 					{
-					STACK *sk;
+					STACK_OF(SSL_CIPHER) *sk;
 					SSL_CIPHER *c;
 					int ne2,ne3;
 
@@ -287,9 +276,9 @@ SSL *s;
 					if (sk != NULL)
 						{
 						ne2=ne3=0;
-						for (j=0; j<sk_num(sk); j++)
+						for (j=0; j<sk_SSL_CIPHER_num(sk); j++)
 							{
-							c=(SSL_CIPHER *)sk_value(sk,j);
+							c=sk_SSL_CIPHER_value(sk,j);
 							if (!SSL_C_IS_EXPORT(c))
 								{
 								if ((c->id>>24L) == 2L)

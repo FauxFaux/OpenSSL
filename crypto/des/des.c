@@ -59,7 +59,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #ifndef MSDOS
+#ifndef VMS
 #include <unistd.h>
+#else /* VMS */
+#ifdef __DECC
+#include <unistd.h>
+#if __CRTL_VER < 70000000
+#define RAND
+#endif
+#else /* not __DECC */
+#include <math.h>
+#define RAND
+#endif /* __DECC */
+#endif /* VMS */
 #else
 #include <io.h>
 #define RAND
@@ -77,10 +89,7 @@
 #endif
 #include <sys/stat.h>
 #endif
-#if defined(NOCONST)
-#define const
-#endif
-#include "des.h"
+#include <openssl/des.h>
 
 #if defined(__STDC__) || defined(VMS) || defined(M_XENIX) || defined(MSDOS)
 #include <string.h>
@@ -91,7 +100,6 @@
 #define srandom(s) srand(s)
 #endif
 
-#ifndef NOPROTO
 void usage(void);
 void doencryption(void);
 int uufwrite(unsigned char *data, int size, unsigned int num, FILE *fp);
@@ -102,17 +110,6 @@ int uudecode(unsigned char *in,int num,unsigned char *out);
 void des_3cbc_encrypt(des_cblock *input,des_cblock *output,long length,
 	des_key_schedule sk1,des_key_schedule sk2,
 	des_cblock *ivec1,des_cblock *ivec2,int enc);
-#else
-void usage();
-void doencryption();
-int uufwrite();
-void uufwriteEnd();
-int uufread();
-int uuencode();
-int uudecode();
-void des_3cbc_encrypt();
-#endif
-
 #ifdef VMS
 #define EXIT(a) exit(a&0x10000000L)
 #else
@@ -138,9 +135,7 @@ char cksumname[200]="";
 
 int vflag,cflag,eflag,dflag,kflag,bflag,fflag,sflag,uflag,flag3,hflag,error;
 
-int main(argc, argv)
-int argc;
-char **argv;
+int main(int argc, char **argv)
 	{
 	int i;
 	struct stat ins,outs;
@@ -331,7 +326,7 @@ char **argv;
 	EXIT(0);
 	}
 
-void usage()
+void usage(void)
 	{
 	char **u;
 	static const char *Usage[]={
@@ -369,7 +364,7 @@ NULL
 	EXIT(1);
 	}
 
-void doencryption()
+void doencryption(void)
 	{
 #ifdef _LIBC
 	extern int srandom();
@@ -696,15 +691,8 @@ problems:
 	if (Exit) EXIT(Exit);
 	}
 
-int uufwrite(data, size, num, fp)
-unsigned char *data;
-int size;
-unsigned int num;
-FILE *fp;
-      
-     /* We ignore this parameter but it should be > ~50 I believe */
-   
-    
+/*    We ignore this parameter but it should be > ~50 I believe    */
+int uufwrite(unsigned char *data, int size, unsigned int num, FILE *fp)
 	{
 	int i,j,left,rem,ret=num;
 	static int start=1;
@@ -757,8 +745,7 @@ FILE *fp;
 	return(ret);
 	}
 
-void uufwriteEnd(fp)
-FILE *fp;
+void uufwriteEnd(FILE *fp)
 	{
 	int j;
 	static const char *end=" \nend\n";
@@ -774,11 +761,8 @@ FILE *fp;
 	fwrite(end,1,strlen(end),fp);
 	}
 
-int uufread(out, size, num, fp)
-unsigned char *out;
-int size; /* should always be > ~ 60; I actually ignore this parameter :-) */
-unsigned int num;
-FILE *fp;
+/* int size:  should always be > ~ 60; I actually ignore this parameter :-)    */
+int uufread(unsigned char *out, int size, unsigned int num, FILE *fp)
 	{
 	int i,j,tot;
 	static int done=0;
@@ -850,10 +834,7 @@ FILE *fp;
                     *((c)++)=(unsigned char)(((l)    )&0xff))
 
 
-int uuencode(in, num, out)
-unsigned char *in;
-int num;
-unsigned char *out;
+int uuencode(unsigned char *in, int num, unsigned char *out)
 	{
 	int j,i,n,tot=0;
 	DES_LONG l;
@@ -883,10 +864,7 @@ unsigned char *out;
 	return(tot);
 	}
 
-int uudecode(in, num, out)
-unsigned char *in;
-int num;
-unsigned char *out;
+int uudecode(unsigned char *in, int num, unsigned char *out)
 	{
 	int j,i,k;
 	unsigned int n=0,space=0;

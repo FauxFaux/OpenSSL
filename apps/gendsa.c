@@ -56,32 +56,26 @@
  * [including the GNU Public Licence.]
  */
 
+#ifndef NO_DSA
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "apps.h"
-#include "bio.h"
-#include "rand.h"
-#include "err.h"
-#include "bn.h"
-#include "dsa.h"
-#include "x509.h"
-#include "pem.h"
+#include <openssl/bio.h>
+#include <openssl/rand.h>
+#include <openssl/err.h>
+#include <openssl/bn.h>
+#include <openssl/dsa.h>
+#include <openssl/x509.h>
+#include <openssl/pem.h>
 
 #define DEFBITS	512
 #undef PROG
 #define PROG gendsa_main
 
-#ifndef NOPROTO
 static long dsa_load_rand(char *names);
-#else
-static long dsa_load_rand();
-#endif
-
-int MAIN(argc, argv)
-int argc;
-char **argv;
+int MAIN(int argc, char **argv)
 	{
 	char buffer[200];
 	DSA *dsa=NULL;
@@ -214,8 +208,7 @@ end:
 	EXIT(ret);
 	}
 
-static long dsa_load_rand(name)
-char *name;
+static long dsa_load_rand(char *name)
 	{
 	char *p,*n;
 	int last;
@@ -236,5 +229,4 @@ char *name;
 		}
 	return(tot);
 	}
-
-
+#endif

@@ -58,36 +58,23 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "buffer.h"
-#include "objects.h"
-#include "evp.h"
-#include "rand.h"
-#include "x509.h"
-#include "pem.h"
+#include <openssl/buffer.h>
+#include <openssl/objects.h>
+#include <openssl/evp.h>
+#include <openssl/rand.h>
+#include <openssl/x509.h>
+#include <openssl/pem.h>
 #ifndef NO_DES
-#include "des.h"
+#include <openssl/des.h>
 #endif
 
-char *PEM_version="PEM" OPENSSL_VERSION_PTEXT;
+const char *PEM_version="PEM" OPENSSL_VERSION_PTEXT;
 
 #define MIN_LENGTH	4
 
-/* PEMerr(PEM_F_PEM_WRITE_BIO,ERR_R_MALLOC_FAILURE);
- * PEMerr(PEM_F_PEM_READ_BIO,ERR_R_MALLOC_FAILURE);
- */
-
-#ifndef NOPROTO
 static int def_callback(char *buf, int num, int w);
 static int load_iv(unsigned char **fromp,unsigned char *to, int num);
-#else
-static int def_callback();
-static int load_iv();
-#endif
-
-static int def_callback(buf, num, w)
-char *buf;
-int num;
-int w;
+static int def_callback(char *buf, int num, int w)
 	{
 #ifdef NO_FP_API
 	/* We should not ever call the default callback routine from
@@ -96,7 +83,7 @@ int w;
 	return(-1);
 #else
 	int i,j;
-	char *prompt;
+	const char *prompt;
 
 	prompt=EVP_get_pw_prompt();
 	if (prompt == NULL)
@@ -123,11 +110,9 @@ int w;
 #endif
 	}
 
-void PEM_proc_type(buf, type)
-char *buf;
-int type;
+void PEM_proc_type(char *buf, int type)
 	{
-	char *str;
+	const char *str;
 
 	if (type == PEM_TYPE_ENCRYPTED)
 		str="ENCRYPTED";
@@ -143,11 +128,7 @@ int type;
 	strcat(buf,"\n");
 	}
 
-void PEM_dek_info(buf, type, len, str)
-char *buf;
-char *type;
-int len;
-char *str;
+void PEM_dek_info(char *buf, const char *type, int len, char *str)
 	{
 	static unsigned char map[17]="0123456789ABCDEF";
 	long i;
@@ -167,12 +148,8 @@ char *str;
 	}
 
 #ifndef NO_FP_API
-char *PEM_ASN1_read(d2i,name,fp, x, cb)
-char *(*d2i)();
-char *name;
-FILE *fp;
-char **x;
-int (*cb)();
+char *PEM_ASN1_read(char *(*d2i)(), const char *name, FILE *fp, char **x,
+	     pem_password_cb *cb)
 	{
         BIO *b;
         char *ret;
@@ -189,12 +166,8 @@ int (*cb)();
 	}
 #endif
 
-char *PEM_ASN1_read_bio(d2i,name,bp, x, cb)
-char *(*d2i)();
-char *name;
-BIO *bp;
-char **x;
-int (*cb)();
+char *PEM_ASN1_read_bio(char *(*d2i)(), const char *name, BIO *bp, char **x,
+	     pem_password_cb *cb)
 	{
 	EVP_CIPHER_INFO cipher;
 	char *nm=NULL,*header=NULL;
@@ -242,15 +215,9 @@ err:
 	}
 
 #ifndef NO_FP_API
-int PEM_ASN1_write(i2d,name,fp, x, enc, kstr, klen, callback)
-int (*i2d)();
-char *name;
-FILE *fp;
-char *x;
-EVP_CIPHER *enc;
-unsigned char *kstr;
-int klen;
-int (*callback)();
+int PEM_ASN1_write(int (*i2d)(), const char *name, FILE *fp, char *x,
+	     const EVP_CIPHER *enc, unsigned char *kstr, int klen,
+	     pem_password_cb *callback)
         {
         BIO *b;
         int ret;
@@ -267,20 +234,14 @@ int (*callback)();
         }
 #endif
 
-int PEM_ASN1_write_bio(i2d,name,bp, x, enc, kstr, klen, callback)
-int (*i2d)();
-char *name;
-BIO *bp;
-char *x;
-EVP_CIPHER *enc;
-unsigned char *kstr;
-int klen;
-int (*callback)();
+int PEM_ASN1_write_bio(int (*i2d)(), const char *name, BIO *bp, char *x,
+	     const EVP_CIPHER *enc, unsigned char *kstr, int klen,
+	     pem_password_cb *callback)
 	{
 	EVP_CIPHER_CTX ctx;
 	int dsize=0,i,j,ret=0;
 	unsigned char *p,*data=NULL;
-	char *objstr=NULL;
+	const char *objstr=NULL;
 #define PEM_BUFSIZE	1024
 	char buf[PEM_BUFSIZE];
 	unsigned char key[EVP_MAX_KEY_LENGTH];
@@ -363,11 +324,8 @@ err:
 	return(ret);
 	}
 
-int PEM_do_header(cipher, data, plen, callback)
-EVP_CIPHER_INFO *cipher;
-unsigned char *data;
-long *plen;
-int (*callback)();
+int PEM_do_header(EVP_CIPHER_INFO *cipher, unsigned char *data, long *plen,
+	     pem_password_cb *callback)
 	{
 	int i,j,o,klen;
 	long len;
@@ -407,12 +365,10 @@ int (*callback)();
 	return(1);
 	}
 
-int PEM_get_EVP_CIPHER_INFO(header,cipher)
-char *header;
-EVP_CIPHER_INFO *cipher;
+int PEM_get_EVP_CIPHER_INFO(char *header, EVP_CIPHER_INFO *cipher)
 	{
 	int o;
-	EVP_CIPHER *enc=NULL;
+	const EVP_CIPHER *enc=NULL;
 	char *p,c;
 
 	cipher->cipher=NULL;
@@ -459,9 +415,7 @@ EVP_CIPHER_INFO *cipher;
 	return(1);
 	}
 
-static int load_iv(fromp,to,num)
-unsigned char **fromp,*to;
-int num;
+static int load_iv(unsigned char **fromp, unsigned char *to, int num)
 	{
 	int v,i;
 	unsigned char *from;
@@ -491,12 +445,8 @@ int num;
 	}
 
 #ifndef NO_FP_API
-int PEM_write(fp, name, header, data,len)
-FILE *fp;
-char *name;
-char *header;
-unsigned char *data;
-long len;
+int PEM_write(FILE *fp, char *name, char *header, unsigned char *data,
+	     long len)
         {
         BIO *b;
         int ret;
@@ -513,12 +463,8 @@ long len;
         }
 #endif
 
-int PEM_write_bio(bp, name, header, data,len)
-BIO *bp;
-char *name;
-char *header;
-unsigned char *data;
-long len;
+int PEM_write_bio(BIO *bp, const char *name, char *header, unsigned char *data,
+	     long len)
 	{
 	int nlen,n,i,j,outl;
 	unsigned char *buf;
@@ -573,12 +519,8 @@ err:
 	}
 
 #ifndef NO_FP_API
-int PEM_read(fp, name, header, data,len)
-FILE *fp;
-char **name;
-char **header;
-unsigned char **data;
-long *len;
+int PEM_read(FILE *fp, char **name, char **header, unsigned char **data,
+	     long *len)
         {
         BIO *b;
         int ret;
@@ -595,12 +537,8 @@ long *len;
         }
 #endif
 
-int PEM_read_bio(bp, name, header, data, len)
-BIO *bp;
-char **name;
-char **header;
-unsigned char **data;
-long *len;
+int PEM_read_bio(BIO *bp, char **name, char **header, unsigned char **data,
+	     long *len)
 	{
 	EVP_ENCODE_CTX ctx;
 	int end=0,i,k,bl=0,hl=0,nohead=0;
@@ -643,7 +581,7 @@ long *len;
 				PEMerr(PEM_F_PEM_READ_BIO,ERR_R_MALLOC_FAILURE);
 				goto err;
 				}
-			strncpy(nameB->data,&(buf[11]),(unsigned int)i-6);
+			memcpy(nameB->data,&(buf[11]),i-6);
 			nameB->data[i-6]='\0';
 			break;
 			}
@@ -668,7 +606,7 @@ long *len;
 			nohead=1;
 			break;
 			}
-		strncpy(&(headerB->data[hl]),buf,(unsigned int)i);
+		memcpy(&(headerB->data[hl]),buf,i);
 		headerB->data[hl+i]='\0';
 		hl+=i;
 		}
@@ -696,7 +634,7 @@ long *len;
 				PEMerr(PEM_F_PEM_READ_BIO,ERR_R_MALLOC_FAILURE);
 				goto err;
 				}
-			strncpy(&(dataB->data[bl]),buf,(unsigned int)i);
+			memcpy(&(dataB->data[bl]),buf,i);
 			dataB->data[bl+i]='\0';
 			bl+=i;
 			if (end)
@@ -721,7 +659,7 @@ long *len;
 		}
 	i=strlen(nameB->data);
 	if (	(strncmp(buf,"-----END ",9) != 0) ||
-		(strncmp(nameB->data,&(buf[9]),(unsigned int)i) != 0) ||
+		(strncmp(nameB->data,&(buf[9]),i) != 0) ||
 		(strncmp(&(buf[9+i]),"-----\n",6) != 0))
 		{
 		PEMerr(PEM_F_PEM_READ_BIO,PEM_R_BAD_END_LINE);

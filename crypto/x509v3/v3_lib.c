@@ -59,36 +59,33 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "conf.h"
-#include "x509v3.h"
+#include <openssl/conf.h>
+#include <openssl/x509v3.h>
 
 static STACK *ext_list = NULL;
 
 static int ext_cmp(X509V3_EXT_METHOD **a, X509V3_EXT_METHOD **b);
 static void ext_list_free(X509V3_EXT_METHOD *ext);
 
-int X509V3_EXT_add(ext)
-X509V3_EXT_METHOD *ext;
+int X509V3_EXT_add(X509V3_EXT_METHOD *ext)
 {
 	if(!ext_list && !(ext_list = sk_new(ext_cmp))) {
-		X509V3err(X509V3_F_X509V3_ADD_EXT,ERR_R_MALLOC_FAILURE);
+		X509V3err(X509V3_F_X509V3_EXT_ADD,ERR_R_MALLOC_FAILURE);
 		return 0;
 	}
 	if(!sk_push(ext_list, (char *)ext)) {
-		X509V3err(X509V3_F_X509V3_ADD_EXT,ERR_R_MALLOC_FAILURE);
+		X509V3err(X509V3_F_X509V3_EXT_ADD,ERR_R_MALLOC_FAILURE);
 		return 0;
 	}
 	return 1;
 }
 
-static int ext_cmp(a, b)
-X509V3_EXT_METHOD **a, **b;
+static int ext_cmp(X509V3_EXT_METHOD **a, X509V3_EXT_METHOD **b)
 {
 	return ((*a)->ext_nid - (*b)->ext_nid);
 }
 
-X509V3_EXT_METHOD *X509V3_EXT_get_nid(nid)
-int nid;
+X509V3_EXT_METHOD *X509V3_EXT_get_nid(int nid)
 {
 	X509V3_EXT_METHOD tmp;
 	int idx;
@@ -99,8 +96,7 @@ int nid;
 	return (X509V3_EXT_METHOD *)sk_value(ext_list, idx);
 }
 
-X509V3_EXT_METHOD *X509V3_EXT_get(ext)
-X509_EXTENSION *ext;
+X509V3_EXT_METHOD *X509V3_EXT_get(X509_EXTENSION *ext)
 {
 	int nid;
 	if((nid = OBJ_obj2nid(ext->object)) == NID_undef) return NULL;
@@ -108,16 +104,14 @@ X509_EXTENSION *ext;
 }
 
 
-int X509V3_EXT_add_list(extlist)
-X509V3_EXT_METHOD *extlist;
+int X509V3_EXT_add_list(X509V3_EXT_METHOD *extlist)
 {
 	for(;extlist->ext_nid!=-1;extlist++) 
 			if(!X509V3_EXT_add(extlist)) return 0;
 	return 1;
 }
 
-int X509V3_EXT_add_alias(nid_to, nid_from)
-int nid_to, nid_from;
+int X509V3_EXT_add_alias(int nid_to, int nid_from)
 {
 	X509V3_EXT_METHOD *ext, *tmpext;
 	if(!(ext = X509V3_EXT_get_nid(nid_from))) {
@@ -134,24 +128,24 @@ int nid_to, nid_from;
 	return 1;
 }
 
-void X509V3_EXT_cleanup()
+void X509V3_EXT_cleanup(void)
 {
 	sk_pop_free(ext_list, ext_list_free);
+	ext_list = NULL;
 }
 
-static void ext_list_free(ext)
-X509V3_EXT_METHOD *ext;
+static void ext_list_free(X509V3_EXT_METHOD *ext)
 {
 	if(ext->ext_flags & X509V3_EXT_DYNAMIC) Free(ext);
 }
 
 extern X509V3_EXT_METHOD v3_bcons, v3_nscert, v3_key_usage, v3_ext_ku;
-extern X509V3_EXT_METHOD v3_pkey_usage_period;
+extern X509V3_EXT_METHOD v3_pkey_usage_period, v3_sxnet;
 extern X509V3_EXT_METHOD v3_ns_ia5_list[], v3_alt[], v3_skey_id, v3_akey_id;
 
-extern X509V3_EXT_METHOD v3_crl_num, v3_crl_reason;
+extern X509V3_EXT_METHOD v3_crl_num, v3_crl_reason, v3_cpols, v3_crld;
 
-int X509V3_add_standard_extensions()
+int X509V3_add_standard_extensions(void)
 {
 	X509V3_EXT_add_list(v3_ns_ia5_list);
 	X509V3_EXT_add_list(v3_alt);
@@ -163,14 +157,16 @@ int X509V3_add_standard_extensions()
 	X509V3_EXT_add(&v3_akey_id);
 	X509V3_EXT_add(&v3_pkey_usage_period);
 	X509V3_EXT_add(&v3_crl_num);
+	X509V3_EXT_add(&v3_sxnet);
 	X509V3_EXT_add(&v3_crl_reason);
+	X509V3_EXT_add(&v3_cpols);
+	X509V3_EXT_add(&v3_crld);
 	return 1;
 }
 
 /* Return an extension internal structure */
 
-char *X509V3_EXT_d2i(ext)
-X509_EXTENSION *ext;
+void *X509V3_EXT_d2i(X509_EXTENSION *ext)
 {
 	X509V3_EXT_METHOD *method;
 	unsigned char *p;

@@ -62,24 +62,18 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "crypto.h"
+#include <openssl/crypto.h>
 #include "cryptlib.h"
-#include "lhash.h"
-#include "buffer.h"
-#include "evp.h"
-#include "asn1.h"
-#include "x509.h"
-#include "objects.h"
+#include <openssl/lhash.h>
+#include <openssl/buffer.h>
+#include <openssl/evp.h>
+#include <openssl/asn1.h>
+#include <openssl/x509.h>
+#include <openssl/objects.h>
 
-#ifndef NOPROTO
 static int null_callback(int ok,X509_STORE_CTX *e);
 static int internal_verify(X509_STORE_CTX *ctx);
-#else
-static int null_callback();
-static int internal_verify();
-#endif
-
-char *X509_version="X.509" OPENSSL_VERSION_PTEXT;
+const char *X509_version="X.509" OPENSSL_VERSION_PTEXT;
 
 static STACK *x509_store_ctx_method=NULL;
 static int x509_store_ctx_num=0;
@@ -88,23 +82,19 @@ static int x509_store_num=1;
 static STACK *x509_store_method=NULL;
 #endif
 
-static int null_callback(ok,e)
-int ok;
-X509_STORE_CTX *e;
+static int null_callback(int ok, X509_STORE_CTX *e)
 	{
 	return(ok);
 	}
 
 #if 0
-static int x509_subject_cmp(a,b)
-X509 **a,**b;
+static int x509_subject_cmp(X509 **a, X509 **b)
 	{
 	return(X509_subject_name_cmp(*a,*b));
 	}
 #endif
 
-int X509_verify_cert(ctx)
-X509_STORE_CTX *ctx;
+int X509_verify_cert(X509_STORE_CTX *ctx)
 	{
 	X509 *x,*xtmp,*chain_ss=NULL;
 	X509_NAME *xn;
@@ -112,7 +102,7 @@ X509_STORE_CTX *ctx;
 	int depth,i,ok=0;
 	int num;
 	int (*cb)();
-	STACK *sktmp=NULL;
+	STACK_OF(X509) *sktmp=NULL;
 
 	if (ctx->cert == NULL)
 		{
@@ -138,7 +128,8 @@ X509_STORE_CTX *ctx;
 		}
 
 	/* We use a temporary so we can chop and hack at it */
-	if ((ctx->untrusted != NULL) && (sktmp=sk_dup(ctx->untrusted)) == NULL)
+	if (ctx->untrusted != NULL
+	    && (sktmp=sk_X509_dup(ctx->untrusted)) == NULL)
 		{
 		X509err(X509_F_X509_VERIFY_CERT,ERR_R_MALLOC_FAILURE);
 		goto end;
@@ -152,7 +143,11 @@ X509_STORE_CTX *ctx;
 	for (;;)
 		{
 		/* If we have enough, we break */
-		if (depth <= num) break;
+		if (depth < num) break; /* FIXME: If this happens, we should take
+								 * note of it and, if appropriate, use the
+								 * X509_V_ERR_CERT_CHAIN_TOO_LONG error
+								 * code later.
+								 */
 
 		/* If we are self signed, we break */
 		xn=X509_get_issuer_name(x);
@@ -171,7 +166,7 @@ X509_STORE_CTX *ctx;
 					goto end;
 					}
 				CRYPTO_add(&xtmp->references,1,CRYPTO_LOCK_X509);
-				sk_delete_ptr(sktmp,(char *)xtmp);
+				sk_X509_delete_ptr(sktmp,xtmp);
 				ctx->last_untrusted++;
 				x=xtmp;
 				num++;
@@ -215,7 +210,7 @@ X509_STORE_CTX *ctx;
 	for (;;)
 		{
 		/* If we have enough, we break */
-		if (depth <= num) break;
+		if (depth < num) break;
 
 		/* If we are self signed, we break */
 		xn=X509_get_issuer_name(x);
@@ -290,13 +285,12 @@ X509_STORE_CTX *ctx;
 end:
 		X509_get_pubkey_parameters(NULL,ctx->chain);
 		}
-	if (sktmp != NULL) sk_free(sktmp);
+	if (sktmp != NULL) sk_X509_free(sktmp);
 	if (chain_ss != NULL) X509_free(chain_ss);
 	return(ok);
 	}
 
-static int internal_verify(ctx)
-X509_STORE_CTX *ctx;
+static int internal_verify(X509_STORE_CTX *ctx)
 	{
 	int i,ok=0,n;
 	X509 *xs,*xi;
@@ -408,8 +402,7 @@ end:
 	return(ok);
 	}
 
-int X509_cmp_current_time(ctm)
-ASN1_UTCTIME *ctm;
+int X509_cmp_current_time(ASN1_UTCTIME *ctm)
 	{
 	char *str;
 	ASN1_UTCTIME atm;
@@ -449,9 +442,9 @@ ASN1_UTCTIME *ctm;
 	X509_gmtime_adj(&atm,-offset);
 
 	i=(buff1[0]-'0')*10+(buff1[1]-'0');
-	if (i < 70) i+=100;
+	if (i < 50) i+=100; /* cf. RFC 2459 */
 	j=(buff2[0]-'0')*10+(buff2[1]-'0');
-	if (j < 70) j+=100;
+	if (j < 50) j+=100;
 
 	if (i < j) return (-1);
 	if (i > j) return (1);
@@ -462,9 +455,7 @@ ASN1_UTCTIME *ctm;
 		return(i);
 	}
 
-ASN1_UTCTIME *X509_gmtime_adj(s, adj)
-ASN1_UTCTIME *s;
-long adj;
+ASN1_UTCTIME *X509_gmtime_adj(ASN1_UTCTIME *s, long adj)
 	{
 	time_t t;
 
@@ -473,9 +464,7 @@ long adj;
 	return(ASN1_UTCTIME_set(s,t));
 	}
 
-int X509_get_pubkey_parameters(pkey,chain)
-EVP_PKEY *pkey;
-STACK *chain;
+int X509_get_pubkey_parameters(EVP_PKEY *pkey, STACK *chain)
 	{
 	EVP_PKEY *ktmp=NULL,*ktmp2;
 	int i,j;
@@ -517,9 +506,7 @@ STACK *chain;
 	return(1);
 	}
 
-int X509_STORE_add_cert(ctx,x)
-X509_STORE *ctx;
-X509 *x;
+int X509_STORE_add_cert(X509_STORE *ctx, X509 *x)
 	{
 	X509_OBJECT *obj,*r;
 	int ret=1;
@@ -554,9 +541,7 @@ X509 *x;
 	return(ret);	
 	}
 
-int X509_STORE_add_crl(ctx,x)
-X509_STORE *ctx;
-X509_CRL *x;
+int X509_STORE_add_crl(X509_STORE *ctx, X509_CRL *x)
 	{
 	X509_OBJECT *obj,*r;
 	int ret=1;
@@ -591,12 +576,8 @@ X509_CRL *x;
 	return(ret);	
 	}
 
-int X509_STORE_CTX_get_ex_new_index(argl,argp,new_func,dup_func,free_func)
-long argl;
-char *argp;
-int (*new_func)();
-int (*dup_func)();
-void (*free_func)();
+int X509_STORE_CTX_get_ex_new_index(long argl, char *argp, int (*new_func)(),
+	     int (*dup_func)(), void (*free_func)())
         {
         x509_store_ctx_num++;
         return(CRYPTO_get_ex_new_index(x509_store_ctx_num-1,
@@ -604,64 +585,55 @@ void (*free_func)();
                 argl,argp,new_func,dup_func,free_func));
         }
 
-int X509_STORE_CTX_set_ex_data(ctx,idx,data)
-X509_STORE_CTX *ctx;
-int idx;
-char *data;
+int X509_STORE_CTX_set_ex_data(X509_STORE_CTX *ctx, int idx, void *data)
 	{
 	return(CRYPTO_set_ex_data(&ctx->ex_data,idx,data));
 	}
 
-char *X509_STORE_CTX_get_ex_data(ctx,idx)
-X509_STORE_CTX *ctx;
-int idx;
+void *X509_STORE_CTX_get_ex_data(X509_STORE_CTX *ctx, int idx)
 	{
 	return(CRYPTO_get_ex_data(&ctx->ex_data,idx));
 	}
 
-int X509_STORE_CTX_get_error(ctx)
-X509_STORE_CTX *ctx;
+int X509_STORE_CTX_get_error(X509_STORE_CTX *ctx)
 	{
 	return(ctx->error);
 	}
 
-void X509_STORE_CTX_set_error(ctx,err)
-X509_STORE_CTX *ctx;
-int err;
+void X509_STORE_CTX_set_error(X509_STORE_CTX *ctx, int err)
 	{
 	ctx->error=err;
 	}
 
-int X509_STORE_CTX_get_error_depth(ctx)
-X509_STORE_CTX *ctx;
+int X509_STORE_CTX_get_error_depth(X509_STORE_CTX *ctx)
 	{
 	return(ctx->error_depth);
 	}
 
-X509 *X509_STORE_CTX_get_current_cert(ctx)
-X509_STORE_CTX *ctx;
+X509 *X509_STORE_CTX_get_current_cert(X509_STORE_CTX *ctx)
 	{
 	return(ctx->current_cert);
 	}
 
-STACK *X509_STORE_CTX_get_chain(ctx)
-X509_STORE_CTX *ctx;
+STACK *X509_STORE_CTX_get_chain(X509_STORE_CTX *ctx)
 	{
 	return(ctx->chain);
 	}
 
-void X509_STORE_CTX_set_cert(ctx,x)
-X509_STORE_CTX *ctx;
-X509 *x;
+void X509_STORE_CTX_set_cert(X509_STORE_CTX *ctx, X509 *x)
 	{
 	ctx->cert=x;
 	}
 
-void X509_STORE_CTX_set_chain(ctx,sk)
-X509_STORE_CTX *ctx;
-STACK *sk;
+void X509_STORE_CTX_set_chain(X509_STORE_CTX *ctx, STACK_OF(X509) *sk)
 	{
 	ctx->untrusted=sk;
 	}
 
+IMPLEMENT_STACK_OF(X509)
+IMPLEMENT_ASN1_SET_OF(X509)
 
+IMPLEMENT_STACK_OF(X509_NAME)
+
+IMPLEMENT_STACK_OF(X509_ATTRIBUTE)
+IMPLEMENT_ASN1_SET_OF(X509_ATTRIBUTE)

@@ -78,15 +78,14 @@
 #ifdef NO_STDIO
 #define APPS_WIN16
 #endif
-#include "crypto.h"
-#include "rand.h"
-#include "err.h"
+#include <openssl/crypto.h>
+#include <openssl/rand.h>
+#include <openssl/err.h>
 
-#ifndef MSDOS
+#if !defined(MSDOS) && (!defined(VMS) || defined(__DECC))
 #define TIMES
 #endif
 
-#ifndef VMS
 #ifndef _IRIX
 #include <time.h>
 #endif
@@ -94,15 +93,15 @@
 #include <sys/types.h>
 #include <sys/times.h>
 #endif
-#else /* VMS */
-#include <types.h>
-struct tms {
-	time_t tms_utime;
-	time_t tms_stime;
-	time_t tms_uchild;	/* I dunno...  */
-	time_t tms_uchildsys;	/* so these names are a guess :-) */
-	}
+
+/* Depending on the VMS version, the tms structure is perhaps defined.
+   The __TMS macro will show if it was.  If it wasn't defined, we should
+   undefine TIMES, since that tells the rest of the program how things
+   should be handled.				-- Richard Levitte */
+#if defined(VMS) && defined(__DECC) && !defined(__TMS)
+#undef TIMES
 #endif
+
 #ifndef TIMES
 #include <sys/timeb.h>
 #endif
@@ -114,48 +113,48 @@ struct tms {
 #endif
 
 #ifndef NO_DES
-#include "des.h"
+#include <openssl/des.h>
 #endif
 #ifndef NO_MD2
-#include "md2.h"
+#include <openssl/md2.h>
 #endif
 #ifndef NO_MDC2
-#include "mdc2.h"
+#include <openssl/mdc2.h>
 #endif
 #ifndef NO_MD5
-#include "md5.h"
-#include "hmac.h"
-#include "evp.h"
+#include <openssl/md5.h>
+#include <openssl/hmac.h>
+#include <openssl/evp.h>
 #endif
-#ifndef NO_SHA1
-#include "sha.h"
+#ifndef NO_SHA
+#include <openssl/sha.h>
 #endif
-#ifndef NO_RMD160
-#include "ripemd.h"
+#ifndef NO_RIPEMD
+#include <openssl/ripemd.h>
 #endif
 #ifndef NO_RC4
-#include "rc4.h"
+#include <openssl/rc4.h>
 #endif
 #ifndef NO_RC5
-#include "rc5.h"
+#include <openssl/rc5.h>
 #endif
 #ifndef NO_RC2
-#include "rc2.h"
+#include <openssl/rc2.h>
 #endif
 #ifndef NO_IDEA
-#include "idea.h"
+#include <openssl/idea.h>
 #endif
-#ifndef NO_BLOWFISH
-#include "blowfish.h"
+#ifndef NO_BF
+#include <openssl/blowfish.h>
 #endif
 #ifndef NO_CAST
-#include "cast.h"
+#include <openssl/cast.h>
 #endif
 #ifndef NO_RSA
-#include "rsa.h"
-#endif
-#include "x509.h"
+#include <openssl/rsa.h>
 #include "./testrsa.h"
+#endif
+#include <openssl/x509.h>
 #ifndef NO_DSA
 #include "./testdsa.h"
 #endif
@@ -164,11 +163,7 @@ struct tms {
 #ifndef HZ
 # ifndef CLK_TCK
 #  ifndef _BSD_CLK_TCK_ /* FreeBSD hack */
-#   ifndef VMS
-#    define HZ	100.0
-#   else /* VMS */
-#    define HZ	100.0
-#   endif
+#   define HZ	100.0
 #  else /* _BSD_CLK_TCK_ */
 #   define HZ ((double)_BSD_CLK_TCK_)
 #  endif
@@ -181,16 +176,9 @@ struct tms {
 #define BUFSIZE	((long)1024*8+1)
 int run=0;
 
-#ifndef NOPROTO
 static double Time_F(int s);
 static void print_message(char *s,long num,int length);
 static void pkey_print_message(char *str,char *str2,long num,int bits,int sec);
-#else
-static double Time_F();
-static void print_message();
-static void pkey_print_message();
-#endif
-
 #ifdef SIGALRM
 #if defined(__STDC__) || defined(sgi) || defined(_AIX)
 #define SIGRETTYPE void
@@ -198,14 +186,8 @@ static void pkey_print_message();
 #define SIGRETTYPE int
 #endif 
 
-#ifndef NOPROTO
 static SIGRETTYPE sig_done(int sig);
-#else
-static SIGRETTYPE sig_done();
-#endif
-
-static SIGRETTYPE sig_done(sig)
-int sig;
+static SIGRETTYPE sig_done(int sig)
 	{
 	signal(SIGALRM,sig_done);
 	run=0;
@@ -218,8 +200,7 @@ int sig;
 #define START	0
 #define STOP	1
 
-static double Time_F(s)
-int s;
+static double Time_F(int s)
 	{
 	double ret;
 #ifdef TIMES
@@ -255,11 +236,10 @@ int s;
 #endif
 	}
 
-int MAIN(argc,argv)
-int argc;
-char **argv;
+int MAIN(int argc, char **argv)
 	{
 	unsigned char *buf=NULL,*buf2=NULL;
+	des_cblock *buf_as_des_cblock = NULL;
 	int ret=1;
 #define ALGOR_NUM	14
 #define SIZE_NUM	5
@@ -277,10 +257,10 @@ char **argv;
 	unsigned char md5[MD5_DIGEST_LENGTH];
 	unsigned char hmac[MD5_DIGEST_LENGTH];
 #endif
-#ifndef NO_SHA1
+#ifndef NO_SHA
 	unsigned char sha[SHA_DIGEST_LENGTH];
 #endif
-#ifndef NO_RMD160
+#ifndef NO_RIPEMD
 	unsigned char rmd160[RIPEMD160_DIGEST_LENGTH];
 #endif
 #ifndef NO_RC4
@@ -295,7 +275,7 @@ char **argv;
 #ifndef NO_IDEA
 	IDEA_KEY_SCHEDULE idea_ks;
 #endif
-#ifndef NO_BLOWFISH
+#ifndef NO_BF
 	BF_KEY bf_ks;
 #endif
 #ifndef NO_CAST
@@ -339,9 +319,9 @@ char **argv;
 #define	R_RSA_1024	1
 #define	R_RSA_2048	2
 #define	R_RSA_4096	3
+#ifndef NO_RSA
 	RSA *rsa_key[RSA_NUM];
 	long rsa_c[RSA_NUM][2];
-#ifndef NO_RSA
 	double rsa_results[RSA_NUM][2];
 	static unsigned int rsa_bits[RSA_NUM]={512,1024,2048,4096};
 	static unsigned char *rsa_data[RSA_NUM]=
@@ -362,7 +342,7 @@ char **argv;
 	int pr_header=0;
 
 	apps_startup();
-#ifdef NO_DSA
+#ifndef NO_DSA
 	memset(dsa_key,0,sizeof(dsa_key));
 #endif
 
@@ -381,6 +361,7 @@ char **argv;
 		BIO_printf(bio_err,"out of memory\n");
 		goto end;
 		}
+	buf_as_des_cblock = (des_cblock *)buf;
 	if ((buf2=(unsigned char *)Malloc((int)BUFSIZE)) == NULL)
 		{
 		BIO_printf(bio_err,"out of memory\n");
@@ -418,13 +399,13 @@ char **argv;
 			if (strcmp(*argv,"hmac") == 0) doit[D_HMAC]=1;
 		else
 #endif
-#ifndef NO_SHA1
+#ifndef NO_SHA
 			if (strcmp(*argv,"sha1") == 0) doit[D_SHA1]=1;
 		else
 			if (strcmp(*argv,"sha") == 0) doit[D_SHA1]=1;
 		else
 #endif
-#ifndef NO_RMD160
+#ifndef NO_RIPEMD
 			if (strcmp(*argv,"ripemd") == 0) doit[D_RMD160]=1;
 		else
 			if (strcmp(*argv,"rmd160") == 0) doit[D_RMD160]=1;
@@ -480,7 +461,7 @@ char **argv;
 		else if (strcmp(*argv,"idea") == 0) doit[D_CBC_IDEA]=1;
 		else
 #endif
-#ifndef NO_BLOWFISH
+#ifndef NO_BF
 		     if (strcmp(*argv,"bf-cbc") == 0) doit[D_CBC_BF]=1;
 		else if (strcmp(*argv,"blowfish") == 0) doit[D_CBC_BF]=1;
 		else if (strcmp(*argv,"bf") == 0) doit[D_CBC_BF]=1;
@@ -530,10 +511,10 @@ char **argv;
 #ifndef NO_RC5
 			BIO_printf(bio_err,"rc5-cbc  ");
 #endif
-#ifndef NO_BLOWFISH
+#ifndef NO_BF
 			BIO_printf(bio_err,"bf-cbc");
 #endif
-#if !defined(NO_IDEA) && !defined(NO_RC2) && !defined(NO_BLOWFISH) && !defined(NO_RC5)
+#if !defined(NO_IDEA) && !defined(NO_RC2) && !defined(NO_BF) && !defined(NO_RC5)
 			BIO_printf(bio_err,"\n");
 #endif
 			BIO_printf(bio_err,"des-cbc  des-ede3 ");
@@ -601,9 +582,9 @@ char **argv;
 #endif
 
 #ifndef NO_DES
-	des_set_key(key,sch);
-	des_set_key(key2,sch2);
-	des_set_key(key3,sch3);
+	des_set_key(&key,sch);
+	des_set_key(&key2,sch2);
+	des_set_key(&key3,sch3);
 #endif
 #ifndef NO_IDEA
 	idea_set_encrypt_key(key16,&idea_ks);
@@ -617,14 +598,15 @@ char **argv;
 #ifndef NO_RC5
 	RC5_32_set_key(&rc5_ks,16,key16,12);
 #endif
-#ifndef NO_BLOWFISH
+#ifndef NO_BF
 	BF_set_key(&bf_ks,16,key16);
 #endif
 #ifndef NO_CAST
 	CAST_set_key(&cast_ks,16,key16);
 #endif
-
+#ifndef NO_RSA
 	memset(rsa_c,0,sizeof(rsa_c));
+#endif
 #ifndef SIGALRM
 	BIO_printf(bio_err,"First we calculate the approximate speed ...\n");
 	count=10;
@@ -633,7 +615,8 @@ char **argv;
 		count*=2;
 		Time_F(START);
 		for (i=count; i; i--)
-			des_ecb_encrypt(buf,buf, &(sch[0]),DES_ENCRYPT);
+			des_ecb_encrypt(buf_as_des_cblock,buf_as_des_cblock,
+				&(sch[0]),DES_ENCRYPT);
 		d=Time_F(STOP);
 		} while (d <3);
 	c[D_MD2][0]=count/10;
@@ -675,6 +658,7 @@ char **argv;
 		c[D_CBC_BF][i]=c[D_CBC_BF][i-1]*l0/l1;
 		c[D_CBC_CAST][i]=c[D_CBC_CAST][i-1]*l0/l1;
 		}
+#ifndef NO_RSA
 	rsa_c[R_RSA_512][0]=count/2000;
 	rsa_c[R_RSA_512][1]=count/400;
 	for (i=1; i<RSA_NUM; i++)
@@ -692,6 +676,7 @@ char **argv;
 				}
 			}				
 		}
+#endif
 
 	dsa_c[R_DSA_512][0]=count/1000;
 	dsa_c[R_DSA_512][1]=count/1000/2;
@@ -793,7 +778,7 @@ char **argv;
 			}
 		}
 #endif
-#ifndef NO_SHA1
+#ifndef NO_SHA
 	if (doit[D_SHA1])
 		{
 		for (j=0; j<SIZE_NUM; j++)
@@ -809,7 +794,7 @@ char **argv;
 			}
 		}
 #endif
-#ifndef NO_RMD160
+#ifndef NO_RIPEMD
 	if (doit[D_RMD160])
 		{
 		for (j=0; j<SIZE_NUM; j++)
@@ -851,7 +836,7 @@ char **argv;
 			Time_F(START);
 			for (count=0,run=1; COND(c[D_CBC_DES][j]); count++)
 				des_ncbc_encrypt(buf,buf,lengths[j],sch,
-						 &(iv[0]),DES_ENCRYPT);
+						 &iv,DES_ENCRYPT);
 			d=Time_F(STOP);
 			BIO_printf(bio_err,"%ld %s's in %.2fs\n",
 				count,names[D_CBC_DES],d);
@@ -868,7 +853,7 @@ char **argv;
 			for (count=0,run=1; COND(c[D_EDE3_DES][j]); count++)
 				des_ede3_cbc_encrypt(buf,buf,lengths[j],
 						     sch,sch2,sch3,
-						     &(iv[0]),DES_ENCRYPT);
+						     &iv,DES_ENCRYPT);
 			d=Time_F(STOP);
 			BIO_printf(bio_err,"%ld %s's in %.2fs\n",
 				count,names[D_EDE3_DES],d);
@@ -886,7 +871,7 @@ char **argv;
 			for (count=0,run=1; COND(c[D_CBC_IDEA][j]); count++)
 				idea_cbc_encrypt(buf,buf,
 					(unsigned long)lengths[j],&idea_ks,
-					(unsigned char *)&(iv[0]),IDEA_ENCRYPT);
+					iv,IDEA_ENCRYPT);
 			d=Time_F(STOP);
 			BIO_printf(bio_err,"%ld %s's in %.2fs\n",
 				count,names[D_CBC_IDEA],d);
@@ -904,7 +889,7 @@ char **argv;
 			for (count=0,run=1; COND(c[D_CBC_RC2][j]); count++)
 				RC2_cbc_encrypt(buf,buf,
 					(unsigned long)lengths[j],&rc2_ks,
-					(unsigned char *)&(iv[0]),RC2_ENCRYPT);
+					iv,RC2_ENCRYPT);
 			d=Time_F(STOP);
 			BIO_printf(bio_err,"%ld %s's in %.2fs\n",
 				count,names[D_CBC_RC2],d);
@@ -922,7 +907,7 @@ char **argv;
 			for (count=0,run=1; COND(c[D_CBC_RC5][j]); count++)
 				RC5_32_cbc_encrypt(buf,buf,
 					(unsigned long)lengths[j],&rc5_ks,
-					(unsigned char *)&(iv[0]),RC5_ENCRYPT);
+					iv,RC5_ENCRYPT);
 			d=Time_F(STOP);
 			BIO_printf(bio_err,"%ld %s's in %.2fs\n",
 				count,names[D_CBC_RC5],d);
@@ -930,7 +915,7 @@ char **argv;
 			}
 		}
 #endif
-#ifndef NO_BLOWFISH
+#ifndef NO_BF
 	if (doit[D_CBC_BF])
 		{
 		for (j=0; j<SIZE_NUM; j++)
@@ -940,7 +925,7 @@ char **argv;
 			for (count=0,run=1; COND(c[D_CBC_BF][j]); count++)
 				BF_cbc_encrypt(buf,buf,
 					(unsigned long)lengths[j],&bf_ks,
-					(unsigned char *)&(iv[0]),BF_ENCRYPT);
+					iv,BF_ENCRYPT);
 			d=Time_F(STOP);
 			BIO_printf(bio_err,"%ld %s's in %.2fs\n",
 				count,names[D_CBC_BF],d);
@@ -958,7 +943,7 @@ char **argv;
 			for (count=0,run=1; COND(c[D_CBC_CAST][j]); count++)
 				CAST_cbc_encrypt(buf,buf,
 					(unsigned long)lengths[j],&cast_ks,
-					(unsigned char *)&(iv[0]),CAST_ENCRYPT);
+					iv,CAST_ENCRYPT);
 			d=Time_F(STOP);
 			BIO_printf(bio_err,"%ld %s's in %.2fs\n",
 				count,names[D_CBC_CAST],d);
@@ -1108,7 +1093,7 @@ char **argv;
 #ifndef NO_IDEA
 	printf("%s ",idea_options());
 #endif
-#ifndef NO_BLOWFISH
+#ifndef NO_BF
 	printf("%s ",BF_options());
 #endif
 	fprintf(stdout,"\n%s\n",SSLeay_version(SSLEAY_CFLAGS));
@@ -1183,10 +1168,7 @@ end:
 	EXIT(ret);
 	}
 
-static void print_message(s,num,length)
-char *s;
-long num;
-int length;
+static void print_message(char *s, long num, int length)
 	{
 #ifdef SIGALRM
 	BIO_printf(bio_err,"Doing %s for %ds on %d size blocks: ",s,SECONDS,length);
@@ -1201,12 +1183,8 @@ int length;
 #endif
 	}
 
-static void pkey_print_message(str,str2,num,bits,tm)
-char *str;
-char *str2;
-long num;
-int bits;
-int tm;
+static void pkey_print_message(char *str, char *str2, long num, int bits,
+	     int tm)
 	{
 #ifdef SIGALRM
 	BIO_printf(bio_err,"Doing %d bit %s %s's for %ds: ",bits,str,str2,tm);

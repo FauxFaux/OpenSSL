@@ -59,20 +59,13 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "asn1.h"
-#include "conf.h"
-#include "x509v3.h"
+#include <openssl/asn1.h>
+#include <openssl/conf.h>
+#include <openssl/x509v3.h>
 
-#ifndef NOPROTO
 static ASN1_IA5STRING *ia5string_new(void);
 static char *i2s_ASN1_IA5STRING(X509V3_EXT_METHOD *method, ASN1_IA5STRING *ia5);
 static ASN1_IA5STRING *s2i_ASN1_IA5STRING(X509V3_EXT_METHOD *method, X509V3_CTX *ctx, char *str);
-#else
-static ASN1_IA5STRING *ia5string_new();
-static char *i2s_ASN1_IA5STRING();
-static ASN1_IA5STRING *s2i_ASN1_IA5STRING();
-#endif
-
 X509V3_EXT_METHOD v3_ns_ia5_list[] = { 
 EXT_IA5STRING(NID_netscape_base_url),
 EXT_IA5STRING(NID_netscape_revocation_url),
@@ -90,9 +83,8 @@ static ASN1_IA5STRING *ia5string_new(void)
 	return ASN1_IA5STRING_new();
 }
 
-static char *i2s_ASN1_IA5STRING(method, ia5)
-X509V3_EXT_METHOD *method;
-ASN1_IA5STRING *ia5;
+static char *i2s_ASN1_IA5STRING(X509V3_EXT_METHOD *method,
+	     ASN1_IA5STRING *ia5)
 {
 	char *tmp;
 	if(!ia5 || !ia5->length) return NULL;
@@ -102,10 +94,8 @@ ASN1_IA5STRING *ia5;
 	return tmp;
 }
 
-static ASN1_IA5STRING *s2i_ASN1_IA5STRING(method, ctx, str)
-X509V3_EXT_METHOD *method;
-X509V3_CTX *ctx;
-char *str;
+static ASN1_IA5STRING *s2i_ASN1_IA5STRING(X509V3_EXT_METHOD *method,
+	     X509V3_CTX *ctx, char *str)
 {
 	ASN1_IA5STRING *ia5;
 	if(!str) {
@@ -113,7 +103,8 @@ char *str;
 		return NULL;
 	}
 	if(!(ia5 = ASN1_IA5STRING_new())) goto err;
-	if(!ASN1_STRING_set((ASN1_STRING *)ia5, str, strlen(str))) {
+	if(!ASN1_STRING_set((ASN1_STRING *)ia5, (unsigned char*)str,
+			    strlen(str))) {
 		ASN1_IA5STRING_free(ia5);
 		goto err;
 	}

@@ -15,7 +15,7 @@ sub main'asm_finish
 
 sub main'asm_init
 	{
-	($type,$fn)=@_;
+	($type,$fn,$i386)=@_;
 	$filename=$fn;
 
 	$cpp=$sol=$aout=$win32=0;

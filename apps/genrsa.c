@@ -56,35 +56,28 @@
  * [including the GNU Public Licence.]
  */
 
+#ifndef NO_RSA
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "apps.h"
-#include "bio.h"
-#include "rand.h"
-#include "err.h"
-#include "bn.h"
-#include "rsa.h"
-#include "evp.h"
-#include "x509.h"
-#include "pem.h"
+#include <openssl/bio.h>
+#include <openssl/rand.h>
+#include <openssl/err.h>
+#include <openssl/bn.h>
+#include <openssl/rsa.h>
+#include <openssl/evp.h>
+#include <openssl/x509.h>
+#include <openssl/pem.h>
 
 #define DEFBITS	512
 #undef PROG
 #define PROG genrsa_main
 
-#ifndef NOPROTO
 static void MS_CALLBACK genrsa_cb(int p, int n, char *arg);
 static long gr_load_rand(char *names);
-#else
-static void MS_CALLBACK genrsa_cb();
-static long gr_load_rand();
-#endif
-
-int MAIN(argc, argv)
-int argc;
-char **argv;
+int MAIN(int argc, char **argv)
 	{
 	int ret=1;
 	char buffer[200];
@@ -234,10 +227,7 @@ err:
 	EXIT(ret);
 	}
 
-static void MS_CALLBACK genrsa_cb(p, n, arg)
-int p;
-int n;
-char *arg;
+static void MS_CALLBACK genrsa_cb(int p, int n, char *arg)
 	{
 	char c='*';
 
@@ -252,8 +242,7 @@ char *arg;
 #endif
 	}
 
-static long gr_load_rand(name)
-char *name;
+static long gr_load_rand(char *name)
 	{
 	char *p,*n;
 	int last;
@@ -274,5 +263,4 @@ char *name;
 		}
 	return(tot);
 	}
-
-
+#endif

@@ -1,4 +1,4 @@
-/* crypto/bn/bn.org */
+/* crypto/bn/bn.h */
 /* Copyright (C) 1995-1997 Eric Young (eay@cryptsoft.com)
  * All rights reserved.
  *
@@ -56,25 +56,20 @@
  * [including the GNU Public Licence.]
  */
 
-/* WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING 
- *
- * Always modify bn.org since bn.h is automatically generated from
- * it during SSLeay configuration.
- *
- * WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
- */
-
 #ifndef HEADER_BN_H
 #define HEADER_BN_H
+
+#ifndef WIN16
+#include <stdio.h> /* FILE */
+#endif
+#include <openssl/opensslconf.h>
 
 #ifdef  __cplusplus
 extern "C" {
 #endif
 
-#undef BN_LLONG
-
-#ifdef WIN32
-#define BN_LLONG /* This comment stops Configure mutilating things */
+#ifdef VMS
+#undef BN_LLONG /* experimental, so far... */
 #endif
 
 #define BN_MUL_COMBA
@@ -97,17 +92,6 @@ extern "C" {
 #if defined(MSDOS) || defined(WINDOWS) || defined(linux)
 #define BN_DIV2W
 #endif
-
-/* Only one for the following should be defined */
-/* The prime number generation stuff may not work when
- * EIGHT_BIT but I don't care since I've only used this mode
- * for debuging the bignum libraries */
-#undef SIXTY_FOUR_BIT_LONG
-#undef SIXTY_FOUR_BIT
-#define THIRTY_TWO_BIT
-#undef SIXTEEN_BIT
-#undef EIGHT_BIT
-
 
 /* assuming long is 64bit - this is the DEC Alpha
  * unsigned long long is only 64 bits :-(, don't define
@@ -135,11 +119,11 @@ extern "C" {
 /* This is where the long long data type is 64 bits, but long is 32.
  * For machines where there are 64bit registers, this is the mode to use.
  * IRIX, on R4000 and above should use this mode, along with the relevent
- * assember code :-).  Do NOT define BN_ULLONG.
+ * assember code :-).  Do NOT define BN_LLONG.
  */
 #ifdef SIXTY_FOUR_BIT
 #undef BN_LLONG
-/* #define BN_ULLONG	unsigned long long */
+#undef BN_ULLONG
 #define BN_ULONG	unsigned long long
 #define BN_LONG		long long
 #define BN_BITS		128
@@ -326,7 +310,6 @@ typedef struct bn_recp_ctx_st
 		} \
 	}
 
-#ifndef NOPROTO
 BIGNUM *BN_value_one(void);
 char *	BN_options(void);
 BN_CTX *BN_CTX_new(void);
@@ -339,7 +322,7 @@ BIGNUM *BN_new(void);
 void	BN_init(BIGNUM *);
 void	BN_clear_free(BIGNUM *a);
 BIGNUM *BN_copy(BIGNUM *a, BIGNUM *b);
-BIGNUM *BN_bin2bn(unsigned char *s,int len,BIGNUM *ret);
+BIGNUM *BN_bin2bn(const unsigned char *s,int len,BIGNUM *ret);
 int	BN_bn2bin(BIGNUM *a, unsigned char *to);
 BIGNUM *BN_mpi2bn(unsigned char *s,int len,BIGNUM *ret);
 int	BN_bn2mpi(BIGNUM *a, unsigned char *to);
@@ -428,19 +411,6 @@ int BN_BLINDING_invert(BIGNUM *n, BN_BLINDING *b, BN_CTX *ctx);
 void BN_set_params(int mul,int high,int low,int mont);
 int BN_get_params(int which); /* 0, mul, 1 high, 2 low, 3 mont */
 
-void bn_mul_normal(BN_ULONG *r,BN_ULONG *a,int na,BN_ULONG *b,int nb);
-void bn_mul_comba8(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b);
-void bn_mul_comba4(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b);
-void bn_sqr_normal(BN_ULONG *r, BN_ULONG *a, int n, BN_ULONG *tmp);
-void bn_sqr_comba8(BN_ULONG *r,BN_ULONG *a);
-void bn_sqr_comba4(BN_ULONG *r,BN_ULONG *a);
-int bn_cmp_words(BN_ULONG *a,BN_ULONG *b,int n);
-void bn_mul_recursive(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b,int n2,BN_ULONG *t);
-void bn_mul_part_recursive(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b,
-	int tn, int n,BN_ULONG *t);
-void bn_sqr_recursive(BN_ULONG *r,BN_ULONG *a, int n2, BN_ULONG *t);
-void bn_mul_low_normal(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b, int n);
-
 void	BN_RECP_CTX_init(BN_RECP_CTX *recp);
 BN_RECP_CTX *BN_RECP_CTX_new(void);
 void	BN_RECP_CTX_free(BN_RECP_CTX *recp);
@@ -452,122 +422,11 @@ int	BN_div_recp(BIGNUM *dv, BIGNUM *rem, BIGNUM *m,
 		BN_RECP_CTX *recp, BN_CTX *ctx);
 
 
-#else
-
-BIGNUM *BN_value_one();
-char *	BN_options();
-BN_CTX *BN_CTX_new();
-void	BN_CTX_init();
-void	BN_CTX_free();
-int     BN_rand();
-int	BN_num_bits();
-int	BN_num_bits_word();
-BIGNUM *BN_new();
-void	BN_init();
-void	BN_clear_free();
-BIGNUM *BN_copy();
-BIGNUM *BN_bin2bn();
-int	BN_bn2bin();
-BIGNUM *BN_mpi2bn();
-int	BN_bn2mpi();
-int	BN_sub();
-int	BN_usub();
-int	BN_uadd();
-int	BN_add();
-int	BN_mod();
-int	BN_div();
-int	BN_mul();
-int	BN_sqr();
-BN_ULONG BN_mod_word();
-BN_ULONG BN_div_word();
-int	BN_add_word();
-int	BN_sub_word();
-int	BN_mul_word();
-int	BN_set_word();
-unsigned long BN_get_word();
-int	BN_cmp();
-void	BN_free();
-int	BN_is_bit_set();
-int	BN_lshift();
-int	BN_lshift1();
-int	BN_exp();
-int	BN_mod_exp();
-int	BN_mod_exp_mont();
-int	BN_mod_exp_recp();
-int	BN_mod_exp_simple();
-int	BN_mask_bits();
-int	BN_mod_mul_reciprocal();
-int	BN_mod_mul();
-#ifndef WIN16
-int	BN_print_fp();
-#endif
-int	BN_print();
-int	BN_reciprocal();
-int	BN_rshift();
-int	BN_rshift1();
-void	BN_clear();
-BIGNUM *bn_expand2();
-BIGNUM *BN_dup();
-int	BN_ucmp();
-int	BN_set_bit();
-int	BN_clear_bit();
-char *	BN_bn2hex();
-char *	BN_bn2dec();
-int 	BN_hex2bn();
-int 	BN_dec2bn();
-int	BN_gcd();
-BIGNUM *BN_mod_inverse();
-BIGNUM *BN_generate_prime();
-int	BN_is_prime();
-void	ERR_load_BN_strings();
-
-BN_ULONG bn_mul_add_words();
-BN_ULONG bn_mul_words();
-void     bn_sqr_words();
-BN_ULONG bn_div_words();
-BN_ULONG bn_add_words();
-BN_ULONG bn_sub_words();
-
-int BN_mod_mul_montgomery();
-int BN_from_montgomery();
-BN_MONT_CTX *BN_MONT_CTX_new();
-void BN_MONT_CTX_init();
-void BN_MONT_CTX_free();
-int BN_MONT_CTX_set();
-BN_MONT_CTX *BN_MONT_CTX_copy();
-
-BN_BLINDING *BN_BLINDING_new();
-void BN_BLINDING_free();
-int BN_BLINDING_update();
-int BN_BLINDING_convert();
-int BN_BLINDING_invert();
-
-void BN_set_params();
-int BN_get_params();
-
-void bn_mul_normal();
-void bn_mul_comba8();
-void bn_mul_comba4();
-void bn_sqr_normal();
-void bn_sqr_comba8();
-void bn_sqr_comba4();
-int bn_cmp_words();
-void bn_mul_recursive();
-void bn_mul_part_recursive();
-void bn_sqr_recursive();
-void bn_mul_low_normal();
-
-void	BN_RECP_CTX_init();
-BN_RECP_CTX *BN_RECP_CTX_new();
-void	BN_RECP_CTX_free();
-int	BN_RECP_CTX_set();
-int	BN_mod_mul_reciprocal();
-int	BN_mod_exp_recp();
-int	BN_div_recp();
-
-#endif
-
 /* BEGIN ERROR CODES */
+/* The following lines are auto generated by the script mkerr.pl. Any changes
+ * made after this point may be overwritten when the script is next run.
+ */
+
 /* Error codes for the BN functions. */
 
 /* Function codes. */
@@ -596,9 +455,9 @@ int	BN_div_recp();
 #define BN_R_ENCODING_ERROR				 104
 #define BN_R_EXPAND_ON_STATIC_BIGNUM_DATA		 105
 #define BN_R_INVALID_LENGTH				 106
-#define BN_R_NOT_INITALISED				 107
+#define BN_R_NOT_INITIALIZED				 107
 #define BN_R_NO_INVERSE					 108
- 
+
 #ifdef  __cplusplus
 }
 #endif

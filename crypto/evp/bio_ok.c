@@ -120,12 +120,11 @@
 #include <stdio.h>
 #include <errno.h>
 #include "cryptlib.h"
-#include "buffer.h"
-#include "bio.h"
-#include "evp.h"
-#include "rand.h"
+#include <openssl/buffer.h>
+#include <openssl/bio.h>
+#include <openssl/evp.h>
+#include <openssl/rand.h>
 
-#ifndef NOPROTO
 static int ok_write(BIO *h,char *buf,int num);
 static int ok_read(BIO *h,char *buf,int size);
 static long ok_ctrl(BIO *h,int cmd,long arg1,char *arg2);
@@ -135,18 +134,6 @@ static void sig_out(BIO* b);
 static void sig_in(BIO* b);
 static void block_out(BIO* b);
 static void block_in(BIO* b);
-#else
-static int ok_write();
-static int ok_read();
-static long ok_ctrl();
-static int ok_new();
-static int ok_free();
-static void sig_out();
-static void sig_in();
-static void block_out();
-static void block_in();
-#endif
-
 #define OK_BLOCK_SIZE	(1024*4)
 #define OK_BLOCK_BLOCK	4
 #define IOBS		(OK_BLOCK_SIZE+ OK_BLOCK_BLOCK+ 3*EVP_MAX_MD_SIZE)
@@ -188,13 +175,12 @@ static BIO_METHOD methods_ok=
 	ok_free,
 	};
 
-BIO_METHOD *BIO_f_reliable()
+BIO_METHOD *BIO_f_reliable(void)
 	{
 	return(&methods_ok);
 	}
 
-static int ok_new(bi)
-BIO *bi;
+static int ok_new(BIO *bi)
 	{
 	BIO_OK_CTX *ctx;
 
@@ -216,8 +202,7 @@ BIO *bi;
 	return(1);
 	}
 
-static int ok_free(a)
-BIO *a;
+static int ok_free(BIO *a)
 	{
 	if (a == NULL) return(0);
 	memset(a->ptr,0,sizeof(BIO_OK_CTX));
@@ -228,10 +213,7 @@ BIO *a;
 	return(1);
 	}
 	
-static int ok_read(b,out,outl)
-BIO *b;
-char *out;
-int outl;
+static int ok_read(BIO *b, char *out, int outl)
 	{
 	int ret=0,i,n;
 	BIO_OK_CTX *ctx;
@@ -302,10 +284,7 @@ int outl;
 	return(ret);
 	}
 
-static int ok_write(b,in,inl)
-BIO *b;
-char *in;
-int inl;
+static int ok_write(BIO *b, char *in, int inl)
 	{
 	int ret=0,n,i;
 	BIO_OK_CTX *ctx;
@@ -363,15 +342,11 @@ int inl;
 	return(ret);
 	}
 
-static long ok_ctrl(b,cmd,num,ptr)
-BIO *b;
-int cmd;
-long num;
-char *ptr;
+static long ok_ctrl(BIO *b, int cmd, long num, char *ptr)
 	{
 	BIO_OK_CTX *ctx;
 	EVP_MD *md;
-	EVP_MD **ppmd;
+	const EVP_MD **ppmd;
 	long ret=1;
 	int i;
 
@@ -440,7 +415,7 @@ char *ptr;
 	case BIO_C_GET_MD:
 		if (b->init)
 			{
-			ppmd=(EVP_MD **)ptr;
+			ppmd=(const EVP_MD **)ptr;
 			*ppmd=ctx->md.digest;
 			}
 		else
@@ -453,10 +428,11 @@ char *ptr;
 	return(ret);
 	}
 
-static void longswap(char* ptr, int len)
+static void longswap(void *_ptr, int len)
 {
 #ifndef L_ENDIAN
 	int i;
+	char *ptr=_ptr;
 
 	for(i= 0;i < len;i+= 4){
 		*((unsigned long *)&(ptr[i]))= swapem(*((unsigned long *)&(ptr[i])));
@@ -480,7 +456,7 @@ static void sig_out(BIO* b)
 	longswap(&(ctx->buf[ctx->buf_len]), md->digest->md_size);
 	ctx->buf_len+= md->digest->md_size;
 
-	EVP_DigestUpdate(md, WELLKNOWN, strlen(WELLKNOWN));
+	EVP_DigestUpdate(md, (unsigned char*)WELLKNOWN, strlen(WELLKNOWN));
 	md->digest->final(&(ctx->buf[ctx->buf_len]), &(md->md.base[0]));
 	ctx->buf_len+= md->digest->md_size;
 	ctx->blockout= 1;
@@ -504,7 +480,7 @@ static void sig_in(BIO* b)
 	longswap(&(md->md.base[0]), md->digest->md_size);
 	ctx->buf_off+= md->digest->md_size;
 
-	EVP_DigestUpdate(md, WELLKNOWN, strlen(WELLKNOWN));
+	EVP_DigestUpdate(md, (unsigned char*)WELLKNOWN, strlen(WELLKNOWN));
 	md->digest->final(tmp, &(md->md.base[0]));
 	ret= memcmp(&(ctx->buf[ctx->buf_off]), tmp, md->digest->md_size) == 0;
 	ctx->buf_off+= md->digest->md_size;
@@ -537,7 +513,7 @@ static void block_out(BIO* b)
 	tl= swapem(tl);
 	memcpy(ctx->buf, &tl, OK_BLOCK_BLOCK);
 	tl= swapem(tl);
-	EVP_DigestUpdate(md, &(ctx->buf[OK_BLOCK_BLOCK]), tl);
+	EVP_DigestUpdate(md, (unsigned char*) &(ctx->buf[OK_BLOCK_BLOCK]), tl);
 	md->digest->final(&(ctx->buf[ctx->buf_len]), &(md->md.base[0]));
 	ctx->buf_len+= md->digest->md_size;
 	ctx->blockout= 1;
@@ -557,7 +533,7 @@ static void block_in(BIO* b)
 	tl= swapem(tl);
 	if (ctx->buf_len < tl+ OK_BLOCK_BLOCK+ md->digest->md_size) return;
  
-	EVP_DigestUpdate(md, &(ctx->buf[OK_BLOCK_BLOCK]), tl);
+	EVP_DigestUpdate(md, (unsigned char*) &(ctx->buf[OK_BLOCK_BLOCK]), tl);
 	md->digest->final(tmp, &(md->md.base[0]));
 	if(memcmp(&(ctx->buf[tl+ OK_BLOCK_BLOCK]), tmp, md->digest->md_size) == 0)
 		{

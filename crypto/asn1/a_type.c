@@ -58,21 +58,10 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "asn1_mac.h"
+#include <openssl/asn1_mac.h>
 
-/* ASN1err(ASN1_F_D2I_ASN1_BYTES,ASN1_R_WRONG_TAG);
- * ASN1err(ASN1_F_ASN1_COLLATE_PRIMATIVE,ASN1_R_WRONG_TAG);
- */
-
-#ifndef NOPROTO
 static void ASN1_TYPE_component_free(ASN1_TYPE *a);
-#else
-static void ASN1_TYPE_component_free();
-#endif
-
-int i2d_ASN1_TYPE(a,pp)
-ASN1_TYPE *a;
-unsigned char **pp;
+int i2d_ASN1_TYPE(ASN1_TYPE *a, unsigned char **pp)
 	{
 	int r=0;
 
@@ -117,6 +106,12 @@ unsigned char **pp;
 	case V_ASN1_UNIVERSALSTRING:
 		r=M_i2d_ASN1_UNIVERSALSTRING(a->value.universalstring,pp);
 		break;
+	case V_ASN1_UTF8STRING:
+		r=M_i2d_ASN1_UTF8STRING(a->value.utf8string,pp);
+		break;
+	case V_ASN1_VISIBLESTRING:
+		r=M_i2d_ASN1_VISIBLESTRING(a->value.visiblestring,pp);
+		break;
 	case V_ASN1_BMPSTRING:
 		r=M_i2d_ASN1_BMPSTRING(a->value.bmpstring,pp);
 		break;
@@ -144,10 +139,7 @@ unsigned char **pp;
 	return(r);
 	}
 
-ASN1_TYPE *d2i_ASN1_TYPE(a,pp,length)
-ASN1_TYPE **a;
-unsigned char **pp;
-long length;
+ASN1_TYPE *d2i_ASN1_TYPE(ASN1_TYPE **a, unsigned char **pp, long length)
 	{
 	ASN1_TYPE *ret=NULL;
 	unsigned char *q,*p,*max;
@@ -194,6 +186,16 @@ long length;
 	case V_ASN1_OCTET_STRING:
 		if ((ret->value.octet_string=
 			d2i_ASN1_OCTET_STRING(NULL,&p,max-p)) == NULL)
+			goto err;
+		break;
+	case V_ASN1_VISIBLESTRING:
+		if ((ret->value.visiblestring=
+			d2i_ASN1_VISIBLESTRING(NULL,&p,max-p)) == NULL)
+			goto err;
+		break;
+	case V_ASN1_UTF8STRING:
+		if ((ret->value.utf8string=
+			d2i_ASN1_UTF8STRING(NULL,&p,max-p)) == NULL)
 			goto err;
 		break;
 	case V_ASN1_OBJECT:
@@ -264,7 +266,7 @@ err:
 	return(NULL);
 	}
 
-ASN1_TYPE *ASN1_TYPE_new()
+ASN1_TYPE *ASN1_TYPE_new(void)
 	{
 	ASN1_TYPE *ret=NULL;
 	ASN1_CTX c;
@@ -276,16 +278,14 @@ ASN1_TYPE *ASN1_TYPE_new()
 	M_ASN1_New_Error(ASN1_F_ASN1_TYPE_NEW);
 	}
 
-void ASN1_TYPE_free(a)
-ASN1_TYPE *a;
+void ASN1_TYPE_free(ASN1_TYPE *a)
 	{
 	if (a == NULL) return;
 	ASN1_TYPE_component_free(a);
 	Free((char *)(char *)a);
 	}
 
-int ASN1_TYPE_get(a)
-ASN1_TYPE *a;
+int ASN1_TYPE_get(ASN1_TYPE *a)
 	{
 	if (a->value.ptr != NULL)
 		return(a->type);
@@ -293,10 +293,7 @@ ASN1_TYPE *a;
 		return(0);
 	}
 
-void ASN1_TYPE_set(a,type,value)
-ASN1_TYPE *a;
-int type;
-char *value;
+void ASN1_TYPE_set(ASN1_TYPE *a, int type, void *value)
 	{
 	if (a->value.ptr != NULL)
 		ASN1_TYPE_component_free(a);
@@ -304,8 +301,7 @@ char *value;
 	a->value.ptr=value;
 	}
 
-static void ASN1_TYPE_component_free(a)
-ASN1_TYPE *a;
+static void ASN1_TYPE_component_free(ASN1_TYPE *a)
 	{
 	if (a == NULL) return;
 
@@ -336,6 +332,7 @@ ASN1_TYPE *a;
 		case V_ASN1_GENERALSTRING:
 		case V_ASN1_UNIVERSALSTRING:
 		case V_ASN1_BMPSTRING:
+		case V_ASN1_UTF8STRING:
 			ASN1_STRING_free((ASN1_STRING *)a->value.ptr);
 			break;
 		default:
@@ -347,3 +344,5 @@ ASN1_TYPE *a;
 		}
 	}
 
+IMPLEMENT_STACK_OF(ASN1_TYPE)
+IMPLEMENT_ASN1_SET_OF(ASN1_TYPE)

@@ -59,7 +59,7 @@
 #ifndef HEADER_BN_LCL_H
 #define HEADER_BN_LCL_H
 
-#include "bn.h"
+#include <openssl/bn.h>
 
 #ifdef  __cplusplus
 extern "C" {
@@ -231,41 +231,38 @@ extern "C" {
 
 #endif
 
-extern int bn_limit_bits;
-extern int bn_limit_num;        /* (1<<bn_limit_bits) */
+OPENSSL_EXTERN int bn_limit_bits;
+OPENSSL_EXTERN int bn_limit_num;        /* (1<<bn_limit_bits) */
 /* Recursive 'low' limit */
-extern int bn_limit_bits_low;
-extern int bn_limit_num_low;    /* (1<<bn_limit_bits_low) */
+OPENSSL_EXTERN int bn_limit_bits_low;
+OPENSSL_EXTERN int bn_limit_num_low;    /* (1<<bn_limit_bits_low) */
 /* Do modified 'high' part calculation' */
-extern int bn_limit_bits_high;
-extern int bn_limit_num_high;   /* (1<<bn_limit_bits_high) */
-extern int bn_limit_bits_mont;
-extern int bn_limit_num_mont;   /* (1<<bn_limit_bits_mont) */
-
-#ifndef NOPROTO
+OPENSSL_EXTERN int bn_limit_bits_high;
+OPENSSL_EXTERN int bn_limit_num_high;   /* (1<<bn_limit_bits_high) */
+OPENSSL_EXTERN int bn_limit_bits_mont;
+OPENSSL_EXTERN int bn_limit_num_mont;   /* (1<<bn_limit_bits_mont) */
 
 BIGNUM *bn_expand2(BIGNUM *b, int bits);
 
-#ifdef X86_ASM
-void bn_add_words(BN_ULONG *r,BN_ULONG *a,int num);
-#endif
-
-#else
-
-BIGNUM *bn_expand2();
-#ifdef X86_ASM
-BN_ULONG bn_add_words();
-#endif
-
-#endif
+void bn_mul_normal(BN_ULONG *r,BN_ULONG *a,int na,BN_ULONG *b,int nb);
+void bn_mul_comba8(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b);
+void bn_mul_comba4(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b);
+void bn_sqr_normal(BN_ULONG *r, BN_ULONG *a, int n, BN_ULONG *tmp);
+void bn_sqr_comba8(BN_ULONG *r,BN_ULONG *a);
+void bn_sqr_comba4(BN_ULONG *r,BN_ULONG *a);
+int bn_cmp_words(BN_ULONG *a,BN_ULONG *b,int n);
+void bn_mul_recursive(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b,int n2,BN_ULONG *t);
+void bn_mul_part_recursive(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b,
+	int tn, int n,BN_ULONG *t);
+void bn_sqr_recursive(BN_ULONG *r,BN_ULONG *a, int n2, BN_ULONG *t);
+void bn_mul_low_normal(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b, int n);
+void bn_mul_low_recursive(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b,int n2,
+	BN_ULONG *t);
+void bn_mul_high(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b,BN_ULONG *l,int n2,
+	BN_ULONG *t);
 
 #ifdef  __cplusplus
 }
 #endif
 
 #endif
-
-void bn_mul_low_recursive(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b,int n2,BN_ULONG *t);
-void bn_mul_high(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b,BN_ULONG *l,int n2, BN_ULONG *t);
-
-

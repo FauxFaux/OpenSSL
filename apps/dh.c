@@ -56,17 +56,18 @@
  * [including the GNU Public Licence.]
  */
 
+#ifndef NO_DH
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
 #include "apps.h"
-#include "bio.h"
-#include "err.h"
-#include "bn.h"
-#include "dh.h"
-#include "x509.h"
-#include "pem.h"
+#include <openssl/bio.h>
+#include <openssl/err.h>
+#include <openssl/bn.h>
+#include <openssl/dh.h>
+#include <openssl/x509.h>
+#include <openssl/pem.h>
 
 #undef PROG
 #define PROG	dh_main
@@ -81,9 +82,7 @@
  * -C
  */
 
-int MAIN(argc, argv)
-int argc;
-char **argv;
+int MAIN(int argc, char **argv)
 	{
 	DH *dh=NULL;
 	int i,badops=0,text=0;
@@ -310,3 +309,4 @@ end:
 	if (dh != NULL) DH_free(dh);
 	EXIT(ret);
 	}
+#endif

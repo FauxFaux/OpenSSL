@@ -60,11 +60,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include "apps.h"
-#include "bio.h"
-#include "err.h"
-#include "x509.h"
-#include "x509v3.h"
-#include "pem.h"
+#include <openssl/bio.h>
+#include <openssl/err.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
+#include <openssl/pem.h>
 
 #undef PROG
 #define PROG	crl_main
@@ -88,17 +88,10 @@ static char *crl_usage[]={
 NULL
 };
 
-#ifndef NOPROTO
 static X509_CRL *load_crl(char *file, int format);
-#else
-static X509_CRL *load_crl();
-#endif
-
 static BIO *bio_out=NULL;
 
-int MAIN(argc, argv)
-int argc;
-char **argv;
+int MAIN(int argc, char **argv)
 	{
 	X509_CRL *x=NULL;
 	int ret=1,i,num,badops=0;
@@ -221,8 +214,6 @@ bad:
 			}
 		}
 
-	if (noout) goto end;
-
 	out=BIO_new(BIO_s_file());
 	if (out == NULL)
 		{
@@ -242,6 +233,9 @@ bad:
 		}
 
 	if (text) X509_CRL_print(out, x);
+
+	if (noout) goto end;
+
 	if 	(outformat == FORMAT_ASN1)
 		i=(int)i2d_X509_CRL_bio(out,x);
 	else if (outformat == FORMAT_PEM)
@@ -261,9 +255,7 @@ end:
 	EXIT(ret);
 	}
 
-static X509_CRL *load_crl(infile, format)
-char *infile;
-int format;
+static X509_CRL *load_crl(char *infile, int format)
 	{
 	X509_CRL *x=NULL;
 	BIO *in=NULL;

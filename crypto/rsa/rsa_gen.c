@@ -59,14 +59,11 @@
 #include <stdio.h>
 #include <time.h>
 #include "cryptlib.h"
-#include "bn.h"
-#include "rsa.h"
+#include <openssl/bn.h>
+#include <openssl/rsa.h>
 
-RSA *RSA_generate_key(bits, e_value, callback,cb_arg)
-int bits;
-unsigned long e_value;
-void (*callback)(P_I_I_P);
-char *cb_arg;
+RSA *RSA_generate_key(int bits, unsigned long e_value,
+	     void (*callback)(int,int,char *), char *cb_arg)
 	{
 	RSA *rsa=NULL;
 	BIGNUM *r0=NULL,*r1=NULL,*r2=NULL,*r3=NULL,*tmp;

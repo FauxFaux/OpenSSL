@@ -51,7 +51,6 @@ static unsigned const char cov_2char[64]={
 0x73,0x74,0x75,0x76,0x77,0x78,0x79,0x7A
 };
 
-#ifndef NOPROTO
 void fcrypt_body(DES_LONG *out,des_key_schedule ks,
 	DES_LONG Eswap0, DES_LONG Eswap1);
 
@@ -60,22 +59,11 @@ char *des_crypt(const char *buf,const char *salt);
 #else
 char *crypt(const char *buf,const char *salt);
 #endif
-#else
-void fcrypt_body();
 #if defined(PERL5) || defined(__FreeBSD__)
-char *des_crypt();
+char *des_crypt(const char *buf, const char *salt)
 #else
-char *crypt();
+char *crypt(const char *buf, const char *salt)
 #endif
-#endif
-
-#if defined(PERL5) || defined(__FreeBSD__)
-char *des_crypt(buf,salt)
-#else
-char *crypt(buf,salt)
-#endif
-const char *buf;
-const char *salt;
 	{
 	static char buff[14];
 
@@ -83,10 +71,7 @@ const char *salt;
 	}
 
 
-char *des_fcrypt(buf,salt,ret)
-const char *buf;
-const char *salt;
-char *ret;
+char *des_fcrypt(const char *buf, const char *salt, char *ret)
 	{
 	unsigned int i,j,x,y;
 	DES_LONG Eswap0,Eswap1;
@@ -123,7 +108,7 @@ r=(r+7)/8;
 	for (; i<8; i++)
 		key[i]=0;
 
-	des_set_key(key,ks);
+	des_set_key(&key,ks);
 	fcrypt_body(&(out[0]),ks,Eswap0,Eswap1);
 
 	ll=out[0]; l2c(ll,b);

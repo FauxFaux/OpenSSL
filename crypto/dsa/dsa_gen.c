@@ -64,23 +64,18 @@
 #define HASH    SHA1
 #endif 
 
+#ifndef NO_SHA
 #include <stdio.h>
 #include <time.h>
 #include "cryptlib.h"
-#include "sha.h"
-#include "bn.h"
-#include "dsa.h"
-#include "rand.h"
+#include <openssl/sha.h>
+#include <openssl/bn.h>
+#include <openssl/dsa.h>
+#include <openssl/rand.h>
 
-DSA *DSA_generate_parameters(bits,seed_in,seed_len,counter_ret,h_ret,callback,
-	cb_arg)
-int bits;
-unsigned char *seed_in;
-int seed_len;
-int *counter_ret;
-unsigned long *h_ret;
-void (*callback)();
-char *cb_arg;
+DSA *DSA_generate_parameters(int bits, unsigned char *seed_in, int seed_len,
+	     int *counter_ret, unsigned long *h_ret, void (*callback)(),
+	     char *cb_arg)
 	{
 	int ok=0;
 	unsigned char seed[SHA_DIGEST_LENGTH];
@@ -255,10 +250,7 @@ err:
 	return(ok?ret:NULL);
 	}
 
-int DSA_is_prime(w, callback,cb_arg)
-BIGNUM *w;
-void (*callback)();
-char *cb_arg;
+int DSA_is_prime(BIGNUM *w, void (*callback)(), char *cb_arg)
 	{
 	int ok= -1,j,i,n;
 	BN_CTX *ctx=NULL,*ctx2=NULL;
@@ -337,4 +329,4 @@ err:
 	
 	return(ok);
 	}
-
+#endif

@@ -58,17 +58,14 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "bn.h"
-#include "evp.h"
-#include "asn1.h"
-#include "x509.h"
-#include "objects.h"
-#include "buffer.h"
+#include <openssl/bn.h>
+#include <openssl/evp.h>
+#include <openssl/asn1.h>
+#include <openssl/x509.h>
+#include <openssl/objects.h>
+#include <openssl/buffer.h>
 
-X509 *X509_REQ_to_X509(r,days,pkey)
-X509_REQ *r;
-int days;
-EVP_PKEY *pkey;
+X509 *X509_REQ_to_X509(X509_REQ *r, int days, EVP_PKEY *pkey)
 	{
 	X509 *ret=NULL;
 	X509_CINF *xi=NULL;
@@ -83,7 +80,7 @@ EVP_PKEY *pkey;
 	/* duplicate the request */
 	xi=ret->cert_info;
 
-	if (sk_num(r->req_info->attributes) != 0)
+	if (sk_X509_ATTRIBUTE_num(r->req_info->attributes) != 0)
 		{
 		if ((xi->version=ASN1_INTEGER_new()) == NULL) goto err;
 		if (!ASN1_INTEGER_set(xi->version,2)) goto err;

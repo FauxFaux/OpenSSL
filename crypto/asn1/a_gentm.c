@@ -61,25 +61,17 @@
 #include <stdio.h>
 #include <time.h>
 #include "cryptlib.h"
-#include "asn1.h"
+#include <openssl/asn1.h>
 
-/* ASN1err(ASN1_F_ASN1_GENERALIZEDTIME_NEW,ASN1_R_GENERALIZEDTIME_TOO_LONG);
- * ASN1err(ASN1_F_D2I_ASN1_GENERALIZEDTIME,ASN1_R_EXPECTING_A_GENERALIZEDTIME);
- */
-
-int i2d_ASN1_GENERALIZEDTIME(a,pp)
-ASN1_GENERALIZEDTIME *a;
-unsigned char **pp;
+int i2d_ASN1_GENERALIZEDTIME(ASN1_GENERALIZEDTIME *a, unsigned char **pp)
 	{
 	return(i2d_ASN1_bytes((ASN1_STRING *)a,pp,
 		V_ASN1_GENERALIZEDTIME,V_ASN1_UNIVERSAL));
 	}
 
 
-ASN1_GENERALIZEDTIME *d2i_ASN1_GENERALIZEDTIME(a, pp, length)
-ASN1_GENERALIZEDTIME **a;
-unsigned char **pp;
-long length;
+ASN1_GENERALIZEDTIME *d2i_ASN1_GENERALIZEDTIME(ASN1_GENERALIZEDTIME **a,
+	     unsigned char **pp, long length)
 	{
 	ASN1_GENERALIZEDTIME *ret=NULL;
 
@@ -103,8 +95,7 @@ err:
 	return(NULL);
 	}
 
-int ASN1_GENERALIZEDTIME_check(d)
-ASN1_GENERALIZEDTIME *d;
+int ASN1_GENERALIZEDTIME_check(ASN1_GENERALIZEDTIME *d)
 	{
 	static int min[9]={ 0, 0, 1, 1, 0, 0, 0, 0, 0};
 	static int max[9]={99, 99,12,31,23,59,59,12,59};
@@ -157,9 +148,7 @@ err:
 	return(0);
 	}
 
-int ASN1_GENERALIZEDTIME_set_string(s,str)
-ASN1_GENERALIZEDTIME *s;
-char *str;
+int ASN1_GENERALIZEDTIME_set_string(ASN1_GENERALIZEDTIME *s, char *str)
 	{
 	ASN1_GENERALIZEDTIME t;
 
@@ -179,9 +168,8 @@ char *str;
 		return(0);
 	}
 
-ASN1_GENERALIZEDTIME *ASN1_GENERALIZEDTIME_set(s, t)
-ASN1_GENERALIZEDTIME *s;
-time_t t;
+ASN1_GENERALIZEDTIME *ASN1_GENERALIZEDTIME_set(ASN1_GENERALIZEDTIME *s,
+	     time_t t)
 	{
 	char *p;
 	struct tm *ts;
@@ -195,9 +183,10 @@ time_t t;
 		return(NULL);
 
 #if defined(THREADS) && !defined(WIN32)
-	ts=(struct tm *)gmtime_r(&t,&data);
+	gmtime_r(&t,&data); /* should return &data, but doesn't on some systems, so we don't even look at the return value */
+	ts=&data;
 #else
-	ts=(struct tm *)gmtime(&t);
+	ts=gmtime(&t);
 #endif
 	p=(char *)s->data;
 	if ((p == NULL) || (s->length < 16))
@@ -209,7 +198,7 @@ time_t t;
 		s->data=(unsigned char *)p;
 		}
 
-	sprintf(p,"%04d%02d%02d%02d%02d%02dZ",ts->tm_year,
+	sprintf(p,"%04d%02d%02d%02d%02d%02dZ",ts->tm_year + 1900,
 		ts->tm_mon+1,ts->tm_mday,ts->tm_hour,ts->tm_min,ts->tm_sec);
 	s->length=strlen(p);
 	s->type=V_ASN1_GENERALIZEDTIME;

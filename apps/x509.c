@@ -63,15 +63,15 @@
 #define APPS_WIN16
 #endif
 #include "apps.h"
-#include "bio.h"
-#include "asn1.h"
-#include "err.h"
-#include "bn.h"
-#include "evp.h"
-#include "x509.h"
-#include "x509v3.h"
-#include "objects.h"
-#include "pem.h"
+#include <openssl/bio.h>
+#include <openssl/asn1.h>
+#include <openssl/err.h>
+#include <openssl/bn.h>
+#include <openssl/evp.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
+#include <openssl/objects.h>
+#include <openssl/pem.h>
 
 #undef PROG
 #define PROG x509_main
@@ -114,29 +114,21 @@ static char *x509_usage[]={
 " -text           - print the certificate in text form\n",
 " -C              - print out C code forms\n",
 " -md2/-md5/-sha1/-mdc2 - digest to do an RSA sign with\n",
+" -extfile        - configuration file with X509V3 extensions to add\n",
 NULL
 };
 
-#ifndef NOPROTO
 static int MS_CALLBACK callb(int ok, X509_STORE_CTX *ctx);
 static EVP_PKEY *load_key(char *file, int format);
 static X509 *load_cert(char *file, int format);
-static int sign (X509 *x, EVP_PKEY *pkey,int days,EVP_MD *digest);
-static int x509_certify (X509_STORE *ctx,char *CAfile, EVP_MD *digest,X509 *x,
-	X509 *xca, EVP_PKEY *pkey,char *serial, int create, int days);
-#else
-static int MS_CALLBACK callb();
-static EVP_PKEY *load_key();
-static X509 *load_cert();
-static int sign ();
-static int x509_certify ();
-#endif
-
+static int sign (X509 *x, EVP_PKEY *pkey,int days,const EVP_MD *digest,
+						LHASH *conf, char *section);
+static int x509_certify (X509_STORE *ctx,char *CAfile,const EVP_MD *digest,
+			 X509 *x,X509 *xca,EVP_PKEY *pkey,char *serial,
+			 int create,int days, LHASH *conf, char *section);
 static int reqfile=0;
 
-int MAIN(argc, argv)
-int argc;
-char **argv;
+int MAIN(int argc, char **argv)
 	{
 	int ret=1;
 	X509_REQ *req=NULL;
@@ -157,7 +149,9 @@ char **argv;
 	X509_REQ *rq=NULL;
 	int fingerprint=0;
 	char buf[256];
-	EVP_MD *md_alg,*digest=EVP_md5();
+	const EVP_MD *md_alg,*digest=EVP_md5();
+	LHASH *extconf = NULL;
+	char *extsect = NULL, *extfile = NULL;
 
 	reqfile=0;
 
@@ -218,6 +212,11 @@ char **argv;
 				BIO_printf(STDout,"bad number of days\n");
 				goto bad;
 				}
+			}
+		else if (strcmp(*argv,"-extfile") == 0)
+			{
+			if (--argc < 1) goto bad;
+			extfile= *(++argv);
 			}
 		else if (strcmp(*argv,"-in") == 0)
 			{
@@ -321,6 +320,34 @@ bad:
 		BIO_printf(bio_err,"need to specify a CAkey if using the CA command\n");
 		goto end;
 		}
+
+	if (extfile) {
+		long errorline;
+		X509V3_CTX ctx2;
+		if (!(extconf=CONF_load(NULL,extfile,&errorline))) {
+			if (errorline <= 0)
+				BIO_printf(bio_err,
+					"error loading the config file '%s'\n",
+								extfile);
+                	else
+                        	BIO_printf(bio_err,
+				       "error on line %ld of config file '%s'\n"
+							,errorline,extfile);
+			goto end;
+		}
+		if(!(extsect = CONF_get_string(extconf, "default",
+					 "extensions"))) extsect = "default";
+		X509V3_set_ctx_test(&ctx2);
+		X509V3_set_conf_lhash(&ctx2, extconf);
+		if(!X509V3_EXT_add_conf(extconf, &ctx2, extsect, NULL)) {
+			BIO_printf(bio_err,
+				"Error Loading extension section %s\n",
+								 extsect);
+			ERR_print_errors(bio_err);
+			goto end;
+                }
+	} 
+
 
 	if (reqfile)
 		{
@@ -599,7 +626,8 @@ bad:
 		                        digest=EVP_dss1();
 #endif
 
-				if (!sign(x,Upkey,days,digest)) goto end;
+				if (!sign(x,Upkey,days,digest,
+						 extconf, extsect)) goto end;
 				}
 			else if (CA_flag == i)
 				{
@@ -615,8 +643,8 @@ bad:
 #endif
 				
 				if (!x509_certify(ctx,CAfile,digest,x,xca,
-					CApkey,
-					CAserial,CA_createserial,days))
+					CApkey, CAserial,CA_createserial,days,
+					extconf, extsect))
 					goto end;
 				}
 			else if (x509req == i)
@@ -690,29 +718,23 @@ bad:
 	ret=0;
 end:
 	OBJ_cleanup();
-	if (out != NULL) BIO_free(out);
-	if (STDout != NULL) BIO_free(STDout);
-	if (ctx != NULL) X509_STORE_free(ctx);
-	if (req != NULL) X509_REQ_free(req);
-	if (x != NULL) X509_free(x);
-	if (xca != NULL) X509_free(xca);
-	if (Upkey != NULL) EVP_PKEY_free(Upkey);
-	if (CApkey != NULL) EVP_PKEY_free(CApkey);
-	if (rq != NULL) X509_REQ_free(rq);
+	CONF_free(extconf);
+	BIO_free(out);
+	BIO_free(STDout);
+	X509_STORE_free(ctx);
+	X509_REQ_free(req);
+	X509_free(x);
+	X509_free(xca);
+	EVP_PKEY_free(Upkey);
+	EVP_PKEY_free(CApkey);
+	X509_REQ_free(rq);
 	X509V3_EXT_cleanup();
 	EXIT(ret);
 	}
 
-static int x509_certify(ctx,CAfile,digest,x,xca,pkey,serialfile,create,days)
-X509_STORE *ctx;
-char *CAfile;
-EVP_MD *digest;
-X509 *x;
-X509 *xca;
-EVP_PKEY *pkey;
-char *serialfile;
-int create;
-int days;
+static int x509_certify(X509_STORE *ctx, char *CAfile, const EVP_MD *digest,
+	     X509 *x, X509 *xca, EVP_PKEY *pkey, char *serialfile, int create,
+	     int days, LHASH *conf, char *section)
 	{
 	int ret=0;
 	BIO *io=NULL;
@@ -845,6 +867,14 @@ int days;
 		}
 	EVP_PKEY_free(upkey);
 
+	if(conf) {
+		X509V3_CTX ctx2;
+		X509_set_version(x,2); /* version 3 certificate */
+                X509V3_set_ctx(&ctx2, xca, x, NULL, NULL, 0);
+                X509V3_set_conf_lhash(&ctx2, conf);
+                if(!X509V3_EXT_add_conf(conf, &ctx2, section, x)) goto end;
+	}
+
 	if (!X509_sign(x,pkey,digest)) goto end;
 	ret=1;
 end:
@@ -858,9 +888,7 @@ end:
 	return(ret);
 	}
 
-static int MS_CALLBACK callb(ok, ctx)
-int ok;
-X509_STORE_CTX *ctx;
+static int MS_CALLBACK callb(int ok, X509_STORE_CTX *ctx)
 	{
 	char buf[256];
 	int err;
@@ -893,9 +921,7 @@ X509_STORE_CTX *ctx;
 		}
 	}
 
-static EVP_PKEY *load_key(file, format)
-char *file;
-int format;
+static EVP_PKEY *load_key(char *file, int format)
 	{
 	BIO *key=NULL;
 	EVP_PKEY *pkey=NULL;
@@ -948,9 +974,7 @@ end:
 	return(pkey);
 	}
 
-static X509 *load_cert(file, format)
-char *file;
-int format;
+static X509 *load_cert(char *file, int format)
 	{
 	ASN1_HEADER *ah=NULL;
 	BUF_MEM *buf=NULL;
@@ -1037,11 +1061,8 @@ end:
 	}
 
 /* self sign */
-static int sign(x, pkey, days, digest)
-X509 *x;
-EVP_PKEY *pkey;
-int days;
-EVP_MD *digest;
+static int sign(X509 *x, EVP_PKEY *pkey, int days, const EVP_MD *digest, 
+						LHASH *conf, char *section)
 	{
 
 	EVP_PKEY *pktmp;
@@ -1062,6 +1083,13 @@ EVP_MD *digest;
 		goto err;
 
 	if (!X509_set_pubkey(x,pkey)) goto err;
+	if(conf) {
+		X509V3_CTX ctx;
+		X509_set_version(x,2); /* version 3 certificate */
+                X509V3_set_ctx(&ctx, x, x, NULL, NULL, 0);
+                X509V3_set_conf_lhash(&ctx, conf);
+                if(!X509V3_EXT_add_conf(conf, &ctx, section, x)) goto err;
+	}
 	if (!X509_sign(x,pkey,digest)) goto err;
 	return(1);
 err:

@@ -7,6 +7,8 @@ TOP=	../..
 CC=	cc
 INCLUDES= -I.. -I../../include
 CFLAG=-g
+INSTALL_PREFIX=
+OPENSSLDIR=     /usr/local/ssl
 INSTALLTOP=/usr/local/ssl
 MAKE=		make -f Makefile.ssl
 MAKEDEPEND=	$(TOP)/util/domd $(TOP)
@@ -15,15 +17,13 @@ AR=		ar r
 
 CFLAGS= $(INCLUDES) $(CFLAG)
 
-ERR=dh
-ERRC=dh_err
 GENERAL=Makefile
 TEST= dhtest.c
 APPS=
 
 LIB=$(TOP)/libcrypto.a
-LIBSRC= dh_gen.c dh_key.c dh_lib.c dh_check.c $(ERRC).c
-LIBOBJ= dh_gen.o dh_key.o dh_lib.o dh_check.o $(ERRC).o
+LIBSRC= dh_gen.c dh_key.c dh_lib.c dh_check.c dh_err.c
+LIBOBJ= dh_gen.o dh_key.o dh_lib.o dh_check.o dh_err.o
 
 SRC= $(LIBSRC)
 
@@ -39,23 +39,23 @@ all:	lib
 
 lib:	$(LIBOBJ)
 	$(AR) $(LIB) $(LIBOBJ)
-	sh $(TOP)/util/ranlib.sh $(LIB)
+	$(RANLIB) $(LIB)
 	@touch lib
 
 files:
-	perl $(TOP)/util/files.pl Makefile.ssl >> $(TOP)/MINFO
+	$(PERL) $(TOP)/util/files.pl Makefile.ssl >> $(TOP)/MINFO
 
 links:
 	@$(TOP)/util/point.sh Makefile.ssl Makefile
-	@$(TOP)/util/mklink.sh ../../include $(EXHEADER)
-	@$(TOP)/util/mklink.sh ../../test $(TEST)
-	@$(TOP)/util/mklink.sh ../../apps $(APPS)
+	@$(PERL) $(TOP)/util/mklink.pl ../../include/openssl $(EXHEADER)
+	@$(PERL) $(TOP)/util/mklink.pl ../../test $(TEST)
+	@$(PERL) $(TOP)/util/mklink.pl ../../apps $(APPS)
 
 install:
 	@for i in $(EXHEADER) ; \
 	do  \
-	(cp $$i $(INSTALLTOP)/include/$$i; \
-	chmod 644 $(INSTALLTOP)/include/$$i ); \
+	(cp $$i $(INSTALL_PREFIX)$(INSTALLTOP)/include/openssl/$$i; \
+	chmod 644 $(INSTALL_PREFIX)$(INSTALLTOP)/include/openssl/$$i ); \
 	done;
 
 tags:
@@ -67,33 +67,42 @@ lint:
 	lint -DLINT $(INCLUDES) $(SRC)>fluff
 
 depend:
-	$(MAKEDEPEND) $(INCLUDES) $(PROGS) $(LIBSRC)
+	$(MAKEDEPEND) $(INCLUDES) $(DEPFLAG) $(PROGS) $(LIBSRC)
 
 dclean:
-	perl -pe 'if (/^# DO NOT DELETE THIS LINE/) {print; exit(0);}' $(MAKEFILE) >Makefile.new
+	$(PERL) -pe 'if (/^# DO NOT DELETE THIS LINE/) {print; exit(0);}' $(MAKEFILE) >Makefile.new
 	mv -f Makefile.new $(MAKEFILE)
 
 clean:
 	rm -f *.o */*.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
 
-errors: $(ERRC).c
-
-$(ERRC).c: $(ERR).err
-	perl $(TOP)/util/err-ins.pl $(ERR).err $(ERR).h
-	perl ../err/err_genc.pl -s $(ERR).h $(ERRC).c
-
 # DO NOT DELETE THIS LINE -- make depend depends on it.
 
-dh_check.o: ../../include/bio.h ../../include/bn.h ../../include/buffer.h
-dh_check.o: ../../include/e_os.h ../../include/err.h ../../include/stack.h
-dh_check.o: ../cryptlib.h ../crypto.h ../opensslv.h dh.h
-dh_err.o: ../../include/err.h dh.h
-dh_gen.o: ../../include/bio.h ../../include/bn.h ../../include/buffer.h
-dh_gen.o: ../../include/e_os.h ../../include/err.h ../../include/stack.h
-dh_gen.o: ../cryptlib.h ../crypto.h ../opensslv.h dh.h
-dh_key.o: ../../include/bio.h ../../include/bn.h ../../include/buffer.h
-dh_key.o: ../../include/e_os.h ../../include/err.h ../../include/rand.h
-dh_key.o: ../../include/stack.h ../cryptlib.h ../crypto.h ../opensslv.h dh.h
-dh_lib.o: ../../include/bio.h ../../include/bn.h ../../include/buffer.h
-dh_lib.o: ../../include/e_os.h ../../include/err.h ../../include/stack.h
-dh_lib.o: ../cryptlib.h ../crypto.h ../opensslv.h dh.h
+dh_check.o: ../../include/openssl/bio.h ../../include/openssl/bn.h
+dh_check.o: ../../include/openssl/buffer.h ../../include/openssl/crypto.h
+dh_check.o: ../../include/openssl/dh.h ../../include/openssl/e_os.h
+dh_check.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h
+dh_check.o: ../../include/openssl/opensslconf.h
+dh_check.o: ../../include/openssl/opensslv.h ../../include/openssl/stack.h
+dh_check.o: ../cryptlib.h
+dh_err.o: ../../include/openssl/bn.h ../../include/openssl/dh.h
+dh_err.o: ../../include/openssl/err.h ../../include/openssl/opensslconf.h
+dh_gen.o: ../../include/openssl/bio.h ../../include/openssl/bn.h
+dh_gen.o: ../../include/openssl/buffer.h ../../include/openssl/crypto.h
+dh_gen.o: ../../include/openssl/dh.h ../../include/openssl/e_os.h
+dh_gen.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h
+dh_gen.o: ../../include/openssl/opensslconf.h ../../include/openssl/opensslv.h
+dh_gen.o: ../../include/openssl/stack.h ../cryptlib.h
+dh_key.o: ../../include/openssl/bio.h ../../include/openssl/bn.h
+dh_key.o: ../../include/openssl/buffer.h ../../include/openssl/crypto.h
+dh_key.o: ../../include/openssl/dh.h ../../include/openssl/e_os.h
+dh_key.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h
+dh_key.o: ../../include/openssl/opensslconf.h ../../include/openssl/opensslv.h
+dh_key.o: ../../include/openssl/rand.h ../../include/openssl/stack.h
+dh_key.o: ../cryptlib.h
+dh_lib.o: ../../include/openssl/bio.h ../../include/openssl/bn.h
+dh_lib.o: ../../include/openssl/buffer.h ../../include/openssl/crypto.h
+dh_lib.o: ../../include/openssl/dh.h ../../include/openssl/e_os.h
+dh_lib.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h
+dh_lib.o: ../../include/openssl/opensslconf.h ../../include/openssl/opensslv.h
+dh_lib.o: ../../include/openssl/stack.h ../cryptlib.h

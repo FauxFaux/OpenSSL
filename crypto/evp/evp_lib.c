@@ -58,12 +58,10 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "evp.h"
-#include "objects.h"
+#include <openssl/evp.h>
+#include <openssl/objects.h>
 
-int EVP_CIPHER_param_to_asn1(c,type)
-EVP_CIPHER_CTX *c;
-ASN1_TYPE *type;
+int EVP_CIPHER_param_to_asn1(EVP_CIPHER_CTX *c, ASN1_TYPE *type)
 	{
 	int ret;
 
@@ -74,9 +72,7 @@ ASN1_TYPE *type;
 	return(ret);
 	}
 
-int EVP_CIPHER_asn1_to_param(c,type)
-EVP_CIPHER_CTX *c;
-ASN1_TYPE *type;
+int EVP_CIPHER_asn1_to_param(EVP_CIPHER_CTX *c, ASN1_TYPE *type)
 	{
 	int ret;
 
@@ -87,9 +83,7 @@ ASN1_TYPE *type;
 	return(ret);
 	}
 
-int EVP_CIPHER_get_asn1_iv(c,type)
-EVP_CIPHER_CTX *c;
-ASN1_TYPE *type;
+int EVP_CIPHER_get_asn1_iv(EVP_CIPHER_CTX *c, ASN1_TYPE *type)
 	{
 	int i=0,l;
 
@@ -105,9 +99,7 @@ ASN1_TYPE *type;
 	return(i);
 	}
 
-int EVP_CIPHER_set_asn1_iv(c,type)
-EVP_CIPHER_CTX *c;
-ASN1_TYPE *type;
+int EVP_CIPHER_set_asn1_iv(EVP_CIPHER_CTX *c, ASN1_TYPE *type)
 	{
 	int i=0,j;
 
@@ -118,3 +110,29 @@ ASN1_TYPE *type;
 		}
 	return(i);
 	}
+
+/* Convert the various cipher NIDs and dummies to a proper OID NID */
+int EVP_CIPHER_type(const EVP_CIPHER *ctx)
+{
+	int nid;
+	nid = EVP_CIPHER_nid(ctx);
+
+	switch(nid) {
+
+		case NID_rc2_cbc:
+		case NID_rc2_64_cbc:
+		case NID_rc2_40_cbc:
+
+		return NID_rc2_cbc;
+
+		case NID_rc4:
+		case NID_rc4_40:
+
+		return NID_rc4;
+
+		default:
+
+		return nid;
+	}
+}
+

@@ -62,10 +62,18 @@
 #ifdef WINDOWS
 #include "../bio/bss_file.c" 
 #endif
-#include "crypto.h"
-#include "bio.h"
-#include "bn.h"
-#include "dh.h"
+#include <openssl/crypto.h>
+#include <openssl/bio.h>
+#include <openssl/bn.h>
+
+#ifdef NO_DH
+int main(int argc, char *argv[])
+{
+    printf("No DH support\n");
+    return(0);
+}
+#else
+#include <openssl/dh.h>
 
 #ifdef WIN16
 #define MS_CALLBACK	_far _loadds
@@ -73,12 +81,7 @@
 #define MS_CALLBACK
 #endif
 
-#ifndef NOPROTO
 static void MS_CALLBACK cb(int p, int n, char *arg);
-#else
-static void MS_CALLBACK cb();
-#endif
-
 #ifdef NO_STDIO
 #define APPS_WIN16
 #include "bss_file.c"
@@ -86,9 +89,7 @@ static void MS_CALLBACK cb();
 
 BIO *out=NULL;
 
-int main(argc,argv)
-int argc;
-char *argv[];
+int main(int argc, char *argv[])
 	{
 	DH *a,*b;
 	char buf[12];
@@ -170,10 +171,7 @@ err:
 	return(ret);
 	}
 
-static void MS_CALLBACK cb(p, n,arg)
-int p;
-int n;
-char *arg;
+static void MS_CALLBACK cb(int p, int n, char *arg)
 	{
 	char c='*';
 
@@ -187,3 +185,4 @@ char *arg;
 	p=n;
 #endif
 	}
+#endif

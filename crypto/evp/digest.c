@@ -58,29 +58,22 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "objects.h"
-#include "evp.h"
+#include <openssl/objects.h>
+#include <openssl/evp.h>
 
-void EVP_DigestInit(ctx,type)
-EVP_MD_CTX *ctx;
-EVP_MD *type;
+void EVP_DigestInit(EVP_MD_CTX *ctx, const EVP_MD *type)
 	{
 	ctx->digest=type;
 	type->init(&(ctx->md));
 	}
 
-void EVP_DigestUpdate(ctx,data,count)
-EVP_MD_CTX *ctx;
-unsigned char *data;
-unsigned int count;
+void EVP_DigestUpdate(EVP_MD_CTX *ctx, const unsigned char *data,
+	     unsigned int count)
 	{
 	ctx->digest->update(&(ctx->md.base[0]),data,(unsigned long)count);
 	}
 
-void EVP_DigestFinal(ctx,md,size)
-EVP_MD_CTX *ctx;
-unsigned char *md;
-unsigned int *size;
+void EVP_DigestFinal(EVP_MD_CTX *ctx, unsigned char *md, unsigned int *size)
 	{
 	ctx->digest->final(md,&(ctx->md.base[0]));
 	if (size != NULL)
@@ -91,7 +84,7 @@ unsigned int *size;
 int EVP_MD_CTX_copy(EVP_MD_CTX *out, EVP_MD_CTX *in)
 {
     if ((in == NULL) || (in->digest == NULL)) {
-        EVPerr(EVP_F_EVP_MD_CTX_COPY,EVP_R_INPUT_NOT_INITALISED);
+        EVPerr(EVP_F_EVP_MD_CTX_COPY,EVP_R_INPUT_NOT_INITIALIZED);
 	return 0;
     }
     memcpy((char *)out,(char *)in,in->digest->ctx_size);

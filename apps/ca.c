@@ -64,26 +64,41 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "apps.h"
-#include "bio.h"
-#include "err.h"
-#include "bn.h"
-#include "txt_db.h"
-#include "evp.h"
-#include "x509.h"
-#include "x509v3.h"
-#include "objects.h"
-#include "pem.h"
-#include "conf.h"
+#include <openssl/conf.h>
+#include <openssl/bio.h>
+#include <openssl/err.h>
+#include <openssl/bn.h>
+#include <openssl/txt_db.h>
+#include <openssl/evp.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
+#include <openssl/objects.h>
+#include <openssl/pem.h>
 
 #ifndef W_OK
-#include <sys/file.h>
+#  ifdef VMS
+#    if defined(__DECC)
+#      include <unistd.h>
+#    else
+#      include <unixlib.h>
+#    endif
+#  else
+#    include <sys/file.h>
+#  endif
+#endif
+
+#ifndef W_OK
+#  define F_OK 0
+#  define X_OK 1
+#  define W_OK 2
+#  define R_OK 4
 #endif
 
 #undef PROG
 #define PROG ca_main
 
 #define BASE_SECTION	"ca"
-#define CONFIG_FILE "lib/openssl.cnf"
+#define CONFIG_FILE "openssl.cnf"
 
 #define ENV_DEFAULT_CA		"default_ca"
 
@@ -144,8 +159,9 @@ static char *ca_usage[]={
 " -spkac file     - File contains DN and signed public key and challenge\n",
 " -ss_cert file   - File contains a self signed cert to sign\n",
 " -preserveDN     - Don't re-order the DN\n",
-" -batch	  - Don't ask questions\n",
-" -msie_hack	  - msie modifications to handle all those universal strings\n",
+" -batch          - Don't ask questions\n",
+" -msie_hack      - msie modifications to handle all those universal strings\n",
+" -revoke file    - Revoke a certificate (given in file)\n",
 NULL
 };
 
@@ -155,7 +171,6 @@ extern int EF_PROTECT_BELOW;
 extern int EF_ALIGNMENT;
 #endif
 
-#ifndef NOPROTO
 static int add_oid_section(LHASH *conf);
 static void lookup_fail(char *name,char *tag);
 static int MS_CALLBACK key_callback(char *buf,int len,int verify);
@@ -167,41 +182,25 @@ static int index_name_cmp(char **a,char **b);
 static BIGNUM *load_serial(char *serialfile);
 static int save_serial(char *serialfile, BIGNUM *serial);
 static int certify(X509 **xret, char *infile,EVP_PKEY *pkey,X509 *x509,
-	EVP_MD *dgst,STACK *policy,TXT_DB *db,BIGNUM *serial,char *startdate,
-	int days, int batch, char *ext_sect, LHASH *conf,int verbose);
+		   const EVP_MD *dgst,STACK *policy,TXT_DB *db,BIGNUM *serial,
+		   char *startdate,int days,int batch,char *ext_sect,
+		   LHASH *conf,int verbose);
 static int certify_cert(X509 **xret, char *infile,EVP_PKEY *pkey,X509 *x509,
-	EVP_MD *dgst,STACK *policy,TXT_DB *db,BIGNUM *serial,char *startdate,
-	int days,int batch,char *ext_sect, LHASH *conf,int verbose);
+			const EVP_MD *dgst,STACK *policy,TXT_DB *db,
+			BIGNUM *serial,char *startdate,int days,int batch,
+			char *ext_sect, LHASH *conf,int verbose);
 static int certify_spkac(X509 **xret, char *infile,EVP_PKEY *pkey,X509 *x509,
-	EVP_MD *dgst,STACK *policy,TXT_DB *db,BIGNUM *serial,char *startdate,
-	int days,char *ext_sect,LHASH *conf,int verbose);
+			 const EVP_MD *dgst,STACK *policy,TXT_DB *db,
+			 BIGNUM *serial,char *startdate,int days,
+			 char *ext_sect,LHASH *conf,int verbose);
 static int fix_data(int nid, int *type);
 static void write_new_certificate(BIO *bp, X509 *x, int output_der);
-static int do_body(X509 **xret, EVP_PKEY *pkey, X509 *x509, EVP_MD *dgst,
+static int do_body(X509 **xret, EVP_PKEY *pkey, X509 *x509, const EVP_MD *dgst,
 	STACK *policy, TXT_DB *db, BIGNUM *serial, char *startdate,
 	int days, int batch, int verbose, X509_REQ *req, char *ext_sect,
 	LHASH *conf);
+static int do_revoke(X509 *x509, TXT_DB *db);
 static int check_time_format(char *str);
-#else
-static int add_oid_section();
-static void lookup_fail();
-static int MS_CALLBACK key_callback();
-static unsigned long index_serial_hash();
-static int index_serial_cmp();
-static unsigned long index_name_hash();
-static int index_name_qual();
-static int index_name_cmp();
-static int fix_data();
-static BIGNUM *load_serial();
-static int save_serial();
-static int certify();
-static int certify_cert();
-static int certify_spkac();
-static void write_new_certificate();
-static int do_body();
-static int check_time_format();
-#endif
-
 static LHASH *conf;
 static char *key=NULL;
 static char *section=NULL;
@@ -209,9 +208,7 @@ static char *section=NULL;
 static int preserve=0;
 static int msie_hack=0;
 
-int MAIN(argc, argv)
-int argc;
-char **argv;
+int MAIN(int argc, char **argv)
 	{
 	int total=0;
 	int total_done=0;
@@ -220,6 +217,7 @@ char **argv;
 	int req=0;
 	int verbose=0;
 	int gencrl=0;
+	int dorevoke=0;
 	long crldays=0;
 	long crlhours=0;
 	long errorline= -1;
@@ -253,7 +251,7 @@ char **argv;
 	char **pp,*p,*f;
 	int i,j;
 	long l;
-	EVP_MD *dgst=NULL;
+	const EVP_MD *dgst=NULL;
 	STACK *attribs=NULL;
 	STACK *cert_sk=NULL;
 	BIO *hex=NULL;
@@ -380,6 +378,12 @@ EF_ALIGNMENT=0;
 			spkac_file = *(++argv);
 			req=1;
 			}
+		else if (strcmp(*argv,"-revoke") == 0)
+			{
+			if (--argc < 1) goto bad;
+			infile= *(++argv);
+			dorevoke=1;
+			}
 		else
 			{
 bad:
@@ -401,12 +405,19 @@ bad:
 	ERR_load_crypto_strings();
 
 	/*****************************************************************/
+	if (configfile == NULL) configfile = getenv("OPENSSL_CONF");
+	if (configfile == NULL) configfile = getenv("SSLEAY_CONF");
 	if (configfile == NULL)
 		{
 		/* We will just use 'buf[0]' as a temporary buffer.  */
+#ifdef VMS
+		strncpy(buf[0],X509_get_default_cert_area(),
+			sizeof(buf[0])-1-sizeof(CONFIG_FILE));
+#else
 		strncpy(buf[0],X509_get_default_cert_area(),
 			sizeof(buf[0])-2-sizeof(CONFIG_FILE));
 		strcat(buf[0],"/");
+#endif
 		strcat(buf[0],CONFIG_FILE);
 		configfile=buf[0];
 		}
@@ -546,7 +557,12 @@ bad:
 			BIO_printf(bio_err,"there needs to be defined a directory for new certificate to be placed in\n");
 			goto err;
 			}
+#ifdef VMS
+		/* For technical reasons, VMS misbehaves with X_OK */
+		if (access(outdir,R_OK|W_OK) != 0)
+#else
 		if (access(outdir,R_OK|W_OK|X_OK) != 0)
+#endif
 			{
 			BIO_printf(bio_err,"I am unable to acces the %s directory\n",outdir);
 			perror(outdir);
@@ -590,13 +606,13 @@ bad:
 		if ((pp[DB_type][0] != DB_TYPE_REV) &&
 			(pp[DB_rev_date][0] != '\0'))
 			{
-			BIO_printf(bio_err,"entry %d: not, revoked yet has a revokation date\n",i+1);
+			BIO_printf(bio_err,"entry %d: not revoked yet, but has a revocation date\n",i+1);
 			goto err;
 			}
 		if ((pp[DB_type][0] == DB_TYPE_REV) &&
 			!check_time_format(pp[DB_rev_date]))
 			{
-			BIO_printf(bio_err,"entry %d: invalid revokation date\n",
+			BIO_printf(bio_err,"entry %d: invalid revocation date\n",
 				i+1);
 			goto err;
 			}
@@ -699,7 +715,10 @@ bad:
 		extensions=CONF_get_string(conf,section,ENV_EXTENSIONS);
 		if(extensions) {
 			/* Check syntax of file */
-			if(!X509V3_EXT_check_conf(conf, extensions)) {
+			X509V3_CTX ctx;
+			X509V3_set_ctx_test(&ctx);
+			X509V3_set_conf_lhash(&ctx, conf);
+			if(!X509V3_EXT_add_conf(conf, &ctx, extensions, NULL)) {
 				BIO_printf(bio_err,
 				 "Error Loading extension section %s\n",
 								 extensions);
@@ -861,12 +880,23 @@ bad:
 			BIO_printf(bio_err,"Write out database with %d new entries\n",sk_num(cert_sk));
 
 			strncpy(buf[0],serialfile,BSIZE-4);
+
+#ifdef VMS
+			strcat(buf[0],"-new");
+#else
 			strcat(buf[0],".new");
+#endif
 
 			if (!save_serial(buf[0],serial)) goto err;
 
 			strncpy(buf[1],dbfile,BSIZE-4);
+
+#ifdef VMS
+			strcat(buf[1],"-new");
+#else
 			strcat(buf[1],".new");
+#endif
+
 			if (BIO_write_filename(out,buf[1]) <= 0)
 				{
 				perror(dbfile);
@@ -890,7 +920,11 @@ bad:
 			p=(char *)x->cert_info->serialNumber->data;
 			
 			strncpy(buf[2],outdir,BSIZE-(j*2)-6);
+
+#ifndef VMS
 			strcat(buf[2],"/");
+#endif
+
 			n=(unsigned char *)&(buf[2][strlen(buf[2])]);
 			if (j > 0)
 				{
@@ -923,7 +957,13 @@ bad:
 			{
 			/* Rename the database and the serial file */
 			strncpy(buf[2],serialfile,BSIZE-4);
+
+#ifdef VMS
+			strcat(buf[2],"-old");
+#else
 			strcat(buf[2],".old");
+#endif
+
 			BIO_free(in);
 			BIO_free(out);
 			in=NULL;
@@ -945,7 +985,13 @@ bad:
 				}
 
 			strncpy(buf[2],dbfile,BSIZE-4);
+
+#ifdef VMS
+			strcat(buf[2],"-old");
+#else
 			strcat(buf[2],".old");
+#endif
+
 			if (rename(dbfile,buf[2]) < 0)
 				{
 				BIO_printf(bio_err,"unabel to rename %s to %s\n",
@@ -971,7 +1017,10 @@ bad:
 		crl_ext=CONF_get_string(conf,section,ENV_CRLEXT);
 		if(crl_ext) {
 			/* Check syntax of file */
-			if(!X509V3_EXT_check_conf(conf, crl_ext)) {
+			X509V3_CTX ctx;
+			X509V3_set_ctx_test(&ctx);
+			X509V3_set_conf_lhash(&ctx, conf);
+			if(!X509V3_EXT_add_conf(conf, &ctx, crl_ext, NULL)) {
 				BIO_printf(bio_err,
 				 "Error Loading CRL extension section %s\n",
 								 crl_ext);
@@ -1063,11 +1112,8 @@ bad:
 		    if (ci->version == NULL)
 		    if ((ci->version=ASN1_INTEGER_new()) == NULL) goto err;
 		    ASN1_INTEGER_set(ci->version,1); /* version 2 CRL */
-		    crlctx.crl = crl;
-		    crlctx.issuer_cert = x509;
-		    crlctx.subject_cert = NULL;
-		    crlctx.subject_req = NULL;
-		    crlctx.flags = 0;
+		    X509V3_set_ctx(&crlctx, x509, NULL, NULL, crl, 0);
+		    X509V3_set_conf_lhash(&crlctx, conf);
 
 		    if(!X509V3_EXT_CRL_add_conf(conf, &crlctx,
 						 crl_ext, crl)) goto err;
@@ -1076,6 +1122,69 @@ bad:
 		if (!X509_CRL_sign(crl,pkey,dgst)) goto err;
 
 		PEM_write_bio_X509_CRL(Sout,crl);
+		}
+	/*****************************************************************/
+	if (dorevoke)
+		{
+        	in=BIO_new(BIO_s_file());
+        	out=BIO_new(BIO_s_file());
+        	if ((in == NULL) || (out == NULL))
+                	{
+                	ERR_print_errors(bio_err);
+                	goto err;
+                	}
+        	if (infile == NULL) 
+                	{
+                	BIO_printf(bio_err,"no input files\n");
+                	goto err;
+                	}
+		else
+			{
+                	if (BIO_read_filename(in,infile) <= 0)
+                		{
+                        	perror(infile);
+                        	BIO_printf(bio_err,"error trying to load '%s' certificate\n",infile);
+                        	goto err;
+                		}
+                	x509=PEM_read_bio_X509(in,NULL,NULL);
+                	if (x509 == NULL)
+                		{
+                        	BIO_printf(bio_err,"unable to load '%s' certificate\n",infile);
+				goto err;
+                		}
+                	j=do_revoke(x509,db);
+
+			strncpy(buf[0],dbfile,BSIZE-4);
+                	strcat(buf[0],".new");
+                	if (BIO_write_filename(out,buf[0]) <= 0)
+                		{
+                        	perror(dbfile);
+                        	BIO_printf(bio_err,"unable to open '%s'\n",dbfile);
+                        	goto err;
+                		}
+                	j=TXT_DB_write(out,db);
+                	if (j <= 0) goto err;
+                	BIO_free(in);
+                	BIO_free(out);
+                	in=NULL;
+                	out=NULL;
+                	strncpy(buf[1],dbfile,BSIZE-4);
+                	strcat(buf[1],".old");
+                	if (rename(dbfile,buf[1]) < 0)
+                		{
+                        	BIO_printf(bio_err,"unable to rename %s to %s\n", dbfile, buf[1]);
+                        	perror("reason");
+                        	goto err;
+                		}
+	                if (rename(buf[0],dbfile) < 0)
+                		{
+                        	BIO_printf(bio_err,"unable to rename %s to %s\n", buf[0],dbfile);
+                        	perror("reason");
+                        	rename(buf[1],dbfile);
+                        	goto err;
+                		}
+                	BIO_printf(bio_err,"Data Base Updated\n"); 
+		        }
 		}
 	/*****************************************************************/
 	ret=0;
@@ -1100,16 +1209,12 @@ err:
 	EXIT(ret);
 	}
 
-static void lookup_fail(name,tag)
-char *name;
-char *tag;
+static void lookup_fail(char *name, char *tag)
 	{
 	BIO_printf(bio_err,"variable lookup failed for %s::%s\n",name,tag);
 	}
 
-static int MS_CALLBACK key_callback(buf,len,verify)
-char *buf;
-int len,verify;
+static int MS_CALLBACK key_callback(char *buf, int len, int verify)
 	{
 	int i;
 
@@ -1120,8 +1225,7 @@ int len,verify;
 	return(i);
 	}
 
-static unsigned long index_serial_hash(a)
-char **a;
+static unsigned long index_serial_hash(char **a)
 	{
 	char *n;
 
@@ -1130,9 +1234,7 @@ char **a;
 	return(lh_strhash(n));
 	}
 
-static int index_serial_cmp(a,b)
-char **a;
-char **b;
+static int index_serial_cmp(char **a, char **b)
 	{
 	char *aa,*bb;
 
@@ -1141,21 +1243,17 @@ char **b;
 	return(strcmp(aa,bb));
 	}
 
-static unsigned long index_name_hash(a)
-char **a;
+static unsigned long index_name_hash(char **a)
 	{ return(lh_strhash(a[DB_name])); }
 
-static int index_name_qual(a)
-char **a;
+static int index_name_qual(char **a)
 	{ return(a[0][0] == 'V'); }
 
-static int index_name_cmp(a,b)
-char **a;
-char **b;
-	{ return(strcmp(a[DB_name],b[DB_name])); }
+static int index_name_cmp(char **a, char **b)
+	{ return(strcmp(a[DB_name],
+	     b[DB_name])); }
 
-static BIGNUM *load_serial(serialfile)
-char *serialfile;
+static BIGNUM *load_serial(char *serialfile)
 	{
 	BIO *in=NULL;
 	BIGNUM *ret=NULL;
@@ -1193,9 +1291,7 @@ err:
 	return(ret);
 	}
 
-static int save_serial(serialfile,serial)
-char *serialfile;
-BIGNUM *serial;
+static int save_serial(char *serialfile, BIGNUM *serial)
 	{
 	BIO *out;
 	int ret=0;
@@ -1227,22 +1323,10 @@ err:
 	return(ret);
 	}
 
-static int certify(xret,infile,pkey,x509,dgst,policy,db,serial,startdate,days,
-		   batch,ext_sect,lconf,verbose)
-X509 **xret;
-char *infile;
-EVP_PKEY *pkey;
-X509 *x509;
-EVP_MD *dgst;
-STACK *policy;
-TXT_DB *db;
-BIGNUM *serial;
-char *startdate;
-int days;
-int batch;
-char *ext_sect;
-LHASH *lconf;
-int verbose;
+static int certify(X509 **xret, char *infile, EVP_PKEY *pkey, X509 *x509,
+	     const EVP_MD *dgst, STACK *policy, TXT_DB *db, BIGNUM *serial,
+	     char *startdate, int days, int batch, char *ext_sect, LHASH *lconf,
+		 int verbose)
 	{
 	X509_REQ *req=NULL;
 	BIO *in=NULL;
@@ -1298,22 +1382,11 @@ err:
 	return(ok);
 	}
 
-static int certify_cert(xret,infile,pkey,x509,dgst,policy,db,serial,startdate,
-			days,batch,ext_sect,lconf,verbose)
-X509 **xret;
-char *infile;
-EVP_PKEY *pkey;
-X509 *x509;
-EVP_MD *dgst;
-STACK *policy;
-TXT_DB *db;
-BIGNUM *serial;
-char *startdate;
-int days;
-int batch;
-char *ext_sect;
-LHASH *lconf;
-int verbose;
+static int certify_cert(X509 **xret, char *infile, EVP_PKEY *pkey, X509 *x509,
+	     const EVP_MD *dgst, STACK *policy, TXT_DB *db, BIGNUM *serial,
+	     char *startdate, int days, int batch, char *ext_sect, LHASH *lconf,
+		 int verbose)
+
 	{
 	X509 *req=NULL;
 	X509_REQ *rreq=NULL;
@@ -1373,22 +1446,9 @@ err:
 	return(ok);
 	}
 
-static int do_body(xret,pkey,x509,dgst,policy,db,serial,startdate,days,
-		   batch,verbose,req,ext_sect,lconf)
-X509 **xret;
-EVP_PKEY *pkey;
-X509 *x509;
-EVP_MD *dgst;
-STACK *policy;
-TXT_DB *db;
-BIGNUM *serial;
-char *startdate;
-int days;
-int batch;
-int verbose;
-X509_REQ *req;
-char *ext_sect;
-LHASH *lconf;
+static int do_body(X509 **xret, EVP_PKEY *pkey, X509 *x509, const EVP_MD *dgst,
+	     STACK *policy, TXT_DB *db, BIGNUM *serial, char *startdate, int days,
+	     int batch, int verbose, X509_REQ *req, char *ext_sect, LHASH *lconf)
 	{
 	X509_NAME *name=NULL,*CAname=NULL,*subject=NULL;
 	ASN1_UTCTIME *tm,*tmptm;
@@ -1715,15 +1775,13 @@ again2:
 		/* Free the current entries if any, there should not
 		 * be any I belive */
 		if (ci->extensions != NULL)
-			sk_pop_free(ci->extensions,X509_EXTENSION_free);
+			sk_X509_EXTENSION_pop_free(ci->extensions,
+						   X509_EXTENSION_free);
 
 		ci->extensions = NULL;
 
-		ctx.subject_cert = ret;
-		ctx.issuer_cert = x509;
-		ctx.subject_req = req;
-		ctx.crl = NULL;
-		ctx.flags = 0;
+		X509V3_set_ctx(&ctx, x509, ret, req, NULL, 0);
+		X509V3_set_conf_lhash(&ctx, lconf);
 
 		if(!X509V3_EXT_add_conf(lconf, &ctx, ext_sect, ret)) goto err;
 
@@ -1819,10 +1877,7 @@ err:
 	return(ok);
 	}
 
-static void write_new_certificate(bp,x, output_der)
-BIO *bp;
-X509 *x;
-int output_der;
+static void write_new_certificate(BIO *bp, X509 *x, int output_der)
 	{
 	char *f;
 	char buf[256];
@@ -1848,21 +1903,9 @@ int output_der;
 	BIO_puts(bp,"\n");
 	}
 
-static int certify_spkac(xret,infile,pkey,x509,dgst,policy,db,serial,
-			 startdate,days,ext_sect,lconf,verbose)
-X509 **xret;
-char *infile;
-EVP_PKEY *pkey;
-X509 *x509;
-EVP_MD *dgst;
-STACK *policy;
-TXT_DB *db;
-BIGNUM *serial;
-char *startdate;
-int days;
-char *ext_sect;
-LHASH *lconf;
-int verbose;
+static int certify_spkac(X509 **xret, char *infile, EVP_PKEY *pkey, X509 *x509,
+	     const EVP_MD *dgst, STACK *policy, TXT_DB *db, BIGNUM *serial,
+	     char *startdate, int days, char *ext_sect, LHASH *lconf, int verbose)
 	{
 	STACK *sk=NULL;
 	LHASH *parms=NULL;
@@ -2018,9 +2061,7 @@ err:
 	return(ok);
 	}
 
-static int fix_data(nid,type)
-int nid;
-int *type;
+static int fix_data(int nid, int *type)
 	{
 	if (nid == NID_pkcs9_emailAddress)
 		*type=V_ASN1_IA5STRING;
@@ -2035,8 +2076,7 @@ int *type;
 	return(1);
 	}
 
-static int check_time_format(str)
-char *str;
+static int check_time_format(char *str)
 	{
 	ASN1_UTCTIME tm;
 
@@ -2046,8 +2086,7 @@ char *str;
 	return(ASN1_UTCTIME_check(&tm));
 	}
 
-static int add_oid_section(hconf)
-LHASH *hconf;
+static int add_oid_section(LHASH *hconf)
 {	
 	char *p;
 	STACK *sktmp;
@@ -2068,3 +2107,109 @@ LHASH *hconf;
 	}
 	return 1;
 }
+
+static int do_revoke(X509 *x509, TXT_DB *db)
+{
+        ASN1_UTCTIME *tm=NULL;
+        char *row[DB_NUMBER],**rrow,**irow;
+        int ok=-1,i;
+
+        for (i=0; i<DB_NUMBER; i++)
+                row[i]=NULL;
+        row[DB_name]=X509_NAME_oneline(x509->cert_info->subject,NULL,0);
+        row[DB_serial]=BN_bn2hex(ASN1_INTEGER_to_BN(x509->cert_info->serialNumber,NULL));
+        if ((row[DB_name] == NULL) || (row[DB_serial] == NULL))
+                {
+                BIO_printf(bio_err,"Malloc failure\n");
+                goto err;
+                }
+        rrow=TXT_DB_get_by_index(db,DB_name,row);
+        if (rrow == NULL)
+                {
+                BIO_printf(bio_err,"Adding Entry to DB for %s\n", row[DB_name]);
+
+                /* We now just add it to the database */
+                row[DB_type]=(char *)Malloc(2);
+
+                tm=X509_get_notAfter(x509);
+                row[DB_exp_date]=(char *)Malloc(tm->length+1);
+                memcpy(row[DB_exp_date],tm->data,tm->length);
+                row[DB_exp_date][tm->length]='\0';
+
+                row[DB_rev_date]=NULL;
+
+                /* row[DB_serial] done already */
+                row[DB_file]=(char *)Malloc(8);
+
+                /* row[DB_name] done already */
+
+                if ((row[DB_type] == NULL) || (row[DB_exp_date] == NULL) ||
+                        (row[DB_file] == NULL))
+                        {
+                        BIO_printf(bio_err,"Malloc failure\n");
+                        goto err;
+                        }
+                strcpy(row[DB_file],"unknown");
+                row[DB_type][0]='V';
+                row[DB_type][1]='\0';
+
+                if ((irow=(char **)Malloc(sizeof(char *)*(DB_NUMBER+1))) == NULL)
+                        {
+                        BIO_printf(bio_err,"Malloc failure\n");
+                        goto err;
+                        }
+
+                for (i=0; i<DB_NUMBER; i++)
+                        {
+                        irow[i]=row[i];
+                        row[i]=NULL;
+                        }
+                irow[DB_NUMBER]=NULL;
+
+                if (!TXT_DB_insert(db,irow))
+                        {
+                        BIO_printf(bio_err,"failed to update database\n");
+                        BIO_printf(bio_err,"TXT_DB error number %ld\n",db->error);
+                        goto err;
+                        }
+
+                /* Revoke Certificate */
+                do_revoke(x509,db);
+
+                ok=1;
+                goto err;
+
+                }
+        else if (index_serial_cmp(row,rrow))
+                {
+                BIO_printf(bio_err,"ERROR:no same serial number %s\n",
+                           row[DB_serial]);
+                goto err;
+                }
+        else if (rrow[DB_type][0]=='R')
+                {
+                BIO_printf(bio_err,"ERROR:Already revoked, serial number %s\n",
+                           row[DB_serial]);
+                goto err;
+                }
+        else
+                {
+                BIO_printf(bio_err,"Revoking Certificate %s.\n", rrow[DB_serial]);
+                tm=X509_gmtime_adj(tm,0);
+                rrow[DB_type][0]='R';
+                rrow[DB_type][1]='\0';
+                rrow[DB_rev_date]=(char *)Malloc(tm->length+1);
+                memcpy(rrow[DB_rev_date],tm->data,tm->length);
+                rrow[DB_rev_date][tm->length]='\0';
+                }
+        ok=1;
+err:
+        for (i=0; i<DB_NUMBER; i++)
+                {
+                if (row[i] != NULL) 
+                        Free(row[i]);
+                }
+        ASN1_UTCTIME_free(tm);
+        return(ok);
+}
+

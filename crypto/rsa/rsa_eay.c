@@ -58,11 +58,10 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "bn.h"
-#include "rsa.h"
-#include "rand.h"
+#include <openssl/bn.h>
+#include <openssl/rsa.h>
+#include <openssl/rand.h>
 
-#ifndef NOPROTO
 static int RSA_eay_public_encrypt(int flen, unsigned char *from,
 		unsigned char *to, RSA *rsa,int padding);
 static int RSA_eay_private_encrypt(int flen, unsigned char *from,
@@ -74,16 +73,6 @@ static int RSA_eay_private_decrypt(int flen, unsigned char *from,
 static int RSA_eay_mod_exp(BIGNUM *r0, BIGNUM *i, RSA *rsa);
 static int RSA_eay_init(RSA *rsa);
 static int RSA_eay_finish(RSA *rsa);
-#else
-static int RSA_eay_public_encrypt();
-static int RSA_eay_private_encrypt();
-static int RSA_eay_public_decrypt();
-static int RSA_eay_private_decrypt();
-static int RSA_eay_mod_exp();
-static int RSA_eay_init();
-static int RSA_eay_finish();
-#endif
-
 static RSA_METHOD rsa_pkcs1_eay_meth={
 	"Eric Young's PKCS#1 RSA",
 	RSA_eay_public_encrypt,
@@ -98,17 +87,13 @@ static RSA_METHOD rsa_pkcs1_eay_meth={
 	NULL,
 	};
 
-RSA_METHOD *RSA_PKCS1_SSLeay()
+RSA_METHOD *RSA_PKCS1_SSLeay(void)
 	{
 	return(&rsa_pkcs1_eay_meth);
 	}
 
-static int RSA_eay_public_encrypt(flen, from, to, rsa, padding)
-int flen;
-unsigned char *from;
-unsigned char *to;
-RSA *rsa;
-int padding;
+static int RSA_eay_public_encrypt(int flen, unsigned char *from,
+	     unsigned char *to, RSA *rsa, int padding)
 	{
 	BIGNUM f,ret;
 	int i,j,k,num=0,r= -1;
@@ -130,9 +115,11 @@ int padding;
 	case RSA_PKCS1_PADDING:
 		i=RSA_padding_add_PKCS1_type_2(buf,num,from,flen);
 		break;
+#ifndef NO_SHA
 	case RSA_PKCS1_OAEP_PADDING:
 	        i=RSA_padding_add_PKCS1_OAEP(buf,num,from,flen,NULL,0);
 		break;
+#endif
 	case RSA_SSLV23_PADDING:
 		i=RSA_padding_add_SSLv23(buf,num,from,flen);
 		break;
@@ -177,12 +164,8 @@ err:
 	return(r);
 	}
 
-static int RSA_eay_private_encrypt(flen, from, to, rsa, padding)
-int flen;
-unsigned char *from;
-unsigned char *to;
-RSA *rsa;
-int padding;
+static int RSA_eay_private_encrypt(int flen, unsigned char *from,
+	     unsigned char *to, RSA *rsa, int padding)
 	{
 	BIGNUM f,ret;
 	int i,j,k,num=0,r= -1;
@@ -256,12 +239,8 @@ err:
 	return(r);
 	}
 
-static int RSA_eay_private_decrypt(flen, from, to, rsa,padding)
-int flen;
-unsigned char *from;
-unsigned char *to;
-RSA *rsa;
-int padding;
+static int RSA_eay_private_decrypt(int flen, unsigned char *from,
+	     unsigned char *to, RSA *rsa, int padding)
 	{
 	BIGNUM f,ret;
 	int j,num=0,r= -1;
@@ -322,9 +301,11 @@ int padding;
 	case RSA_PKCS1_PADDING:
 		r=RSA_padding_check_PKCS1_type_2(to,num,buf,j,num);
 		break;
+#ifndef NO_SHA
         case RSA_PKCS1_OAEP_PADDING:
 	        r=RSA_padding_check_PKCS1_OAEP(to,num,buf,j,num,NULL,0);
                 break;
+#endif
  	case RSA_SSLV23_PADDING:
 		r=RSA_padding_check_SSLv23(to,num,buf,j,num);
 		break;
@@ -350,12 +331,8 @@ err:
 	return(r);
 	}
 
-static int RSA_eay_public_decrypt(flen, from, to, rsa, padding)
-int flen;
-unsigned char *from;
-unsigned char *to;
-RSA *rsa;
-int padding;
+static int RSA_eay_public_decrypt(int flen, unsigned char *from,
+	     unsigned char *to, RSA *rsa, int padding)
 	{
 	BIGNUM f,ret;
 	int i,num=0,r= -1;
@@ -426,10 +403,7 @@ err:
 	return(r);
 	}
 
-static int RSA_eay_mod_exp(r0, I, rsa)
-BIGNUM *r0;
-BIGNUM *I;
-RSA *rsa;
+static int RSA_eay_mod_exp(BIGNUM *r0, BIGNUM *I, RSA *rsa)
 	{
 	BIGNUM r1,m1;
 	int ret=0;
@@ -493,15 +467,13 @@ err:
 	return(ret);
 	}
 
-static int RSA_eay_init(rsa)
-RSA *rsa;
+static int RSA_eay_init(RSA *rsa)
 	{
 	rsa->flags|=RSA_FLAG_CACHE_PUBLIC|RSA_FLAG_CACHE_PRIVATE;
 	return(1);
 	}
 
-static int RSA_eay_finish(rsa)
-RSA *rsa;
+static int RSA_eay_finish(RSA *rsa)
 	{
 	if (rsa->_method_mod_n != NULL)
 		BN_MONT_CTX_free(rsa->_method_mod_n);

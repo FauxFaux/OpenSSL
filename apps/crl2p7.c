@@ -65,19 +65,14 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "apps.h"
-#include "err.h"
-#include "evp.h"
-#include "x509.h"
-#include "pkcs7.h"
-#include "pem.h"
-#include "objects.h"
+#include <openssl/err.h>
+#include <openssl/evp.h>
+#include <openssl/x509.h>
+#include <openssl/pkcs7.h>
+#include <openssl/pem.h>
+#include <openssl/objects.h>
 
-#ifndef NOPROTO
-static int add_certs_from_file(STACK *stack, char *certfile);
-#else
-static int add_certs_from_file();
-#endif
-
+static int add_certs_from_file(STACK_OF(X509) *stack, char *certfile);
 #undef PROG
 #define PROG	crl2pkcs7_main
 
@@ -87,9 +82,7 @@ static int add_certs_from_file();
  * -out arg	- output file - default stdout
  */
 
-int MAIN(argc, argv)
-int argc;
-char **argv;
+int MAIN(int argc, char **argv)
 	{
 	int i,badops=0;
 	BIO *in=NULL,*out=NULL;
@@ -100,7 +93,7 @@ char **argv;
 	X509_CRL *crl=NULL;
 	STACK *certflst=NULL;
 	STACK *crl_stack=NULL;
-	STACK *cert_stack=NULL;
+	STACK_OF(X509) *cert_stack=NULL;
 	int ret=1,nocrl=0;
 
 	apps_startup();
@@ -228,7 +221,7 @@ bad:
 		crl=NULL; /* now part of p7 for Freeing */
 		}
 
-	if ((cert_stack=sk_new(NULL)) == NULL) goto end;
+	if ((cert_stack=sk_X509_new(NULL)) == NULL) goto end;
 	p7s->cert=cert_stack;
 
 	if(certflst) for(i = 0; i < sk_num(certflst); i++) {
@@ -288,15 +281,13 @@ end:
  *	number of certs added if successful, -1 if not.
  *----------------------------------------------------------------------
  */
-static int add_certs_from_file(stack,certfile)
-STACK *stack;
-char *certfile;
+static int add_certs_from_file(STACK_OF(X509) *stack, char *certfile)
 	{
 	struct stat st;
 	BIO *in=NULL;
 	int count=0;
 	int ret= -1;
-	STACK *sk=NULL;
+	STACK_OF(X509_INFO) *sk=NULL;
 	X509_INFO *xi;
 
 	if ((stat(certfile,&st) != 0))
@@ -320,12 +311,12 @@ char *certfile;
 	}
 
 	/* scan over it and pull out the CRL's */
-	while (sk_num(sk))
+	while (sk_X509_INFO_num(sk))
 		{
-		xi=(X509_INFO *)sk_shift(sk);
+		xi=sk_X509_INFO_shift(sk);
 		if (xi->x509 != NULL)
 			{
-			sk_push(stack,(char *)xi->x509);
+			sk_X509_push(stack,xi->x509);
 			xi->x509=NULL;
 			count++;
 			}
@@ -336,7 +327,7 @@ char *certfile;
 end:
  	/* never need to Free x */
 	if (in != NULL) BIO_free(in);
-	if (sk != NULL) sk_free(sk);
+	if (sk != NULL) sk_X509_INFO_free(sk);
 	return(ret);
 	}
 

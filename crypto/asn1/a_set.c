@@ -58,10 +58,8 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "asn1_mac.h"
+#include <openssl/asn1_mac.h>
 
-/* ASN1err(ASN1_F_ASN1_TYPE_NEW,ERR_R_MALLOC_FAILURE);
- */
 typedef struct
     {
     unsigned char *pbData;
@@ -73,8 +71,8 @@ typedef struct
  */
 static int SetBlobCmp(const void *elem1, const void *elem2 )
     {
-    MYBLOB *b1 = (MYBLOB *)elem1;
-    MYBLOB *b2 = (MYBLOB *)elem2;
+    const MYBLOB *b1 = (const MYBLOB *)elem1;
+    const MYBLOB *b2 = (const MYBLOB *)elem2;
     int r;
 
     r = memcmp(b1->pbData, b2->pbData,
@@ -84,14 +82,9 @@ static int SetBlobCmp(const void *elem1, const void *elem2 )
     return b1->cbData-b2->cbData;
     }
 
-int i2d_ASN1_SET(a,pp,func,ex_tag,ex_class,is_set)
-STACK *a;
-unsigned char **pp;
-int (*func)();
-int ex_tag;
-int ex_class;
-int is_set;	/* if TRUE, then sort the contents (i.e. it isn't a SEQUENCE) */
-
+/* int is_set:  if TRUE, then sort the contents (i.e. it isn't a SEQUENCE)    */
+int i2d_ASN1_SET(STACK *a, unsigned char **pp, int (*func)(), int ex_tag,
+	     int ex_class, int is_set)
 	{
 	int ret=0,r;
 	int i;
@@ -158,14 +151,8 @@ SetBlob
         return(r);
         }
 
-STACK *d2i_ASN1_SET(a,pp,length,func,free_func,ex_tag,ex_class)
-STACK **a;
-unsigned char **pp;
-long length;
-char *(*func)();
-void (*free_func)();
-int ex_tag;
-int ex_class;
+STACK *d2i_ASN1_SET(STACK **a, unsigned char **pp, long length,
+	     char *(*func)(), void (*free_func)(), int ex_tag, int ex_class)
 	{
 	ASN1_CTX c;
 	STACK *ret=NULL;

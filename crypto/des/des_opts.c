@@ -59,7 +59,7 @@
 /* define PART1, PART2, PART3 or PART4 to build only with a few of the options.
  * This is for machines with 64k code segment size restrictions. */
 
-#ifndef MSDOS
+#if !defined(MSDOS) && (!defined(VMS) || defined(__DECC))
 #define TIMES
 #endif
 
@@ -71,7 +71,6 @@
 extern void exit();
 #endif
 #include <signal.h>
-#ifndef VMS
 #ifndef _IRIX
 #include <time.h>
 #endif
@@ -79,18 +78,19 @@ extern void exit();
 #include <sys/types.h>
 #include <sys/times.h>
 #endif
-#else /* VMS */
-#include <types.h>
-struct tms {
-	time_t tms_utime;
-	time_t tms_stime;
-	time_t tms_uchild;	/* I dunno...  */
-	time_t tms_uchildsys;	/* so these names are a guess :-) */
-	}
+
+/* Depending on the VMS version, the tms structure is perhaps defined.
+   The __TMS macro will show if it was.  If it wasn't defined, we should
+   undefine TIMES, since that tells the rest of the program how things
+   should be handled.				-- Richard Levitte */
+#if defined(VMS) && defined(__DECC) && !defined(__TMS)
+#undef TIMES
 #endif
+
 #ifndef TIMES
 #include <sys/timeb.h>
 #endif
+
 
 #if defined(sun) || defined(__ultrix)
 #define _POSIX_SOURCE
@@ -98,7 +98,7 @@ struct tms {
 #include <sys/param.h>
 #endif
 
-#include "des.h"
+#include <openssl/des.h>
 #include "spr.h"
 
 #define DES_DEFAULT_OPTIONS
@@ -318,11 +318,7 @@ struct tms {
 #ifndef HZ
 # ifndef CLK_TCK
 #  ifndef _BSD_CLK_TCK_ /* FreeBSD fix */
-#   ifndef VMS
-#    define HZ	100.0
-#   else /* VMS */
-#    define HZ	100.0
-#   endif
+#   define HZ	100.0
 #  else /* _BSD_CLK_TCK_ */
 #   define HZ ((double)_BSD_CLK_TCK_)
 #  endif
@@ -334,12 +330,7 @@ struct tms {
 #define BUFSIZE	((long)1024)
 long run=0;
 
-#ifndef NOPROTO
 double Time_F(int s);
-#else
-double Time_F();
-#endif
-
 #ifdef SIGALRM
 #if defined(__STDC__) || defined(sgi)
 #define SIGRETTYPE void
@@ -347,14 +338,8 @@ double Time_F();
 #define SIGRETTYPE int
 #endif
 
-#ifndef NOPROTO
 SIGRETTYPE sig_done(int sig);
-#else
-SIGRETTYPE sig_done();
-#endif
-
-SIGRETTYPE sig_done(sig)
-int sig;
+SIGRETTYPE sig_done(int sig)
 	{
 	signal(SIGALRM,sig_done);
 	run=0;
@@ -367,8 +352,7 @@ int sig;
 #define START	0
 #define STOP	1
 
-double Time_F(s)
-int s;
+double Time_F(int s)
 	{
 	double ret;
 #ifdef TIMES
@@ -426,9 +410,7 @@ int s;
 	fprintf(stderr,"%s bytes per sec = %12.2f (%5.1fuS)\n",name, \
 		tm[index]*8,1.0e6/tm[index]);
 
-int main(argc,argv)
-int argc;
-char **argv;
+int main(int argc, char **argv)
 	{
 	long count;
 	static unsigned char buf[BUFSIZE];

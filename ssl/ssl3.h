@@ -59,7 +59,9 @@
 #ifndef HEADER_SSL3_H 
 #define HEADER_SSL3_H 
 
-#include "buffer.h"
+#include <openssl/buffer.h>
+#include <openssl/evp.h>
+#include <openssl/ssl.h>
 
 #ifdef  __cplusplus
 extern "C" {
@@ -286,7 +288,7 @@ typedef struct ssl3_ctx_st
 	int wpend_tot;		/* number bytes written */
 	int wpend_type;
 	int wpend_ret;		/* number of bytes submitted */
-	char *wpend_buf;
+	const unsigned char *wpend_buf;
 
 	/* used during startup, digest all incoming/outgoing packets */
 	EVP_MD_CTX finish_dgst1;
@@ -301,7 +303,7 @@ typedef struct ssl3_ctx_st
 	/* we alow one fatal and one warning alert to be outstanding,
 	 * send close alert via the warning alert */
 	int alert_dispatch;
-	char send_alert[2];
+	unsigned char send_alert[2];
 
 	/* This flag is set when we should renegotiate ASAP, basically when
 	 * there is no more data in the read or write buffers */
@@ -320,8 +322,9 @@ typedef struct ssl3_ctx_st
 
 		/* used to hold the new cipher we are going to use */
 		SSL_CIPHER *new_cipher;
+#ifndef NO_DH
 		DH *dh;
-
+#endif
 		/* used when SSL_ST_FLUSH_DATA is entered */
 		int next_state;			
 
@@ -331,17 +334,17 @@ typedef struct ssl3_ctx_st
 		int cert_req;
 		int ctype_num;
 		char ctype[SSL3_CT_NUMBER];
-		STACK *ca_names;
+		STACK_OF(X509_NAME) *ca_names;
 
 		int use_rsa_tmp;
 
 		int key_block_length;
 		unsigned char *key_block;
 
-		EVP_CIPHER *new_sym_enc;
-		EVP_MD *new_hash;
+		const EVP_CIPHER *new_sym_enc;
+		const EVP_MD *new_hash;
 #ifdef HEADER_COMP_H
-		SSL_COMP *new_compression;
+		const SSL_COMP *new_compression;
 #else
 		char *new_compression;
 #endif

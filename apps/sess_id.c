@@ -60,11 +60,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include "apps.h"
-#include "bio.h"
-#include "err.h"
-#include "x509.h"
-#include "pem.h"
-#include "ssl.h"
+#include <openssl/bio.h>
+#include <openssl/err.h>
+#include <openssl/x509.h>
+#include <openssl/pem.h>
+#include <openssl/ssl.h>
 
 #undef PROG
 #define PROG	sess_id_main
@@ -83,15 +83,8 @@ static char *sess_id_usage[]={
 NULL
 };
 
-#ifndef NOPROTO
 static SSL_SESSION *load_sess_id(char *file, int format);
-#else
-static SSL_SESSION *load_sess_id();
-#endif
-
-int MAIN(argc, argv)
-int argc;
-char **argv;
+int MAIN(int argc, char **argv)
 	{
 	SSL_SESSION *x=NULL;
 	int ret=1,i,num,badops=0;
@@ -271,9 +264,7 @@ end:
 	EXIT(ret);
 	}
 
-static SSL_SESSION *load_sess_id(infile, format)
-char *infile;
-int format;
+static SSL_SESSION *load_sess_id(char *infile, int format)
 	{
 	SSL_SESSION *x=NULL;
 	BIO *in=NULL;

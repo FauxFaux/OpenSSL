@@ -63,7 +63,8 @@
 extern "C" {
 #endif
 
-#include "crypto.h"
+#include <stdio.h>
+#include <openssl/crypto.h>
 
 /* These are the 'types' of BIOs */
 #define BIO_TYPE_NONE		0
@@ -203,7 +204,7 @@ extern "C" {
 typedef struct bio_method_st
 	{
 	int type;
-	char *name;
+	const char *name;
 	int (*bwrite)();
 	int (*bread)();
 	int (*bputs)();
@@ -216,7 +217,7 @@ typedef struct bio_method_st
 typedef struct bio_method_st
 	{
 	int type;
-	char *name;
+	const char *name;
 	int (_far *bwrite)();
 	int (_far *bread)();
 	int (_far *bputs)();
@@ -230,12 +231,8 @@ typedef struct bio_method_st
 typedef struct bio_st
 	{
 	BIO_METHOD *method;
-#ifndef NOPROTO
 	/* bio, mode, argp, argi, argl, ret */
-	long (*callback)(struct bio_st *,int,char *,int, long,long);
-#else
-	long (*callback)();
-#endif
+	long (*callback)(struct bio_st *,int,const char *,int, long,long);
 	char *cb_arg; /* first argument for the callback */
 
 	int init;
@@ -378,8 +375,15 @@ typedef struct bio_f_buffer_ctx_struct
 
 /* name is cast to lose const, but might be better to route through a function
    so we can do it safely */
+#ifdef CONST_STRICT
+/* If you are wondering why this isn't defined, its because CONST_STRICT is
+ * purely a compile-time kludge to allow const to be checked.
+ */
+int BIO_read_filename(BIO *b,const char *name);
+#else
 #define BIO_read_filename(b,name) BIO_ctrl(b,BIO_C_SET_FILENAME, \
 		BIO_CLOSE|BIO_FP_READ,(char *)name)
+#endif
 #define BIO_write_filename(b,name) BIO_ctrl(b,BIO_C_SET_FILENAME, \
 		BIO_CLOSE|BIO_FP_WRITE,name)
 #define BIO_append_filename(b,name) BIO_ctrl(b,BIO_C_SET_FILENAME, \
@@ -437,12 +441,12 @@ typedef struct bio_f_buffer_ctx_struct
 #define NO_FP_API
 #endif
 
-#ifndef NOPROTO
 
-int BIO_get_ex_num(BIO *bio);
+/* These two aren't currently implemented */
+/* int BIO_get_ex_num(BIO *bio); */
+/* void BIO_set_ex_free_func(BIO *bio,int idx,void (*cb)()); */
 int BIO_set_ex_data(BIO *bio,int idx,char *data);
 char *BIO_get_ex_data(BIO *bio,int idx);
-void BIO_set_ex_free_func(BIO *bio,int idx,void (*cb)());
 int BIO_get_ex_new_index(long argl, char *argp, int (*new_func)(),
 	int (*dup_func)(), void (*free_func)());
 
@@ -461,40 +465,13 @@ BIO *BIO_new_fp(FILE *stream, int close_flag);
 #    define BIO_new_file_internal	BIO_new_file
 #    define BIO_new_fp_internal		BIO_s_file
 #  endif /* FP_API */
-#else
-
-/* These two aren't currently implemented */
-/*int BIO_get_ex_num();*/
-/*void BIO_set_ex_free_func();*/
-int BIO_set_ex_data();
-char *BIO_get_ex_data();
-int BIO_get_ex_new_index();
-
-#  if defined(WIN16) && defined(_WINDLL)
-BIO_METHOD *BIO_s_file_internal();
-BIO *BIO_new_file_internal();
-BIO *BIO_new_fp_internal();
-#    define BIO_s_file	BIO_s_file_internal
-#    define BIO_new_file	BIO_new_file_internal
-#    define BIO_new_fp	BIO_new_fp_internal
-#  else /* FP_API */
-BIO_METHOD *BIO_s_file();
-BIO *BIO_new_file();
-BIO *BIO_new_fp();
-#    define BIO_s_file_internal		BIO_s_file
-#    define BIO_new_file_internal	BIO_new_file
-#    define BIO_new_fp_internal		BIO_s_file
-#  endif /* FP_API */
-#endif
-
-#ifndef NOPROTO
 BIO *	BIO_new(BIO_METHOD *type);
 int	BIO_set(BIO *a,BIO_METHOD *type);
 int	BIO_free(BIO *a);
-int	BIO_read(BIO *b, char *data, int len);
+int	BIO_read(BIO *b, void *data, int len);
 int	BIO_gets(BIO *bp,char *buf, int size);
-int	BIO_write(BIO *b, char *data, int len);
-int	BIO_puts(BIO *bp,char *buf);
+int	BIO_write(BIO *b, const char *data, int len);
+int	BIO_puts(BIO *bp,const char *buf);
 long	BIO_ctrl(BIO *bp,int cmd,long larg,char *parg);
 char *	BIO_ptr_ctrl(BIO *bp,int cmd,long larg);
 long	BIO_int_ctrl(BIO *bp,int cmd,long larg,int iarg);
@@ -507,10 +484,10 @@ int	BIO_get_retry_reason(BIO *bio);
 BIO *	BIO_dup_chain(BIO *in);
 
 #ifndef WIN16
-long BIO_debug_callback(BIO *bio,int cmd,char *argp,int argi,
+long BIO_debug_callback(BIO *bio,int cmd,const char *argp,int argi,
 	long argl,long ret);
 #else
-long _far _loadds BIO_debug_callback(BIO *bio,int cmd,char *argp,int argi,
+long _far _loadds BIO_debug_callback(BIO *bio,int cmd,const char *argp,int argi,
 	long argl,long ret);
 #endif
 
@@ -530,14 +507,14 @@ int BIO_sock_should_retry(int i);
 int BIO_sock_non_fatal_error(int error);
 int BIO_fd_should_retry(int i);
 int BIO_fd_non_fatal_error(int error);
-int BIO_dump(BIO *b,char *bytes,int len);
+int BIO_dump(BIO *b,const char *bytes,int len);
 
-struct hostent *BIO_gethostbyname(char *name);
+struct hostent *BIO_gethostbyname(const char *name);
 int BIO_sock_error(int sock);
 int BIO_socket_ioctl(int fd, long type, unsigned long *arg);
 int BIO_socket_nbio(int fd,int mode);
-int BIO_get_port(char *str, unsigned short *port_ptr);
-int BIO_get_host_ip(char *str, unsigned char *ip);
+int BIO_get_port(const char *str, unsigned short *port_ptr);
+int BIO_get_host_ip(const char *str, unsigned char *ip);
 int BIO_get_accept_socket(char *host_port,int mode);
 int BIO_accept(int sock,char **ip_port);
 int BIO_sock_init(void );
@@ -555,126 +532,13 @@ void BIO_copy_next_retry(BIO *b);
 
 long BIO_ghbn_ctrl(int cmd,int iarg,char *parg);
 
-#else
-
-BIO *	BIO_new();
-int	BIO_set();
-int	BIO_free();
-int	BIO_read();
-int	BIO_gets();
-int	BIO_write();
-int	BIO_puts();
-char *	BIO_ptr_ctrl();
-long	BIO_ctrl();
-long	BIO_int_ctrl();
-BIO *	BIO_push();
-BIO *	BIO_pop();
-void	BIO_free_all();
-BIO *	BIO_find_type();
-BIO *	BIO_get_retry_BIO();
-int	BIO_get_retry_reason();
-BIO *	BIO_dup_chain();
-
-#ifndef WIN16
-long BIO_debug_callback();
-#else
-long _far _loadds BIO_debug_callback();
-#endif
-
-BIO_METHOD *BIO_s_mem();
-BIO_METHOD *BIO_s_socket();
-BIO_METHOD *BIO_s_connect();
-BIO_METHOD *BIO_s_accept();
-BIO_METHOD *BIO_s_fd();
-BIO_METHOD *BIO_s_log();
-BIO_METHOD *BIO_s_null();
-BIO_METHOD *BIO_f_null();
-BIO_METHOD *BIO_f_buffer();
-BIO_METHOD *BIO_f_nbio_test();
-/* BIO_METHOD *BIO_f_ber(); */
-
-int BIO_sock_should_retry();
-int BIO_sock_non_fatal_error();
-int BIO_fd_should_retry();
-int BIO_fd_non_fatal_error();
-int BIO_dump();
-
-struct hostent *BIO_gethostbyname();
-int BIO_sock_error();
-int BIO_socket_ioctl();
-int BIO_socket_nbio();
-int BIO_get_port();
-int BIO_get_host_ip();
-int BIO_get_accept_socket();
-int BIO_accept();
-int BIO_sock_init();
-void BIO_sock_cleanup();
-int BIO_set_tcp_ndelay();
-
-void ERR_load_BIO_strings();
-
-BIO *BIO_new_socket();
-BIO *BIO_new_fd();
-BIO *BIO_new_connect();
-BIO *BIO_new_accept();
-
-void BIO_copy_next_retry();
-
-long BIO_ghbn_ctrl();
-
-#endif
-
-/* Tim Hudson's portable varargs stuff */
-
-#ifndef NOPROTO
-#define VAR_ANSI	/* select ANSI version by default */
-#endif
-
-#ifdef VAR_ANSI
-/* ANSI version of a "portable" macro set for variable length args */
-#ifndef __STDARG_H__ /**/
-#include <stdarg.h>
-#endif /**/
-
-#define VAR_PLIST(arg1type,arg1)    arg1type arg1, ...
-#define VAR_PLIST2(arg1type,arg1,arg2type,arg2) arg1type arg1,arg2type arg2,...
-#define VAR_ALIST
-#define VAR_BDEFN(args,arg1type,arg1)   va_list args
-#define VAR_BDEFN2(args,arg1type,arg1,arg2type,arg2)    va_list args
-#define VAR_INIT(args,arg1type,arg1)    va_start(args,arg1);
-#define VAR_INIT2(args,arg1type,arg1,arg2type,arg2) va_start(args,arg2);
-#define VAR_ARG(args,type,arg)	arg=va_arg(args,type)
-#define VAR_END(args)		va_end(args);
-
-#else
-
-/* K&R version of a "portable" macro set for variable length args */
-#ifndef __VARARGS_H__
-#include <varargs.h>
-#endif
-
-#define VAR_PLIST(arg1type,arg1)	va_alist
-#define VAR_PLIST2(arg1type,arg1,arg2type,arg2) va_alist
-#define VAR_ALIST		va_dcl
-#define VAR_BDEFN(args,arg1type,arg1)	va_list args; arg1type arg1
-#define VAR_BDEFN2(args,arg1type,arg1,arg2type,arg2)    va_list args; \
-	arg1type arg1; arg2type arg2
-#define VAR_INIT(args,arg1type,arg1)	va_start(args); \
-	arg1=va_arg(args,arg1type);
-#define VAR_INIT2(args,arg1type,arg1,arg2type,arg2) va_start(args); \
-	arg1=va_arg(args,arg1type);	arg2=va_arg(args,arg2type);
-#define VAR_ARG(args,type,arg)		arg=va_arg(args,type)
-#define VAR_END(args)			va_end(args);
-
-#endif
-
-#ifndef NOPROTO
-int BIO_printf( VAR_PLIST( BIO *, bio ) );
-#else
-int BIO_printf();
-#endif
+int BIO_printf(BIO *bio, ...);
 
 /* BEGIN ERROR CODES */
+/* The following lines are auto generated by the script mkerr.pl. Any changes
+ * made after this point may be overwritten when the script is next run.
+ */
+
 /* Error codes for the BIO functions. */
 
 /* Function codes. */
@@ -682,6 +546,7 @@ int BIO_printf();
 #define BIO_F_BIO_ACCEPT				 101
 #define BIO_F_BIO_BER_GET_HEADER			 102
 #define BIO_F_BIO_CTRL					 103
+#define BIO_F_BIO_GETHOSTBYNAME				 120
 #define BIO_F_BIO_GETS					 104
 #define BIO_F_BIO_GET_ACCEPT_SOCKET			 105
 #define BIO_F_BIO_GET_HOST_IP				 106
@@ -712,7 +577,7 @@ int BIO_printf();
 #define BIO_R_KEEPALIVE					 109
 #define BIO_R_NBIO_CONNECT_ERROR			 110
 #define BIO_R_NO_ACCEPT_PORT_SPECIFIED			 111
-#define BIO_R_NO_HOSTHNAME_SPECIFIED			 112
+#define BIO_R_NO_HOSTNAME_SPECIFIED			 112
 #define BIO_R_NO_PORT_DEFINED				 113
 #define BIO_R_NO_PORT_SPECIFIED				 114
 #define BIO_R_NULL_PARAMETER				 115
@@ -720,10 +585,10 @@ int BIO_printf();
 #define BIO_R_UNABLE_TO_BIND_SOCKET			 117
 #define BIO_R_UNABLE_TO_CREATE_SOCKET			 118
 #define BIO_R_UNABLE_TO_LISTEN_SOCKET			 119
-#define BIO_R_UNINITALISED				 120
+#define BIO_R_UNINITIALIZED				 120
 #define BIO_R_UNSUPPORTED_METHOD			 121
 #define BIO_R_WSASTARTUP				 122
- 
+
 #ifdef  __cplusplus
 }
 #endif

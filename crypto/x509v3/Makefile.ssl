@@ -7,6 +7,8 @@ TOP=	../..
 CC=	cc
 INCLUDES= -I.. -I../../include
 CFLAG=-g
+INSTALL_PREFIX=
+OPENSSLDIR=     /usr/local/ssl
 INSTALLTOP=/usr/local/ssl
 MAKE=		make -f Makefile.ssl
 MAKEDEPEND=	$(TOP)/util/domd $(TOP)
@@ -15,8 +17,6 @@ AR=		ar r
 
 CFLAGS= $(INCLUDES) $(CFLAG)
 
-ERR=x509v3
-ERRC=v3err
 GENERAL=Makefile README
 TEST=
 APPS=
@@ -24,10 +24,10 @@ APPS=
 LIB=$(TOP)/libcrypto.a
 LIBSRC=	v3_bcons.c v3_bitst.c v3_conf.c v3_extku.c v3_ia5.c \
 v3_lib.c v3_prn.c v3_utl.c v3err.c v3_genn.c v3_alt.c v3_skey.c v3_akey.c \
-v3_pku.c v3_int.c v3_enum.c
+v3_pku.c v3_int.c v3_enum.c v3_sxnet.c v3_cpols.c v3_crld.c
 LIBOBJ= v3_bcons.o v3_bitst.o v3_conf.o v3_extku.o v3_ia5.o v3_lib.o \
 v3_prn.o v3_utl.o v3err.o v3_genn.o v3_alt.o v3_skey.o v3_akey.o v3_pku.o \
-v3_int.o v3_enum.o
+v3_int.o v3_enum.o v3_sxnet.o v3_cpols.o v3_crld.o
 
 SRC= $(LIBSRC)
 
@@ -43,23 +43,23 @@ all:	lib
 
 lib:	$(LIBOBJ)
 	$(AR) $(LIB) $(LIBOBJ)
-	sh $(TOP)/util/ranlib.sh $(LIB)
+	$(RANLIB) $(LIB)
 	@touch lib
 
 files:
-	perl $(TOP)/util/files.pl Makefile.ssl >> $(TOP)/MINFO
+	$(PERL) $(TOP)/util/files.pl Makefile.ssl >> $(TOP)/MINFO
 
 links:
 	@$(TOP)/util/point.sh Makefile.ssl Makefile
-	@$(TOP)/util/mklink.sh ../../include $(EXHEADER)
-	@$(TOP)/util/mklink.sh ../../test $(TEST)
-	@$(TOP)/util/mklink.sh ../../apps $(APPS)
+	@$(PERL) $(TOP)/util/mklink.pl ../../include/openssl $(EXHEADER)
+	@$(PERL) $(TOP)/util/mklink.pl ../../test $(TEST)
+	@$(PERL) $(TOP)/util/mklink.pl ../../apps $(APPS)
 
 install:
 	@for i in $(EXHEADER) ; \
 	do  \
-	(cp $$i $(INSTALLTOP)/include/$$i; \
-	chmod 644 $(INSTALLTOP)/include/$$i ); \
+	(cp $$i $(INSTALL_PREFIX)$(INSTALLTOP)/include/openssl/$$i; \
+	chmod 644 $(INSTALL_PREFIX)$(INSTALLTOP)/include/openssl/$$i ); \
 	done;
 
 tags:
@@ -71,191 +71,357 @@ lint:
 	lint -DLINT $(INCLUDES) $(SRC)>fluff
 
 depend:
-	$(MAKEDEPEND) $(INCLUDES) $(PROGS) $(LIBSRC)
+	$(MAKEDEPEND) $(INCLUDES) $(DEPFLFAG) $(PROGS) $(LIBSRC)
 
 dclean:
-	perl -pe 'if (/^# DO NOT DELETE THIS LINE/) {print; exit(0);}' $(MAKEFILE) >Makefile.new
+	$(PERL) -pe 'if (/^# DO NOT DELETE THIS LINE/) {print; exit(0);}' $(MAKEFILE) >Makefile.new
 	mv -f Makefile.new $(MAKEFILE)
 
 clean:
 	rm -f *.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
 
-errors: $(ERRC).c
-
-$(ERRC).c: $(ERR).err
-	perl $(TOP)/util/err-ins.pl $(ERR).err $(ERR).h
-	perl ../err/err_genc.pl -s $(ERR).h $(ERRC).c
-
 # DO NOT DELETE THIS LINE -- make depend depends on it.
 
-v3_akey.o: ../../include/asn1.h ../../include/asn1_mac.h ../../include/bio.h
-v3_akey.o: ../../include/blowfish.h ../../include/bn.h ../../include/buffer.h
-v3_akey.o: ../../include/cast.h ../../include/conf.h ../../include/des.h
-v3_akey.o: ../../include/dh.h ../../include/dsa.h ../../include/e_os.h
-v3_akey.o: ../../include/err.h ../../include/evp.h ../../include/idea.h
-v3_akey.o: ../../include/lhash.h ../../include/md2.h ../../include/md5.h
-v3_akey.o: ../../include/mdc2.h ../../include/objects.h ../../include/pkcs7.h
-v3_akey.o: ../../include/rc2.h ../../include/rc4.h ../../include/rc5.h
-v3_akey.o: ../../include/ripemd.h ../../include/rsa.h ../../include/sha.h
-v3_akey.o: ../../include/stack.h ../../include/x509.h ../../include/x509_vfy.h
-v3_akey.o: ../cryptlib.h ../crypto.h ../opensslv.h x509v3.h
-v3_alt.o: ../../include/asn1.h ../../include/bio.h ../../include/blowfish.h
-v3_alt.o: ../../include/bn.h ../../include/buffer.h ../../include/cast.h
-v3_alt.o: ../../include/conf.h ../../include/des.h ../../include/dh.h
-v3_alt.o: ../../include/dsa.h ../../include/e_os.h ../../include/err.h
-v3_alt.o: ../../include/evp.h ../../include/idea.h ../../include/lhash.h
-v3_alt.o: ../../include/md2.h ../../include/md5.h ../../include/mdc2.h
-v3_alt.o: ../../include/objects.h ../../include/pkcs7.h ../../include/rc2.h
-v3_alt.o: ../../include/rc4.h ../../include/rc5.h ../../include/ripemd.h
-v3_alt.o: ../../include/rsa.h ../../include/sha.h ../../include/stack.h
-v3_alt.o: ../../include/x509.h ../../include/x509_vfy.h ../cryptlib.h
-v3_alt.o: ../crypto.h ../opensslv.h x509v3.h
-v3_bcons.o: ../../include/asn1.h ../../include/asn1_mac.h ../../include/bio.h
-v3_bcons.o: ../../include/blowfish.h ../../include/bn.h ../../include/buffer.h
-v3_bcons.o: ../../include/cast.h ../../include/conf.h ../../include/des.h
-v3_bcons.o: ../../include/dh.h ../../include/dsa.h ../../include/e_os.h
-v3_bcons.o: ../../include/err.h ../../include/evp.h ../../include/idea.h
-v3_bcons.o: ../../include/lhash.h ../../include/md2.h ../../include/md5.h
-v3_bcons.o: ../../include/mdc2.h ../../include/objects.h ../../include/pkcs7.h
-v3_bcons.o: ../../include/rc2.h ../../include/rc4.h ../../include/rc5.h
-v3_bcons.o: ../../include/ripemd.h ../../include/rsa.h ../../include/sha.h
-v3_bcons.o: ../../include/stack.h ../../include/x509.h ../../include/x509_vfy.h
-v3_bcons.o: ../cryptlib.h ../crypto.h ../opensslv.h x509v3.h
-v3_bitst.o: ../../include/asn1.h ../../include/bio.h ../../include/blowfish.h
-v3_bitst.o: ../../include/bn.h ../../include/buffer.h ../../include/cast.h
-v3_bitst.o: ../../include/conf.h ../../include/des.h ../../include/dh.h
-v3_bitst.o: ../../include/dsa.h ../../include/e_os.h ../../include/err.h
-v3_bitst.o: ../../include/evp.h ../../include/idea.h ../../include/lhash.h
-v3_bitst.o: ../../include/md2.h ../../include/md5.h ../../include/mdc2.h
-v3_bitst.o: ../../include/objects.h ../../include/pkcs7.h ../../include/rc2.h
-v3_bitst.o: ../../include/rc4.h ../../include/rc5.h ../../include/ripemd.h
-v3_bitst.o: ../../include/rsa.h ../../include/sha.h ../../include/stack.h
-v3_bitst.o: ../../include/x509.h ../../include/x509_vfy.h ../cryptlib.h
-v3_bitst.o: ../crypto.h ../opensslv.h x509v3.h
-v3_conf.o: ../../include/asn1.h ../../include/bio.h ../../include/blowfish.h
-v3_conf.o: ../../include/bn.h ../../include/buffer.h ../../include/cast.h
-v3_conf.o: ../../include/conf.h ../../include/des.h ../../include/dh.h
-v3_conf.o: ../../include/dsa.h ../../include/e_os.h ../../include/err.h
-v3_conf.o: ../../include/evp.h ../../include/idea.h ../../include/lhash.h
-v3_conf.o: ../../include/md2.h ../../include/md5.h ../../include/mdc2.h
-v3_conf.o: ../../include/objects.h ../../include/pkcs7.h ../../include/rc2.h
-v3_conf.o: ../../include/rc4.h ../../include/rc5.h ../../include/ripemd.h
-v3_conf.o: ../../include/rsa.h ../../include/sha.h ../../include/stack.h
-v3_conf.o: ../../include/x509.h ../../include/x509_vfy.h ../cryptlib.h
-v3_conf.o: ../crypto.h ../opensslv.h x509v3.h
-v3_enum.o: ../../include/asn1.h ../../include/bio.h ../../include/blowfish.h
-v3_enum.o: ../../include/bn.h ../../include/buffer.h ../../include/cast.h
-v3_enum.o: ../../include/des.h ../../include/dh.h ../../include/dsa.h
-v3_enum.o: ../../include/e_os.h ../../include/err.h ../../include/evp.h
-v3_enum.o: ../../include/idea.h ../../include/md2.h ../../include/md5.h
-v3_enum.o: ../../include/mdc2.h ../../include/objects.h ../../include/pkcs7.h
-v3_enum.o: ../../include/rc2.h ../../include/rc4.h ../../include/rc5.h
-v3_enum.o: ../../include/ripemd.h ../../include/rsa.h ../../include/sha.h
-v3_enum.o: ../../include/stack.h ../../include/x509.h ../../include/x509_vfy.h
-v3_enum.o: ../cryptlib.h ../crypto.h ../opensslv.h x509v3.h
-v3_extku.o: ../../include/asn1.h ../../include/bio.h ../../include/blowfish.h
-v3_extku.o: ../../include/bn.h ../../include/buffer.h ../../include/cast.h
-v3_extku.o: ../../include/conf.h ../../include/des.h ../../include/dh.h
-v3_extku.o: ../../include/dsa.h ../../include/e_os.h ../../include/err.h
-v3_extku.o: ../../include/evp.h ../../include/idea.h ../../include/lhash.h
-v3_extku.o: ../../include/md2.h ../../include/md5.h ../../include/mdc2.h
-v3_extku.o: ../../include/objects.h ../../include/pkcs7.h ../../include/rc2.h
-v3_extku.o: ../../include/rc4.h ../../include/rc5.h ../../include/ripemd.h
-v3_extku.o: ../../include/rsa.h ../../include/sha.h ../../include/stack.h
-v3_extku.o: ../../include/x509.h ../../include/x509_vfy.h ../cryptlib.h
-v3_extku.o: ../crypto.h ../opensslv.h x509v3.h
-v3_genn.o: ../../include/asn1.h ../../include/asn1_mac.h ../../include/bio.h
-v3_genn.o: ../../include/blowfish.h ../../include/bn.h ../../include/buffer.h
-v3_genn.o: ../../include/cast.h ../../include/conf.h ../../include/des.h
-v3_genn.o: ../../include/dh.h ../../include/dsa.h ../../include/e_os.h
-v3_genn.o: ../../include/err.h ../../include/evp.h ../../include/idea.h
-v3_genn.o: ../../include/lhash.h ../../include/md2.h ../../include/md5.h
-v3_genn.o: ../../include/mdc2.h ../../include/objects.h ../../include/pkcs7.h
-v3_genn.o: ../../include/rc2.h ../../include/rc4.h ../../include/rc5.h
-v3_genn.o: ../../include/ripemd.h ../../include/rsa.h ../../include/sha.h
-v3_genn.o: ../../include/stack.h ../../include/x509.h ../../include/x509_vfy.h
-v3_genn.o: ../cryptlib.h ../crypto.h ../opensslv.h x509v3.h
-v3_ia5.o: ../../include/asn1.h ../../include/bio.h ../../include/blowfish.h
-v3_ia5.o: ../../include/bn.h ../../include/buffer.h ../../include/cast.h
-v3_ia5.o: ../../include/conf.h ../../include/des.h ../../include/dh.h
-v3_ia5.o: ../../include/dsa.h ../../include/e_os.h ../../include/err.h
-v3_ia5.o: ../../include/evp.h ../../include/idea.h ../../include/lhash.h
-v3_ia5.o: ../../include/md2.h ../../include/md5.h ../../include/mdc2.h
-v3_ia5.o: ../../include/objects.h ../../include/pkcs7.h ../../include/rc2.h
-v3_ia5.o: ../../include/rc4.h ../../include/rc5.h ../../include/ripemd.h
-v3_ia5.o: ../../include/rsa.h ../../include/sha.h ../../include/stack.h
-v3_ia5.o: ../../include/x509.h ../../include/x509_vfy.h ../cryptlib.h
-v3_ia5.o: ../crypto.h ../opensslv.h x509v3.h
-v3_int.o: ../../include/asn1.h ../../include/bio.h ../../include/blowfish.h
-v3_int.o: ../../include/bn.h ../../include/buffer.h ../../include/cast.h
-v3_int.o: ../../include/des.h ../../include/dh.h ../../include/dsa.h
-v3_int.o: ../../include/e_os.h ../../include/err.h ../../include/evp.h
-v3_int.o: ../../include/idea.h ../../include/md2.h ../../include/md5.h
-v3_int.o: ../../include/mdc2.h ../../include/objects.h ../../include/pkcs7.h
-v3_int.o: ../../include/rc2.h ../../include/rc4.h ../../include/rc5.h
-v3_int.o: ../../include/ripemd.h ../../include/rsa.h ../../include/sha.h
-v3_int.o: ../../include/stack.h ../../include/x509.h ../../include/x509_vfy.h
-v3_int.o: ../cryptlib.h ../crypto.h ../opensslv.h x509v3.h
-v3_lib.o: ../../include/asn1.h ../../include/bio.h ../../include/blowfish.h
-v3_lib.o: ../../include/bn.h ../../include/buffer.h ../../include/cast.h
-v3_lib.o: ../../include/conf.h ../../include/des.h ../../include/dh.h
-v3_lib.o: ../../include/dsa.h ../../include/e_os.h ../../include/err.h
-v3_lib.o: ../../include/evp.h ../../include/idea.h ../../include/lhash.h
-v3_lib.o: ../../include/md2.h ../../include/md5.h ../../include/mdc2.h
-v3_lib.o: ../../include/objects.h ../../include/pkcs7.h ../../include/rc2.h
-v3_lib.o: ../../include/rc4.h ../../include/rc5.h ../../include/ripemd.h
-v3_lib.o: ../../include/rsa.h ../../include/sha.h ../../include/stack.h
-v3_lib.o: ../../include/x509.h ../../include/x509_vfy.h ../cryptlib.h
-v3_lib.o: ../crypto.h ../opensslv.h x509v3.h
-v3_pku.o: ../../include/asn1.h ../../include/asn1_mac.h ../../include/bio.h
-v3_pku.o: ../../include/blowfish.h ../../include/bn.h ../../include/buffer.h
-v3_pku.o: ../../include/cast.h ../../include/des.h ../../include/dh.h
-v3_pku.o: ../../include/dsa.h ../../include/e_os.h ../../include/err.h
-v3_pku.o: ../../include/evp.h ../../include/idea.h ../../include/md2.h
-v3_pku.o: ../../include/md5.h ../../include/mdc2.h ../../include/objects.h
-v3_pku.o: ../../include/pkcs7.h ../../include/rc2.h ../../include/rc4.h
-v3_pku.o: ../../include/rc5.h ../../include/ripemd.h ../../include/rsa.h
-v3_pku.o: ../../include/sha.h ../../include/stack.h ../../include/x509.h
-v3_pku.o: ../../include/x509_vfy.h ../cryptlib.h ../crypto.h ../opensslv.h
-v3_pku.o: x509v3.h
-v3_prn.o: ../../include/asn1.h ../../include/bio.h ../../include/blowfish.h
-v3_prn.o: ../../include/bn.h ../../include/buffer.h ../../include/cast.h
-v3_prn.o: ../../include/conf.h ../../include/des.h ../../include/dh.h
-v3_prn.o: ../../include/dsa.h ../../include/e_os.h ../../include/err.h
-v3_prn.o: ../../include/evp.h ../../include/idea.h ../../include/lhash.h
-v3_prn.o: ../../include/md2.h ../../include/md5.h ../../include/mdc2.h
-v3_prn.o: ../../include/objects.h ../../include/pkcs7.h ../../include/rc2.h
-v3_prn.o: ../../include/rc4.h ../../include/rc5.h ../../include/ripemd.h
-v3_prn.o: ../../include/rsa.h ../../include/sha.h ../../include/stack.h
-v3_prn.o: ../../include/x509.h ../../include/x509_vfy.h ../cryptlib.h
-v3_prn.o: ../crypto.h ../opensslv.h x509v3.h
-v3_skey.o: ../../include/asn1.h ../../include/bio.h ../../include/blowfish.h
-v3_skey.o: ../../include/bn.h ../../include/buffer.h ../../include/cast.h
-v3_skey.o: ../../include/des.h ../../include/dh.h ../../include/dsa.h
-v3_skey.o: ../../include/e_os.h ../../include/err.h ../../include/evp.h
-v3_skey.o: ../../include/idea.h ../../include/md2.h ../../include/md5.h
-v3_skey.o: ../../include/mdc2.h ../../include/objects.h ../../include/pkcs7.h
-v3_skey.o: ../../include/rc2.h ../../include/rc4.h ../../include/rc5.h
-v3_skey.o: ../../include/ripemd.h ../../include/rsa.h ../../include/sha.h
-v3_skey.o: ../../include/stack.h ../../include/x509.h ../../include/x509_vfy.h
-v3_skey.o: ../cryptlib.h ../crypto.h ../opensslv.h x509v3.h
-v3_utl.o: ../../include/asn1.h ../../include/bio.h ../../include/blowfish.h
-v3_utl.o: ../../include/bn.h ../../include/buffer.h ../../include/cast.h
-v3_utl.o: ../../include/conf.h ../../include/des.h ../../include/dh.h
-v3_utl.o: ../../include/dsa.h ../../include/e_os.h ../../include/err.h
-v3_utl.o: ../../include/evp.h ../../include/idea.h ../../include/lhash.h
-v3_utl.o: ../../include/md2.h ../../include/md5.h ../../include/mdc2.h
-v3_utl.o: ../../include/objects.h ../../include/pkcs7.h ../../include/rc2.h
-v3_utl.o: ../../include/rc4.h ../../include/rc5.h ../../include/ripemd.h
-v3_utl.o: ../../include/rsa.h ../../include/sha.h ../../include/stack.h
-v3_utl.o: ../../include/x509.h ../../include/x509_vfy.h ../cryptlib.h
-v3_utl.o: ../crypto.h ../opensslv.h x509v3.h
-v3err.o: ../../include/asn1.h ../../include/bio.h ../../include/blowfish.h
-v3err.o: ../../include/bn.h ../../include/cast.h ../../include/des.h
-v3err.o: ../../include/dh.h ../../include/dsa.h ../../include/err.h
-v3err.o: ../../include/evp.h ../../include/idea.h ../../include/md2.h
-v3err.o: ../../include/md5.h ../../include/mdc2.h ../../include/objects.h
-v3err.o: ../../include/pkcs7.h ../../include/rc2.h ../../include/rc4.h
-v3err.o: ../../include/rc5.h ../../include/ripemd.h ../../include/rsa.h
-v3err.o: ../../include/sha.h ../../include/stack.h ../../include/x509.h
-v3err.o: ../../include/x509_vfy.h ../crypto.h ../opensslv.h x509v3.h
+v3_akey.o: ../../include/openssl/asn1.h ../../include/openssl/asn1_mac.h
+v3_akey.o: ../../include/openssl/bio.h ../../include/openssl/blowfish.h
+v3_akey.o: ../../include/openssl/bn.h ../../include/openssl/buffer.h
+v3_akey.o: ../../include/openssl/cast.h ../../include/openssl/conf.h
+v3_akey.o: ../../include/openssl/crypto.h ../../include/openssl/des.h
+v3_akey.o: ../../include/openssl/dh.h ../../include/openssl/dsa.h
+v3_akey.o: ../../include/openssl/e_os.h ../../include/openssl/e_os2.h
+v3_akey.o: ../../include/openssl/err.h ../../include/openssl/evp.h
+v3_akey.o: ../../include/openssl/idea.h ../../include/openssl/lhash.h
+v3_akey.o: ../../include/openssl/md2.h ../../include/openssl/md5.h
+v3_akey.o: ../../include/openssl/mdc2.h ../../include/openssl/objects.h
+v3_akey.o: ../../include/openssl/opensslconf.h ../../include/openssl/opensslv.h
+v3_akey.o: ../../include/openssl/pkcs7.h ../../include/openssl/rc2.h
+v3_akey.o: ../../include/openssl/rc4.h ../../include/openssl/rc5.h
+v3_akey.o: ../../include/openssl/ripemd.h ../../include/openssl/rsa.h
+v3_akey.o: ../../include/openssl/safestack.h ../../include/openssl/sha.h
+v3_akey.o: ../../include/openssl/stack.h ../../include/openssl/x509.h
+v3_akey.o: ../../include/openssl/x509_vfy.h ../../include/openssl/x509v3.h
+v3_akey.o: ../cryptlib.h
+v3_alt.o: ../../include/openssl/asn1.h ../../include/openssl/bio.h
+v3_alt.o: ../../include/openssl/blowfish.h ../../include/openssl/bn.h
+v3_alt.o: ../../include/openssl/buffer.h ../../include/openssl/cast.h
+v3_alt.o: ../../include/openssl/conf.h ../../include/openssl/crypto.h
+v3_alt.o: ../../include/openssl/des.h ../../include/openssl/dh.h
+v3_alt.o: ../../include/openssl/dsa.h ../../include/openssl/e_os.h
+v3_alt.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h
+v3_alt.o: ../../include/openssl/evp.h ../../include/openssl/idea.h
+v3_alt.o: ../../include/openssl/lhash.h ../../include/openssl/md2.h
+v3_alt.o: ../../include/openssl/md5.h ../../include/openssl/mdc2.h
+v3_alt.o: ../../include/openssl/objects.h ../../include/openssl/opensslconf.h
+v3_alt.o: ../../include/openssl/opensslv.h ../../include/openssl/pkcs7.h
+v3_alt.o: ../../include/openssl/rc2.h ../../include/openssl/rc4.h
+v3_alt.o: ../../include/openssl/rc5.h ../../include/openssl/ripemd.h
+v3_alt.o: ../../include/openssl/rsa.h ../../include/openssl/safestack.h
+v3_alt.o: ../../include/openssl/sha.h ../../include/openssl/stack.h
+v3_alt.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
+v3_alt.o: ../../include/openssl/x509v3.h ../cryptlib.h
+v3_bcons.o: ../../include/openssl/asn1.h ../../include/openssl/asn1_mac.h
+v3_bcons.o: ../../include/openssl/bio.h ../../include/openssl/blowfish.h
+v3_bcons.o: ../../include/openssl/bn.h ../../include/openssl/buffer.h
+v3_bcons.o: ../../include/openssl/cast.h ../../include/openssl/conf.h
+v3_bcons.o: ../../include/openssl/crypto.h ../../include/openssl/des.h
+v3_bcons.o: ../../include/openssl/dh.h ../../include/openssl/dsa.h
+v3_bcons.o: ../../include/openssl/e_os.h ../../include/openssl/e_os2.h
+v3_bcons.o: ../../include/openssl/err.h ../../include/openssl/evp.h
+v3_bcons.o: ../../include/openssl/idea.h ../../include/openssl/lhash.h
+v3_bcons.o: ../../include/openssl/md2.h ../../include/openssl/md5.h
+v3_bcons.o: ../../include/openssl/mdc2.h ../../include/openssl/objects.h
+v3_bcons.o: ../../include/openssl/opensslconf.h
+v3_bcons.o: ../../include/openssl/opensslv.h ../../include/openssl/pkcs7.h
+v3_bcons.o: ../../include/openssl/rc2.h ../../include/openssl/rc4.h
+v3_bcons.o: ../../include/openssl/rc5.h ../../include/openssl/ripemd.h
+v3_bcons.o: ../../include/openssl/rsa.h ../../include/openssl/safestack.h
+v3_bcons.o: ../../include/openssl/sha.h ../../include/openssl/stack.h
+v3_bcons.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
+v3_bcons.o: ../../include/openssl/x509v3.h ../cryptlib.h
+v3_bitst.o: ../../include/openssl/asn1.h ../../include/openssl/bio.h
+v3_bitst.o: ../../include/openssl/blowfish.h ../../include/openssl/bn.h
+v3_bitst.o: ../../include/openssl/buffer.h ../../include/openssl/cast.h
+v3_bitst.o: ../../include/openssl/conf.h ../../include/openssl/crypto.h
+v3_bitst.o: ../../include/openssl/des.h ../../include/openssl/dh.h
+v3_bitst.o: ../../include/openssl/dsa.h ../../include/openssl/e_os.h
+v3_bitst.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h
+v3_bitst.o: ../../include/openssl/evp.h ../../include/openssl/idea.h
+v3_bitst.o: ../../include/openssl/lhash.h ../../include/openssl/md2.h
+v3_bitst.o: ../../include/openssl/md5.h ../../include/openssl/mdc2.h
+v3_bitst.o: ../../include/openssl/objects.h ../../include/openssl/opensslconf.h
+v3_bitst.o: ../../include/openssl/opensslv.h ../../include/openssl/pkcs7.h
+v3_bitst.o: ../../include/openssl/rc2.h ../../include/openssl/rc4.h
+v3_bitst.o: ../../include/openssl/rc5.h ../../include/openssl/ripemd.h
+v3_bitst.o: ../../include/openssl/rsa.h ../../include/openssl/safestack.h
+v3_bitst.o: ../../include/openssl/sha.h ../../include/openssl/stack.h
+v3_bitst.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
+v3_bitst.o: ../../include/openssl/x509v3.h ../cryptlib.h
+v3_conf.o: ../../include/openssl/asn1.h ../../include/openssl/bio.h
+v3_conf.o: ../../include/openssl/blowfish.h ../../include/openssl/bn.h
+v3_conf.o: ../../include/openssl/buffer.h ../../include/openssl/cast.h
+v3_conf.o: ../../include/openssl/conf.h ../../include/openssl/crypto.h
+v3_conf.o: ../../include/openssl/des.h ../../include/openssl/dh.h
+v3_conf.o: ../../include/openssl/dsa.h ../../include/openssl/e_os.h
+v3_conf.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h
+v3_conf.o: ../../include/openssl/evp.h ../../include/openssl/idea.h
+v3_conf.o: ../../include/openssl/lhash.h ../../include/openssl/md2.h
+v3_conf.o: ../../include/openssl/md5.h ../../include/openssl/mdc2.h
+v3_conf.o: ../../include/openssl/objects.h ../../include/openssl/opensslconf.h
+v3_conf.o: ../../include/openssl/opensslv.h ../../include/openssl/pkcs7.h
+v3_conf.o: ../../include/openssl/rc2.h ../../include/openssl/rc4.h
+v3_conf.o: ../../include/openssl/rc5.h ../../include/openssl/ripemd.h
+v3_conf.o: ../../include/openssl/rsa.h ../../include/openssl/safestack.h
+v3_conf.o: ../../include/openssl/sha.h ../../include/openssl/stack.h
+v3_conf.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
+v3_conf.o: ../../include/openssl/x509v3.h ../cryptlib.h
+v3_cpols.o: ../../include/openssl/asn1.h ../../include/openssl/asn1_mac.h
+v3_cpols.o: ../../include/openssl/bio.h ../../include/openssl/blowfish.h
+v3_cpols.o: ../../include/openssl/bn.h ../../include/openssl/buffer.h
+v3_cpols.o: ../../include/openssl/cast.h ../../include/openssl/conf.h
+v3_cpols.o: ../../include/openssl/crypto.h ../../include/openssl/des.h
+v3_cpols.o: ../../include/openssl/dh.h ../../include/openssl/dsa.h
+v3_cpols.o: ../../include/openssl/e_os.h ../../include/openssl/e_os2.h
+v3_cpols.o: ../../include/openssl/err.h ../../include/openssl/evp.h
+v3_cpols.o: ../../include/openssl/idea.h ../../include/openssl/lhash.h
+v3_cpols.o: ../../include/openssl/md2.h ../../include/openssl/md5.h
+v3_cpols.o: ../../include/openssl/mdc2.h ../../include/openssl/objects.h
+v3_cpols.o: ../../include/openssl/opensslconf.h
+v3_cpols.o: ../../include/openssl/opensslv.h ../../include/openssl/pkcs7.h
+v3_cpols.o: ../../include/openssl/rc2.h ../../include/openssl/rc4.h
+v3_cpols.o: ../../include/openssl/rc5.h ../../include/openssl/ripemd.h
+v3_cpols.o: ../../include/openssl/rsa.h ../../include/openssl/safestack.h
+v3_cpols.o: ../../include/openssl/sha.h ../../include/openssl/stack.h
+v3_cpols.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
+v3_cpols.o: ../../include/openssl/x509v3.h ../cryptlib.h
+v3_crld.o: ../../include/openssl/asn1.h ../../include/openssl/asn1_mac.h
+v3_crld.o: ../../include/openssl/bio.h ../../include/openssl/blowfish.h
+v3_crld.o: ../../include/openssl/bn.h ../../include/openssl/buffer.h
+v3_crld.o: ../../include/openssl/cast.h ../../include/openssl/conf.h
+v3_crld.o: ../../include/openssl/crypto.h ../../include/openssl/des.h
+v3_crld.o: ../../include/openssl/dh.h ../../include/openssl/dsa.h
+v3_crld.o: ../../include/openssl/e_os.h ../../include/openssl/e_os2.h
+v3_crld.o: ../../include/openssl/err.h ../../include/openssl/evp.h
+v3_crld.o: ../../include/openssl/idea.h ../../include/openssl/lhash.h
+v3_crld.o: ../../include/openssl/md2.h ../../include/openssl/md5.h
+v3_crld.o: ../../include/openssl/mdc2.h ../../include/openssl/objects.h
+v3_crld.o: ../../include/openssl/opensslconf.h ../../include/openssl/opensslv.h
+v3_crld.o: ../../include/openssl/pkcs7.h ../../include/openssl/rc2.h
+v3_crld.o: ../../include/openssl/rc4.h ../../include/openssl/rc5.h
+v3_crld.o: ../../include/openssl/ripemd.h ../../include/openssl/rsa.h
+v3_crld.o: ../../include/openssl/safestack.h ../../include/openssl/sha.h
+v3_crld.o: ../../include/openssl/stack.h ../../include/openssl/x509.h
+v3_crld.o: ../../include/openssl/x509_vfy.h ../../include/openssl/x509v3.h
+v3_crld.o: ../cryptlib.h
+v3_enum.o: ../../include/openssl/asn1.h ../../include/openssl/bio.h
+v3_enum.o: ../../include/openssl/blowfish.h ../../include/openssl/bn.h
+v3_enum.o: ../../include/openssl/buffer.h ../../include/openssl/cast.h
+v3_enum.o: ../../include/openssl/crypto.h ../../include/openssl/des.h
+v3_enum.o: ../../include/openssl/dh.h ../../include/openssl/dsa.h
+v3_enum.o: ../../include/openssl/e_os.h ../../include/openssl/e_os2.h
+v3_enum.o: ../../include/openssl/err.h ../../include/openssl/evp.h
+v3_enum.o: ../../include/openssl/idea.h ../../include/openssl/md2.h
+v3_enum.o: ../../include/openssl/md5.h ../../include/openssl/mdc2.h
+v3_enum.o: ../../include/openssl/objects.h ../../include/openssl/opensslconf.h
+v3_enum.o: ../../include/openssl/opensslv.h ../../include/openssl/pkcs7.h
+v3_enum.o: ../../include/openssl/rc2.h ../../include/openssl/rc4.h
+v3_enum.o: ../../include/openssl/rc5.h ../../include/openssl/ripemd.h
+v3_enum.o: ../../include/openssl/rsa.h ../../include/openssl/safestack.h
+v3_enum.o: ../../include/openssl/sha.h ../../include/openssl/stack.h
+v3_enum.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
+v3_enum.o: ../../include/openssl/x509v3.h ../cryptlib.h
+v3_extku.o: ../../include/openssl/asn1.h ../../include/openssl/bio.h
+v3_extku.o: ../../include/openssl/blowfish.h ../../include/openssl/bn.h
+v3_extku.o: ../../include/openssl/buffer.h ../../include/openssl/cast.h
+v3_extku.o: ../../include/openssl/conf.h ../../include/openssl/crypto.h
+v3_extku.o: ../../include/openssl/des.h ../../include/openssl/dh.h
+v3_extku.o: ../../include/openssl/dsa.h ../../include/openssl/e_os.h
+v3_extku.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h
+v3_extku.o: ../../include/openssl/evp.h ../../include/openssl/idea.h
+v3_extku.o: ../../include/openssl/lhash.h ../../include/openssl/md2.h
+v3_extku.o: ../../include/openssl/md5.h ../../include/openssl/mdc2.h
+v3_extku.o: ../../include/openssl/objects.h ../../include/openssl/opensslconf.h
+v3_extku.o: ../../include/openssl/opensslv.h ../../include/openssl/pkcs7.h
+v3_extku.o: ../../include/openssl/rc2.h ../../include/openssl/rc4.h
+v3_extku.o: ../../include/openssl/rc5.h ../../include/openssl/ripemd.h
+v3_extku.o: ../../include/openssl/rsa.h ../../include/openssl/safestack.h
+v3_extku.o: ../../include/openssl/sha.h ../../include/openssl/stack.h
+v3_extku.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
+v3_extku.o: ../../include/openssl/x509v3.h ../cryptlib.h
+v3_genn.o: ../../include/openssl/asn1.h ../../include/openssl/asn1_mac.h
+v3_genn.o: ../../include/openssl/bio.h ../../include/openssl/blowfish.h
+v3_genn.o: ../../include/openssl/bn.h ../../include/openssl/buffer.h
+v3_genn.o: ../../include/openssl/cast.h ../../include/openssl/conf.h
+v3_genn.o: ../../include/openssl/crypto.h ../../include/openssl/des.h
+v3_genn.o: ../../include/openssl/dh.h ../../include/openssl/dsa.h
+v3_genn.o: ../../include/openssl/e_os.h ../../include/openssl/e_os2.h
+v3_genn.o: ../../include/openssl/err.h ../../include/openssl/evp.h
+v3_genn.o: ../../include/openssl/idea.h ../../include/openssl/lhash.h
+v3_genn.o: ../../include/openssl/md2.h ../../include/openssl/md5.h
+v3_genn.o: ../../include/openssl/mdc2.h ../../include/openssl/objects.h
+v3_genn.o: ../../include/openssl/opensslconf.h ../../include/openssl/opensslv.h
+v3_genn.o: ../../include/openssl/pkcs7.h ../../include/openssl/rc2.h
+v3_genn.o: ../../include/openssl/rc4.h ../../include/openssl/rc5.h
+v3_genn.o: ../../include/openssl/ripemd.h ../../include/openssl/rsa.h
+v3_genn.o: ../../include/openssl/safestack.h ../../include/openssl/sha.h
+v3_genn.o: ../../include/openssl/stack.h ../../include/openssl/x509.h
+v3_genn.o: ../../include/openssl/x509_vfy.h ../../include/openssl/x509v3.h
+v3_genn.o: ../cryptlib.h
+v3_ia5.o: ../../include/openssl/asn1.h ../../include/openssl/bio.h
+v3_ia5.o: ../../include/openssl/blowfish.h ../../include/openssl/bn.h
+v3_ia5.o: ../../include/openssl/buffer.h ../../include/openssl/cast.h
+v3_ia5.o: ../../include/openssl/conf.h ../../include/openssl/crypto.h
+v3_ia5.o: ../../include/openssl/des.h ../../include/openssl/dh.h
+v3_ia5.o: ../../include/openssl/dsa.h ../../include/openssl/e_os.h
+v3_ia5.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h
+v3_ia5.o: ../../include/openssl/evp.h ../../include/openssl/idea.h
+v3_ia5.o: ../../include/openssl/lhash.h ../../include/openssl/md2.h
+v3_ia5.o: ../../include/openssl/md5.h ../../include/openssl/mdc2.h
+v3_ia5.o: ../../include/openssl/objects.h ../../include/openssl/opensslconf.h
+v3_ia5.o: ../../include/openssl/opensslv.h ../../include/openssl/pkcs7.h
+v3_ia5.o: ../../include/openssl/rc2.h ../../include/openssl/rc4.h
+v3_ia5.o: ../../include/openssl/rc5.h ../../include/openssl/ripemd.h
+v3_ia5.o: ../../include/openssl/rsa.h ../../include/openssl/safestack.h
+v3_ia5.o: ../../include/openssl/sha.h ../../include/openssl/stack.h
+v3_ia5.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
+v3_ia5.o: ../../include/openssl/x509v3.h ../cryptlib.h
+v3_int.o: ../../include/openssl/asn1.h ../../include/openssl/bio.h
+v3_int.o: ../../include/openssl/blowfish.h ../../include/openssl/bn.h
+v3_int.o: ../../include/openssl/buffer.h ../../include/openssl/cast.h
+v3_int.o: ../../include/openssl/crypto.h ../../include/openssl/des.h
+v3_int.o: ../../include/openssl/dh.h ../../include/openssl/dsa.h
+v3_int.o: ../../include/openssl/e_os.h ../../include/openssl/e_os2.h
+v3_int.o: ../../include/openssl/err.h ../../include/openssl/evp.h
+v3_int.o: ../../include/openssl/idea.h ../../include/openssl/md2.h
+v3_int.o: ../../include/openssl/md5.h ../../include/openssl/mdc2.h
+v3_int.o: ../../include/openssl/objects.h ../../include/openssl/opensslconf.h
+v3_int.o: ../../include/openssl/opensslv.h ../../include/openssl/pkcs7.h
+v3_int.o: ../../include/openssl/rc2.h ../../include/openssl/rc4.h
+v3_int.o: ../../include/openssl/rc5.h ../../include/openssl/ripemd.h
+v3_int.o: ../../include/openssl/rsa.h ../../include/openssl/safestack.h
+v3_int.o: ../../include/openssl/sha.h ../../include/openssl/stack.h
+v3_int.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
+v3_int.o: ../../include/openssl/x509v3.h ../cryptlib.h
+v3_lib.o: ../../include/openssl/asn1.h ../../include/openssl/bio.h
+v3_lib.o: ../../include/openssl/blowfish.h ../../include/openssl/bn.h
+v3_lib.o: ../../include/openssl/buffer.h ../../include/openssl/cast.h
+v3_lib.o: ../../include/openssl/conf.h ../../include/openssl/crypto.h
+v3_lib.o: ../../include/openssl/des.h ../../include/openssl/dh.h
+v3_lib.o: ../../include/openssl/dsa.h ../../include/openssl/e_os.h
+v3_lib.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h
+v3_lib.o: ../../include/openssl/evp.h ../../include/openssl/idea.h
+v3_lib.o: ../../include/openssl/lhash.h ../../include/openssl/md2.h
+v3_lib.o: ../../include/openssl/md5.h ../../include/openssl/mdc2.h
+v3_lib.o: ../../include/openssl/objects.h ../../include/openssl/opensslconf.h
+v3_lib.o: ../../include/openssl/opensslv.h ../../include/openssl/pkcs7.h
+v3_lib.o: ../../include/openssl/rc2.h ../../include/openssl/rc4.h
+v3_lib.o: ../../include/openssl/rc5.h ../../include/openssl/ripemd.h
+v3_lib.o: ../../include/openssl/rsa.h ../../include/openssl/safestack.h
+v3_lib.o: ../../include/openssl/sha.h ../../include/openssl/stack.h
+v3_lib.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
+v3_lib.o: ../../include/openssl/x509v3.h ../cryptlib.h
+v3_pku.o: ../../include/openssl/asn1.h ../../include/openssl/asn1_mac.h
+v3_pku.o: ../../include/openssl/bio.h ../../include/openssl/blowfish.h
+v3_pku.o: ../../include/openssl/bn.h ../../include/openssl/buffer.h
+v3_pku.o: ../../include/openssl/cast.h ../../include/openssl/crypto.h
+v3_pku.o: ../../include/openssl/des.h ../../include/openssl/dh.h
+v3_pku.o: ../../include/openssl/dsa.h ../../include/openssl/e_os.h
+v3_pku.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h
+v3_pku.o: ../../include/openssl/evp.h ../../include/openssl/idea.h
+v3_pku.o: ../../include/openssl/md2.h ../../include/openssl/md5.h
+v3_pku.o: ../../include/openssl/mdc2.h ../../include/openssl/objects.h
+v3_pku.o: ../../include/openssl/opensslconf.h ../../include/openssl/opensslv.h
+v3_pku.o: ../../include/openssl/pkcs7.h ../../include/openssl/rc2.h
+v3_pku.o: ../../include/openssl/rc4.h ../../include/openssl/rc5.h
+v3_pku.o: ../../include/openssl/ripemd.h ../../include/openssl/rsa.h
+v3_pku.o: ../../include/openssl/safestack.h ../../include/openssl/sha.h
+v3_pku.o: ../../include/openssl/stack.h ../../include/openssl/x509.h
+v3_pku.o: ../../include/openssl/x509_vfy.h ../../include/openssl/x509v3.h
+v3_pku.o: ../cryptlib.h
+v3_prn.o: ../../include/openssl/asn1.h ../../include/openssl/bio.h
+v3_prn.o: ../../include/openssl/blowfish.h ../../include/openssl/bn.h
+v3_prn.o: ../../include/openssl/buffer.h ../../include/openssl/cast.h
+v3_prn.o: ../../include/openssl/conf.h ../../include/openssl/crypto.h
+v3_prn.o: ../../include/openssl/des.h ../../include/openssl/dh.h
+v3_prn.o: ../../include/openssl/dsa.h ../../include/openssl/e_os.h
+v3_prn.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h
+v3_prn.o: ../../include/openssl/evp.h ../../include/openssl/idea.h
+v3_prn.o: ../../include/openssl/lhash.h ../../include/openssl/md2.h
+v3_prn.o: ../../include/openssl/md5.h ../../include/openssl/mdc2.h
+v3_prn.o: ../../include/openssl/objects.h ../../include/openssl/opensslconf.h
+v3_prn.o: ../../include/openssl/opensslv.h ../../include/openssl/pkcs7.h
+v3_prn.o: ../../include/openssl/rc2.h ../../include/openssl/rc4.h
+v3_prn.o: ../../include/openssl/rc5.h ../../include/openssl/ripemd.h
+v3_prn.o: ../../include/openssl/rsa.h ../../include/openssl/safestack.h
+v3_prn.o: ../../include/openssl/sha.h ../../include/openssl/stack.h
+v3_prn.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
+v3_prn.o: ../../include/openssl/x509v3.h ../cryptlib.h
+v3_skey.o: ../../include/openssl/asn1.h ../../include/openssl/bio.h
+v3_skey.o: ../../include/openssl/blowfish.h ../../include/openssl/bn.h
+v3_skey.o: ../../include/openssl/buffer.h ../../include/openssl/cast.h
+v3_skey.o: ../../include/openssl/crypto.h ../../include/openssl/des.h
+v3_skey.o: ../../include/openssl/dh.h ../../include/openssl/dsa.h
+v3_skey.o: ../../include/openssl/e_os.h ../../include/openssl/e_os2.h
+v3_skey.o: ../../include/openssl/err.h ../../include/openssl/evp.h
+v3_skey.o: ../../include/openssl/idea.h ../../include/openssl/md2.h
+v3_skey.o: ../../include/openssl/md5.h ../../include/openssl/mdc2.h
+v3_skey.o: ../../include/openssl/objects.h ../../include/openssl/opensslconf.h
+v3_skey.o: ../../include/openssl/opensslv.h ../../include/openssl/pkcs7.h
+v3_skey.o: ../../include/openssl/rc2.h ../../include/openssl/rc4.h
+v3_skey.o: ../../include/openssl/rc5.h ../../include/openssl/ripemd.h
+v3_skey.o: ../../include/openssl/rsa.h ../../include/openssl/safestack.h
+v3_skey.o: ../../include/openssl/sha.h ../../include/openssl/stack.h
+v3_skey.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
+v3_skey.o: ../../include/openssl/x509v3.h ../cryptlib.h
+v3_sxnet.o: ../../include/openssl/asn1.h ../../include/openssl/asn1_mac.h
+v3_sxnet.o: ../../include/openssl/bio.h ../../include/openssl/blowfish.h
+v3_sxnet.o: ../../include/openssl/bn.h ../../include/openssl/buffer.h
+v3_sxnet.o: ../../include/openssl/cast.h ../../include/openssl/conf.h
+v3_sxnet.o: ../../include/openssl/crypto.h ../../include/openssl/des.h
+v3_sxnet.o: ../../include/openssl/dh.h ../../include/openssl/dsa.h
+v3_sxnet.o: ../../include/openssl/e_os.h ../../include/openssl/e_os2.h
+v3_sxnet.o: ../../include/openssl/err.h ../../include/openssl/evp.h
+v3_sxnet.o: ../../include/openssl/idea.h ../../include/openssl/lhash.h
+v3_sxnet.o: ../../include/openssl/md2.h ../../include/openssl/md5.h
+v3_sxnet.o: ../../include/openssl/mdc2.h ../../include/openssl/objects.h
+v3_sxnet.o: ../../include/openssl/opensslconf.h
+v3_sxnet.o: ../../include/openssl/opensslv.h ../../include/openssl/pkcs7.h
+v3_sxnet.o: ../../include/openssl/rc2.h ../../include/openssl/rc4.h
+v3_sxnet.o: ../../include/openssl/rc5.h ../../include/openssl/ripemd.h
+v3_sxnet.o: ../../include/openssl/rsa.h ../../include/openssl/safestack.h
+v3_sxnet.o: ../../include/openssl/sha.h ../../include/openssl/stack.h
+v3_sxnet.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
+v3_sxnet.o: ../../include/openssl/x509v3.h ../cryptlib.h
+v3_utl.o: ../../include/openssl/asn1.h ../../include/openssl/bio.h
+v3_utl.o: ../../include/openssl/blowfish.h ../../include/openssl/bn.h
+v3_utl.o: ../../include/openssl/buffer.h ../../include/openssl/cast.h
+v3_utl.o: ../../include/openssl/conf.h ../../include/openssl/crypto.h
+v3_utl.o: ../../include/openssl/des.h ../../include/openssl/dh.h
+v3_utl.o: ../../include/openssl/dsa.h ../../include/openssl/e_os.h
+v3_utl.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h
+v3_utl.o: ../../include/openssl/evp.h ../../include/openssl/idea.h
+v3_utl.o: ../../include/openssl/lhash.h ../../include/openssl/md2.h
+v3_utl.o: ../../include/openssl/md5.h ../../include/openssl/mdc2.h
+v3_utl.o: ../../include/openssl/objects.h ../../include/openssl/opensslconf.h
+v3_utl.o: ../../include/openssl/opensslv.h ../../include/openssl/pkcs7.h
+v3_utl.o: ../../include/openssl/rc2.h ../../include/openssl/rc4.h
+v3_utl.o: ../../include/openssl/rc5.h ../../include/openssl/ripemd.h
+v3_utl.o: ../../include/openssl/rsa.h ../../include/openssl/safestack.h
+v3_utl.o: ../../include/openssl/sha.h ../../include/openssl/stack.h
+v3_utl.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
+v3_utl.o: ../../include/openssl/x509v3.h ../cryptlib.h
+v3err.o: ../../include/openssl/asn1.h ../../include/openssl/bio.h
+v3err.o: ../../include/openssl/blowfish.h ../../include/openssl/bn.h
+v3err.o: ../../include/openssl/cast.h ../../include/openssl/crypto.h
+v3err.o: ../../include/openssl/des.h ../../include/openssl/dh.h
+v3err.o: ../../include/openssl/dsa.h ../../include/openssl/e_os2.h
+v3err.o: ../../include/openssl/err.h ../../include/openssl/evp.h
+v3err.o: ../../include/openssl/idea.h ../../include/openssl/md2.h
+v3err.o: ../../include/openssl/md5.h ../../include/openssl/mdc2.h
+v3err.o: ../../include/openssl/objects.h ../../include/openssl/opensslconf.h
+v3err.o: ../../include/openssl/opensslv.h ../../include/openssl/pkcs7.h
+v3err.o: ../../include/openssl/rc2.h ../../include/openssl/rc4.h
+v3err.o: ../../include/openssl/rc5.h ../../include/openssl/ripemd.h
+v3err.o: ../../include/openssl/rsa.h ../../include/openssl/safestack.h
+v3err.o: ../../include/openssl/sha.h ../../include/openssl/stack.h
+v3err.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
+v3err.o: ../../include/openssl/x509v3.h

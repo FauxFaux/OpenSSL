@@ -56,9 +56,9 @@
  * [including the GNU Public Licence.]
  */
 #include <stdio.h>
-#include "bio.h"
-#include "x509.h"
-#include "pem.h"
+#include <openssl/bio.h>
+#include <openssl/x509.h>
+#include <openssl/pem.h>
 
 main(argc,argv)
 int argc;
@@ -108,13 +108,9 @@ again:
 	si=PKCS7_add_signature(p7,x509,pkey,EVP_sha1());
 	if (si == NULL) goto err;
 
-	/* Add some extra attributes */
-	if (!add_signed_time(si)) goto err;
-#if 0
-	/* Since these are made up attributes lets leave them out */
-	if (!add_signed_string(si,"SIGNED STRING")) goto err;
-	if (!add_signed_seq2string(si,"STRING1","STRING2")) goto err;
-#endif
+	/* If you do this then you get signing time automatically added */
+	PKCS7_add_signed_attribute(si, NID_pkcs9_contentType, V_ASN1_OBJECT,
+						OBJ_nid2obj(NID_pkcs7_data));
 
 	/* we may want to add more */
 	PKCS7_add_certificate(p7,x509);

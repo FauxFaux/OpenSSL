@@ -58,22 +58,20 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "buffer.h"
-#include "bn.h"
+#include <openssl/buffer.h>
+#include <openssl/bn.h>
 #ifndef NO_RSA
-#include "rsa.h"
+#include <openssl/rsa.h>
 #endif
 #ifndef NO_DSA
-#include "dsa.h"
+#include <openssl/dsa.h>
 #endif
-#include "objects.h"
-#include "x509.h"
-#include "x509v3.h"
+#include <openssl/objects.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
 #ifndef NO_FP_API
-int X509_print_fp(fp,x)
-FILE *fp;
-X509 *x;
+int X509_print_fp(FILE *fp, X509 *x)
         {
         BIO *b;
         int ret;
@@ -90,9 +88,7 @@ X509 *x;
         }
 #endif
 
-int X509_print(bp,x)
-BIO *bp;
-X509 *x;
+int X509_print(BIO *bp, X509 *x)
 	{
 	long l;
 	int ret=0,i,j,n;
@@ -100,7 +96,7 @@ X509 *x;
 	X509_CINF *ci;
 	ASN1_INTEGER *bs;
 	EVP_PKEY *pkey=NULL;
-	char *neg;
+	const char *neg;
 	X509_EXTENSION *ex;
 	ASN1_STRING *str=NULL;
 
@@ -201,42 +197,11 @@ X509 *x;
 			obj=X509_EXTENSION_get_object(ex);
 			i2a_ASN1_OBJECT(bp,obj);
 			j=X509_EXTENSION_get_critical(ex);
-			if (BIO_printf(bp,": %s\n%16s",j?"critical":"","") <= 0)
+			if (BIO_printf(bp,": %s\n",j?"critical":"","") <= 0)
 				goto err;
-#if 0
-			pack_type=X509v3_pack_type_by_OBJ(obj);
-			data_type=X509v3_data_type_by_OBJ(obj);
-			
-			if (pack_type == X509_EXT_PACK_STRING)
+			if(!X509V3_EXT_print(bp, ex, 0, 16))
 				{
-				if (X509v3_unpack_string(
-					&str,data_type,
-					X509_EXTENSION_get_data(ex)) == NULL)
-					{
-					/* hmm... */
-					goto err;
-					}
-				if (	(data_type == V_ASN1_IA5STRING) ||
-					(data_type == V_ASN1_PRINTABLESTRING) ||
-					(data_type == V_ASN1_T61STRING))
-					{
-					if (BIO_write(bp,(char *)str->data,
-							str->length) <= 0)
-						goto err;
-					}
-				else if (data_type == V_ASN1_BIT_STRING)
-					{
-					BIO_printf(bp,"0x");
-					for (j=0; j<str->length; j++)
-						{
-						BIO_printf(bp,"%02X",
-							str->data[j]);
-						}
-					}
-				}
-#endif
-			if(!X509V3_EXT_print(bp, ex, 0))
-				{
+				BIO_printf(bp, "%16s", "");
 				ASN1_OCTET_STRING_print(bp,ex->value);
 				}
 			if (BIO_write(bp,"\n",1) <= 0) goto err;
@@ -264,9 +229,7 @@ err:
 	return(ret);
 	}
 
-int ASN1_STRING_print(bp,v)
-BIO *bp;
-ASN1_STRING *v;
+int ASN1_STRING_print(BIO *bp, ASN1_STRING *v)
 	{
 	int i,n;
 	char buf[80],*p;;
@@ -295,9 +258,7 @@ ASN1_STRING *v;
 	return(1);
 	}
 
-int ASN1_TIME_print(bp, tm)
-BIO *bp;
-ASN1_TIME *tm;
+int ASN1_TIME_print(BIO *bp, ASN1_TIME *tm)
 {
 	if(tm->type == V_ASN1_UTCTIME) return ASN1_UTCTIME_print(bp, tm);
 	if(tm->type == V_ASN1_GENERALIZEDTIME)
@@ -306,16 +267,16 @@ ASN1_TIME *tm;
 	return(0);
 }
 
+static const char *mon[12]=
+    {
+    "Jan","Feb","Mar","Apr","May","Jun",
+    "Jul","Aug","Sep","Oct","Nov","Dec"
+    };
 
-int ASN1_GENERALIZEDTIME_print(bp,tm)
-BIO *bp;
-ASN1_GENERALIZEDTIME *tm;
+int ASN1_GENERALIZEDTIME_print(BIO *bp, ASN1_GENERALIZEDTIME *tm)
 	{
 	char *v;
 	int gmt=0;
-	static char *mon[12]={
-		"Jan","Feb","Mar","Apr","May","Jun",
-		"Jul","Aug","Sep","Oct","Nov","Dec"};
 	int i;
 	int y=0,M=0,d=0,h=0,m=0,s=0;
 
@@ -346,15 +307,10 @@ err:
 	return(0);
 	}
 
-int ASN1_UTCTIME_print(bp,tm)
-BIO *bp;
-ASN1_UTCTIME *tm;
+int ASN1_UTCTIME_print(BIO *bp, ASN1_UTCTIME *tm)
 	{
 	char *v;
 	int gmt=0;
-	static char *mon[12]={
-		"Jan","Feb","Mar","Apr","May","Jun",
-		"Jul","Aug","Sep","Oct","Nov","Dec"};
 	int i;
 	int y=0,M=0,d=0,h=0,m=0,s=0;
 
@@ -386,10 +342,7 @@ err:
 	return(0);
 	}
 
-int X509_NAME_print(bp,name,obase)
-BIO *bp;
-X509_NAME *name;
-int obase;
+int X509_NAME_print(BIO *bp, X509_NAME *name, int obase)
 	{
 	char *s,*c;
 	int ret=0,l,ll,i,first=1;

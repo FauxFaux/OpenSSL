@@ -58,24 +58,16 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "conf.h"
-#include "asn1.h"
-#include "asn1_mac.h"
-#include "x509v3.h"
+#include <openssl/conf.h>
+#include <openssl/asn1.h>
+#include <openssl/asn1_mac.h>
+#include <openssl/x509v3.h>
 
-#ifndef NOPROTO
 static STACK *i2v_AUTHORITY_KEYID(X509V3_EXT_METHOD *method, AUTHORITY_KEYID *akeyid, STACK *extlist);
 static AUTHORITY_KEYID *v2i_AUTHORITY_KEYID(X509V3_EXT_METHOD *method, X509V3_CTX *ctx, STACK *values);
 
-#else
-
-static STACK *i2v_AUTHORITY_KEYID();
-static AUTHORITY_KEYID *v2i_AUTHORITY_KEYID();
-
-#endif
-
 X509V3_EXT_METHOD v3_akey_id = {
-NID_authority_key_identifier, 0,
+NID_authority_key_identifier, X509V3_EXT_MULTILINE,
 (X509V3_EXT_NEW)AUTHORITY_KEYID_new,
 AUTHORITY_KEYID_free,
 (X509V3_EXT_D2I)d2i_AUTHORITY_KEYID,
@@ -88,14 +80,7 @@ NULL
 };
 
 
-/*
- * ASN1err(ASN1_F_AUTHORITY_KEYID_NEW,ERR_R_MALLOC_FAILURE);
- * ASN1err(ASN1_F_D2I_AUTHORITY_KEYID,ERR_R_MALLOC_FAILURE);
- */
-
-int i2d_AUTHORITY_KEYID(a,pp)
-AUTHORITY_KEYID *a;
-unsigned char **pp;
+int i2d_AUTHORITY_KEYID(AUTHORITY_KEYID *a, unsigned char **pp)
 {
 	M_ASN1_I2D_vars(a);
 
@@ -112,7 +97,7 @@ unsigned char **pp;
 	M_ASN1_I2D_finish();
 }
 
-AUTHORITY_KEYID *AUTHORITY_KEYID_new()
+AUTHORITY_KEYID *AUTHORITY_KEYID_new(void)
 {
 	AUTHORITY_KEYID *ret=NULL;
 	ASN1_CTX c;
@@ -124,10 +109,8 @@ AUTHORITY_KEYID *AUTHORITY_KEYID_new()
 	M_ASN1_New_Error(ASN1_F_AUTHORITY_KEYID_NEW);
 }
 
-AUTHORITY_KEYID *d2i_AUTHORITY_KEYID(a,pp,length)
-AUTHORITY_KEYID **a;
-unsigned char **pp;
-long length;
+AUTHORITY_KEYID *d2i_AUTHORITY_KEYID(AUTHORITY_KEYID **a, unsigned char **pp,
+	     long length)
 {
 	M_ASN1_D2I_vars(a,AUTHORITY_KEYID *,AUTHORITY_KEYID_new);
 	M_ASN1_D2I_Init();
@@ -141,20 +124,17 @@ long length;
 	M_ASN1_D2I_Finish(a, AUTHORITY_KEYID_free, ASN1_F_D2I_AUTHORITY_KEYID);
 }
 
-void AUTHORITY_KEYID_free(a)
-AUTHORITY_KEYID *a;
+void AUTHORITY_KEYID_free(AUTHORITY_KEYID *a)
 {
 	if (a == NULL) return;
 	ASN1_OCTET_STRING_free(a->keyid);
-	sk_pop_free(a->issuer, GENERAL_NAME_free);
+	sk_GENERAL_NAME_pop_free(a->issuer, GENERAL_NAME_free);
 	ASN1_INTEGER_free (a->serial);
 	Free ((char *)a);
 }
 
-static STACK *i2v_AUTHORITY_KEYID(method, akeyid, extlist)
-X509V3_EXT_METHOD *method;
-AUTHORITY_KEYID *akeyid;
-STACK *extlist;
+static STACK *i2v_AUTHORITY_KEYID(X509V3_EXT_METHOD *method,
+	     AUTHORITY_KEYID *akeyid, STACK *extlist)
 {
 	char *tmp;
 	if(akeyid->keyid) {
@@ -181,17 +161,15 @@ STACK *extlist;
  * this is always included.
  */
 
-static AUTHORITY_KEYID *v2i_AUTHORITY_KEYID(method, ctx, values)
-X509V3_EXT_METHOD *method;
-X509V3_CTX *ctx;
-STACK *values;
+static AUTHORITY_KEYID *v2i_AUTHORITY_KEYID(X509V3_EXT_METHOD *method,
+	     X509V3_CTX *ctx, STACK *values)
 {
 char keyid=0, issuer=0;
 int i;
 CONF_VALUE *cnf;
 ASN1_OCTET_STRING *ikeyid = NULL;
 X509_NAME *isname = NULL;
-STACK * gens = NULL;
+STACK_OF(GENERAL_NAME) * gens = NULL;
 GENERAL_NAME *gen = NULL;
 ASN1_INTEGER *serial = NULL;
 X509_EXTENSION *ext;
@@ -225,7 +203,7 @@ cert = ctx->issuer_cert;
 if(keyid) {
 	i = X509_get_ext_by_NID(cert, NID_subject_key_identifier, -1);
 	if((i >= 0)  && (ext = X509_get_ext(cert, i)))
-			ikeyid = (ASN1_OCTET_STRING *) X509V3_EXT_d2i(ext);
+						 ikeyid = X509V3_EXT_d2i(ext);
 	if(keyid==2 && !ikeyid) {
 		X509V3err(X509V3_F_V2I_AUTHORITY_KEYID,X509V3_R_UNABLE_TO_GET_ISSUER_KEYID);
 		return NULL;
@@ -244,8 +222,8 @@ if((issuer && !ikeyid) || (issuer == 2)) {
 if(!(akeyid = AUTHORITY_KEYID_new())) goto err;
 
 if(isname) {
-	if(!(gens = sk_new(NULL)) || !(gen = GENERAL_NAME_new())
-		|| !sk_push(gens, (char *)gen)) {
+	if(!(gens = sk_GENERAL_NAME_new(NULL)) || !(gen = GENERAL_NAME_new())
+		|| !sk_GENERAL_NAME_push(gens, gen)) {
 		X509V3err(X509V3_F_V2I_AUTHORITY_KEYID,ERR_R_MALLOC_FAILURE);
 		goto err;
 	}

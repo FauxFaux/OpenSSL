@@ -58,17 +58,11 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include "asn1_mac.h"
-#include "x509.h"
+#include <openssl/asn1_mac.h>
+#include <openssl/x509.h>
 
-/*
- * ASN1err(ASN1_F_PKCS7_ISSUER_AND_SERIAL_NEW,ERR_R_ASN1_LENGTH_MISMATCH);
- * ASN1err(ASN1_F_D2I_PKCS7_ISSUER_AND_SERIAL,ERR_R_ASN1_LENGTH_MISMATCH);
- */
-
-int i2d_PKCS7_ISSUER_AND_SERIAL(a,pp)
-PKCS7_ISSUER_AND_SERIAL *a;
-unsigned char **pp;
+int i2d_PKCS7_ISSUER_AND_SERIAL(PKCS7_ISSUER_AND_SERIAL *a,
+	     unsigned char **pp)
 	{
 	M_ASN1_I2D_vars(a);
 
@@ -83,10 +77,7 @@ unsigned char **pp;
 	M_ASN1_I2D_finish();
 	}
 
-PKCS7_ISSUER_AND_SERIAL *d2i_PKCS7_ISSUER_AND_SERIAL(a,pp,length)
-PKCS7_ISSUER_AND_SERIAL **a;
-unsigned char **pp;
-long length;
+PKCS7_ISSUER_AND_SERIAL *d2i_PKCS7_ISSUER_AND_SERIAL(PKCS7_ISSUER_AND_SERIAL **a, unsigned char **pp, long length)
 	{
 	M_ASN1_D2I_vars(a,PKCS7_ISSUER_AND_SERIAL *,PKCS7_ISSUER_AND_SERIAL_new);
 
@@ -98,7 +89,7 @@ long length;
 		ASN1_F_D2I_PKCS7_ISSUER_AND_SERIAL);
 	}
 
-PKCS7_ISSUER_AND_SERIAL *PKCS7_ISSUER_AND_SERIAL_new()
+PKCS7_ISSUER_AND_SERIAL *PKCS7_ISSUER_AND_SERIAL_new(void)
 	{
 	PKCS7_ISSUER_AND_SERIAL *ret=NULL;
 	ASN1_CTX c;
@@ -110,8 +101,7 @@ PKCS7_ISSUER_AND_SERIAL *PKCS7_ISSUER_AND_SERIAL_new()
 	M_ASN1_New_Error(ASN1_F_PKCS7_ISSUER_AND_SERIAL_NEW);
 	}
 
-void PKCS7_ISSUER_AND_SERIAL_free(a)
-PKCS7_ISSUER_AND_SERIAL *a;
+void PKCS7_ISSUER_AND_SERIAL_free(PKCS7_ISSUER_AND_SERIAL *a)
 	{
 	if (a == NULL) return;
 	X509_NAME_free(a->issuer);

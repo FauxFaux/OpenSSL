@@ -63,9 +63,7 @@
 #include <errno.h>
 #define USE_SOCKETS
 #include "cryptlib.h"
-#include "bio.h"
-
-/*	BIOerr(BIO_F_WSASTARTUP,BIO_R_WSASTARTUP ); */
+#include <openssl/bio.h>
 
 #ifdef WIN16
 #define SOCKET_PROTOCOL 0 /* more microsoft stupidity */
@@ -96,19 +94,10 @@ static struct ghbn_cache_st
 	unsigned long order;
 	} ghbn_cache[GHBN_NUM];
 
-#ifndef NOPROTO
-static int get_ip(char *str,unsigned char *ip);
+static int get_ip(const char *str,unsigned char *ip);
 static void ghbn_free(struct hostent *a);
 static struct hostent *ghbn_dup(struct hostent *a);
-#else
-static int get_ip();
-static void ghbn_free();
-static struct hostent *ghbn_dup();
-#endif
-
-int BIO_get_host_ip(str,ip)
-char *str;
-unsigned char *ip;
+int BIO_get_host_ip(const char *str, unsigned char *ip)
 	{
 	int i;
 	struct hostent *he;
@@ -146,9 +135,7 @@ unsigned char *ip;
 	return(1);
 	}
 
-int BIO_get_port(str,port_ptr)
-char *str;
-unsigned short *port_ptr;
+int BIO_get_port(const char *str, unsigned short *port_ptr)
 	{
 	int i;
 	struct servent *s;
@@ -163,8 +150,12 @@ unsigned short *port_ptr;
 		*port_ptr=(unsigned short)i;
 	else
 		{
-		s=getservbyname(str,"tcp");
-		if (s == NULL)
+		CRYPTO_w_lock(CRYPTO_LOCK_GETSERVBYNAME);
+ 		s=getservbyname(str,"tcp");
+		if(s != NULL)
+			*port_ptr=ntohs((unsigned short)s->s_port);
+		CRYPTO_w_unlock(CRYPTO_LOCK_GETSERVBYNAME);
+		if(s == NULL)
 			{
 			if (strcmp(str,"http") == 0)
 				*port_ptr=80;
@@ -190,31 +181,30 @@ unsigned short *port_ptr;
 				ERR_add_error_data(3,"service='",str,"'");
 				return(0);
 				}
-			return(1);
 			}
-		*port_ptr=htons((unsigned short)s->s_port);
 		}
 	return(1);
 	}
 
-int BIO_sock_error(sock)
-int sock;
+int BIO_sock_error(int sock)
 	{
-	int j,i,size;
+	int j,i;
+	int size;
 		 
 	size=sizeof(int);
-
-	i=getsockopt(sock,SOL_SOCKET,SO_ERROR,(char *)&j,&size);
+	/* Note: under Windows the third parameter is of type (char *)
+	 * whereas under other systems it is (void *) if you don't have
+	 * a cast it will choke the compiler: if you do have a cast then
+	 * you can either go for (char *) or (void *).
+	 */
+	i=getsockopt(sock,SOL_SOCKET,SO_ERROR,(void *)&j,(void *)&size);
 	if (i < 0)
 		return(1);
 	else
 		return(j);
 	}
 
-long BIO_ghbn_ctrl(cmd,iarg,parg)
-int cmd;
-int iarg;
-char *parg;
+long BIO_ghbn_ctrl(int cmd, int iarg, char *parg)
 	{
 	int i;
 	char **p;
@@ -252,8 +242,7 @@ char *parg;
 	return(1);
 	}
 
-static struct hostent *ghbn_dup(a)
-struct hostent *a;
+static struct hostent *ghbn_dup(struct hostent *a)
 	{
 	struct hostent *ret;
 	int i,j;
@@ -266,16 +255,18 @@ struct hostent *a;
 	for (i=0; a->h_aliases[i] != NULL; i++)
 		;
 	i++;
-	ret->h_aliases=(char **)Malloc(sizeof(char *)*i);
-	memset(ret->h_aliases,0,sizeof(char *)*i);
-	if (ret == NULL) goto err;
+	ret->h_aliases = (char **)Malloc(i*sizeof(char *));
+	if (ret->h_aliases == NULL)
+		goto err;
+	memset(ret->h_aliases, 0, i*sizeof(char *));
 
 	for (i=0; a->h_addr_list[i] != NULL; i++)
 		;
 	i++;
-	ret->h_addr_list=(char **)Malloc(sizeof(char *)*i);
-	memset(ret->h_addr_list,0,sizeof(char *)*i);
-	if (ret->h_addr_list == NULL) goto err;
+	ret->h_addr_list=(char **)Malloc(i*sizeof(char *));
+	if (ret->h_addr_list == NULL)
+		goto err;
+	memset(ret->h_addr_list, 0, i*sizeof(char *));
 
 	j=strlen(a->h_name)+1;
 	if ((ret->h_name=Malloc(j)) == NULL) goto err;
@@ -305,8 +296,7 @@ err:
 	return(ret);
 	}
 
-static void ghbn_free(a)
-struct hostent *a;
+static void ghbn_free(struct hostent *a)
 	{
 	int i;
 
@@ -329,8 +319,7 @@ struct hostent *a;
 	Free(a);
 	}
 
-struct hostent *BIO_gethostbyname(name)
-char *name;
+struct hostent *BIO_gethostbyname(const char *name)
 	{
 	struct hostent *ret;
 	int i,lowi=0,j;
@@ -338,7 +327,7 @@ char *name;
 
 /*	return(gethostbyname(name)); */
 
-	CRYPTO_w_lock(CRYPTO_LOCK_BIO_GETHOSTBYNAME);
+	CRYPTO_w_lock(CRYPTO_LOCK_GETHOSTBYNAME);
 	j=strlen(name);
 	if (j < 128)
 		{
@@ -364,15 +353,25 @@ char *name;
 		BIO_ghbn_miss++;
 		ret=gethostbyname(name);
 
-		if (ret == NULL) return(NULL);
-		if (j > 128) return(ret); /* too big to cache */
+		if (ret == NULL)
+			goto end;
+		if (j > 128) /* too big to cache */
+			{
+			ret = NULL;
+			goto end;
+			}
 
 		/* else add to cache */
 		if (ghbn_cache[lowi].ent != NULL)
-			ghbn_free(ghbn_cache[lowi].ent);
+			ghbn_free(ghbn_cache[lowi].ent); /* XXX not thread-safe */
+		ghbn_cache[lowi].name[0] = '\0';
 
+		if((ret=ghbn_cache[lowi].ent=ghbn_dup(ret)) == NULL)
+			{
+			BIOerr(BIO_F_BIO_GETHOSTBYNAME,ERR_R_MALLOC_FAILURE);
+			goto end;
+			}
 		strncpy(ghbn_cache[lowi].name,name,128);
-		ghbn_cache[lowi].ent=ghbn_dup(ret);
 		ghbn_cache[lowi].order=BIO_ghbn_miss+BIO_ghbn_hits;
 		}
 	else
@@ -381,11 +380,12 @@ char *name;
 		ret= ghbn_cache[i].ent;
 		ghbn_cache[i].order=BIO_ghbn_miss+BIO_ghbn_hits;
 		}
-	CRYPTO_w_unlock(CRYPTO_LOCK_BIO_GETHOSTBYNAME);
+end:
+	CRYPTO_w_unlock(CRYPTO_LOCK_GETHOSTBYNAME);
 	return(ret);
 	}
 
-int BIO_sock_init()
+int BIO_sock_init(void)
 	{
 #ifdef WINDOWS
 	static struct WSAData wsa_state;
@@ -411,7 +411,7 @@ int BIO_sock_init()
 	return(1);
 	}
 
-void BIO_sock_cleanup()
+void BIO_sock_cleanup(void)
 	{
 #ifdef WINDOWS
 	if (wsa_init_done)
@@ -423,10 +423,9 @@ void BIO_sock_cleanup()
 #endif
 	}
 
-int BIO_socket_ioctl(fd,type,arg)
-int fd;
-long type;
-unsigned long *arg;
+#if !defined(VMS) || __VMS_VER >= 70000000
+
+int BIO_socket_ioctl(int fd, long type, unsigned long *arg)
 	{
 	int i;
 
@@ -435,12 +434,11 @@ unsigned long *arg;
 		SYSerr(SYS_F_IOCTLSOCKET,get_last_socket_error());
 	return(i);
 	}
+#endif /* __VMS_VER */
 
 /* The reason I have implemented this instead of using sscanf is because
  * Visual C 1.52c gives an unresolved external when linking a DLL :-( */
-static int get_ip(str,ip)
-char *str;
-unsigned char ip[4];
+static int get_ip(const char *str, unsigned char ip[4])
 	{
 	unsigned int tmp[4];
 	int num=0,c,ok=0;
@@ -475,16 +473,15 @@ unsigned char ip[4];
 	return(1);
 	}
 
-int BIO_get_accept_socket(host,bind_mode)
-char *host;
-int bind_mode;
+int BIO_get_accept_socket(char *host, int bind_mode)
 	{
 	int ret=0;
 	struct sockaddr_in server,client;
 	int s= -1,cs;
 	unsigned char ip[4];
 	unsigned short port;
-	char *str,*h,*p,*e;
+	char *str,*e;
+	const char *h,*p;
 	unsigned long l;
 	int err_num;
 
@@ -603,9 +600,7 @@ err:
 	return(s);
 	}
 
-int BIO_accept(sock,addr)
-int sock;
-char **addr;
+int BIO_accept(int sock, char **addr)
 	{
 	int ret=INVALID_SOCKET;
 	static struct sockaddr_in from;
@@ -616,7 +611,12 @@ char **addr;
 
 	memset((char *)&from,0,sizeof(from));
 	len=sizeof(from);
-	ret=accept(sock,(struct sockaddr *)&from,&len);
+	/* Note: under VMS with SOCKETSHR the fourth parameter is currently
+	 * of type (int *) whereas under other systems it is (void *) if
+	 * you don't have a cast it will choke the compiler: if you do
+	 * have a cast then you can either go for (int *) or (void *).
+	 */
+	ret=accept(sock,(struct sockaddr *)&from,(void *)&len);
 	if (ret == INVALID_SOCKET)
 		{
 		SYSerr(SYS_F_ACCEPT,get_last_socket_error());
@@ -647,9 +647,7 @@ end:
 	return(ret);
 	}
 
-int BIO_set_tcp_ndelay(s,on)
-int s;
-int on;
+int BIO_set_tcp_ndelay(int s, int on)
 	{
 	int ret=0;
 #if defined(TCP_NODELAY) && (defined(IPPROTO_TCP) || defined(SOL_TCP))
@@ -669,9 +667,7 @@ int on;
 	}
 #endif
 
-int BIO_socket_nbio(s,mode)
-int s;
-int mode;
+int BIO_socket_nbio(int s, int mode)
 	{
 	int ret= -1;
 	unsigned long l;

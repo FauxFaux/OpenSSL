@@ -57,8 +57,8 @@
  */
 
 #include <stdio.h>
-#include "objects.h"
-#include "comp.h"
+#include <openssl/objects.h>
+#include <openssl/comp.h>
 #include "ssl_locl.h"
 
 #define SSL_ENC_DES_IDX		0
@@ -70,16 +70,16 @@
 #define SSL_ENC_NULL_IDX	6
 #define SSL_ENC_NUM_IDX		7
 
-static EVP_CIPHER *ssl_cipher_methods[SSL_ENC_NUM_IDX]={
+static const EVP_CIPHER *ssl_cipher_methods[SSL_ENC_NUM_IDX]={
 	NULL,NULL,NULL,NULL,NULL,NULL,
 	};
 
-static STACK /* SSL_COMP */ *ssl_comp_methods=NULL;
+static STACK_OF(SSL_COMP) *ssl_comp_methods=NULL;
 
 #define SSL_MD_MD5_IDX	0
 #define SSL_MD_SHA1_IDX	1
 #define SSL_MD_NUM_IDX	2
-static EVP_MD *ssl_digest_methods[SSL_MD_NUM_IDX]={
+static const EVP_MD *ssl_digest_methods[SSL_MD_NUM_IDX]={
 	NULL,NULL,
 	};
 
@@ -159,13 +159,12 @@ static SSL_CIPHER cipher_aliases[]={
 static int init_ciphers=1;
 static void load_ciphers();
 
-static int cmp_by_name(a,b)
-SSL_CIPHER **a,**b;
+static int cmp_by_name(SSL_CIPHER **a, SSL_CIPHER **b)
 	{
 	return(strcmp((*a)->name,(*b)->name));
 	}
 
-static void load_ciphers()
+static void load_ciphers(void)
 	{
 	init_ciphers=0;
 	ssl_cipher_methods[SSL_ENC_DES_IDX]= 
@@ -185,11 +184,8 @@ static void load_ciphers()
 		EVP_get_digestbyname(SN_sha1);
 	}
 
-int ssl_cipher_get_evp(s,enc,md,comp)
-SSL_SESSION *s;
-EVP_CIPHER **enc;
-EVP_MD **md;
-SSL_COMP **comp;
+int ssl_cipher_get_evp(SSL_SESSION *s, const EVP_CIPHER **enc,
+	     const EVP_MD **md, SSL_COMP **comp)
 	{
 	int i;
 	SSL_CIPHER *c;
@@ -211,9 +207,9 @@ SSL_COMP **comp;
 			{
 
 			ctmp.id=s->compress_meth;
-			i=sk_find(ssl_comp_methods,(char *)&ctmp);
+			i=sk_SSL_COMP_find(ssl_comp_methods,&ctmp);
 			if (i >= 0)
-				*comp=(SSL_COMP *)sk_value(ssl_comp_methods,i);
+				*comp=sk_SSL_COMP_value(ssl_comp_methods,i);
 			else
 				*comp=NULL;
 			}
@@ -282,8 +278,8 @@ SSL_COMP **comp;
 #define ITEM_SEP(a) \
 	(((a) == ':') || ((a) == ' ') || ((a) == ';') || ((a) == ','))
 
-static void ll_append_tail(head,curr,tail)
-CIPHER_ORDER **head,*curr,**tail;
+static void ll_append_tail(CIPHER_ORDER **head, CIPHER_ORDER *curr,
+	     CIPHER_ORDER **tail)
 	{
 	if (curr == *tail) return;
 	if (curr == *head)
@@ -298,14 +294,14 @@ CIPHER_ORDER **head,*curr,**tail;
 	*tail=curr;
 	}
 
-STACK *ssl_create_cipher_list(ssl_method,cipher_list,cipher_list_by_id,str)
-SSL_METHOD *ssl_method;
-STACK **cipher_list,**cipher_list_by_id;
-char *str;
+STACK_OF(SSL_CIPHER) *ssl_create_cipher_list(SSL_METHOD *ssl_method,
+		STACK_OF(SSL_CIPHER) **cipher_list,
+		STACK_OF(SSL_CIPHER) **cipher_list_by_id,
+		char *str)
 	{
 	SSL_CIPHER *c;
 	char *l;
-	STACK *ret=NULL,*ok=NULL;
+	STACK_OF(SSL_CIPHER) *ret=NULL,*ok=NULL;
 #define CL_BUF	40
 	char buf[CL_BUF];
 	char *tmp_str=NULL;
@@ -340,7 +336,7 @@ char *str;
 
 	num=ssl_method->num_ciphers();
 
-	if ((ret=(STACK *)sk_new(NULL)) == NULL) goto err;
+	if ((ret=sk_SSL_CIPHER_new(NULL)) == NULL) goto err;
 	if ((ca_list=(STACK *)sk_new(cmp_by_name)) == NULL) goto err;
 
 	mask =SSL_kFZA;
@@ -573,7 +569,7 @@ end_loop:
 		{
 		if (curr->active)
 			{
-			sk_push(ret,(char *)curr->cipher);
+			sk_SSL_CIPHER_push(ret,curr->cipher);
 #ifdef CIPHER_DEBUG
 			printf("<%s>\n",curr->cipher->name);
 #endif
@@ -583,15 +579,15 @@ end_loop:
 	if (cipher_list != NULL)
 		{
 		if (*cipher_list != NULL)
-			sk_free(*cipher_list);
+			sk_SSL_CIPHER_free(*cipher_list);
 		*cipher_list=ret;
 		}
 
 	if (cipher_list_by_id != NULL)
 		{
 		if (*cipher_list_by_id != NULL)
-			sk_free(*cipher_list_by_id);
-		*cipher_list_by_id=sk_dup(ret);
+			sk_SSL_CIPHER_free(*cipher_list_by_id);
+		*cipher_list_by_id=sk_SSL_CIPHER_dup(ret);
 		}
 
 	if (	(cipher_list_by_id == NULL) ||
@@ -599,23 +595,20 @@ end_loop:
 		(cipher_list == NULL) ||
 		(*cipher_list == NULL))
 		goto err;
-	sk_set_cmp_func(*cipher_list_by_id,ssl_cipher_ptr_id_cmp);
+	sk_SSL_CIPHER_set_cmp_func(*cipher_list_by_id,ssl_cipher_ptr_id_cmp);
 
 	ok=ret;
 	ret=NULL;
 err:
 	if (tmp_str) Free(tmp_str);
 	if (ops != NULL) Free(ops);
-	if (ret != NULL) sk_free(ret);
+	if (ret != NULL) sk_SSL_CIPHER_free(ret);
 	if (ca_list != NULL) sk_free(ca_list);
 	if (list != NULL) Free(list);
 	return(ok);
 	}
 
-char *SSL_CIPHER_description(cipher,buf,len)
-SSL_CIPHER *cipher;
-char *buf;
-int len;
+char *SSL_CIPHER_description(SSL_CIPHER *cipher, char *buf, int len)
 	{
         int is_export,pkl,kl;
 	char *ver,*exp;
@@ -733,8 +726,7 @@ int len;
 	return(buf);
 	}
 
-char *SSL_CIPHER_get_version(c)
-SSL_CIPHER *c;
+char *SSL_CIPHER_get_version(SSL_CIPHER *c)
 	{
 	int i;
 
@@ -749,8 +741,7 @@ SSL_CIPHER *c;
 	}
 
 /* return the actual cipher being used */
-char *SSL_CIPHER_get_name(c)
-SSL_CIPHER *c;
+const char *SSL_CIPHER_get_name(SSL_CIPHER *c)
 	{
 	if (c != NULL)
 		return(c->name);
@@ -758,13 +749,11 @@ SSL_CIPHER *c;
 	}
 
 /* number of bits for symetric cipher */
-int SSL_CIPHER_get_bits(c,alg_bits)
-SSL_CIPHER *c;
-int *alg_bits;
+int SSL_CIPHER_get_bits(SSL_CIPHER *c, int *alg_bits)
 	{
 	int ret=0,a=0;
-	EVP_CIPHER *enc;
-	EVP_MD *md;
+	const EVP_CIPHER *enc;
+	const EVP_MD *md;
 	SSL_SESSION ss;
 
 	if (c != NULL)
@@ -793,50 +782,45 @@ int *alg_bits;
 	return(ret);
 	}
 
-SSL_COMP *ssl3_comp_find(sk,n)
-STACK *sk;
-int n;
+SSL_COMP *ssl3_comp_find(STACK_OF(SSL_COMP) *sk, int n)
 	{
 	SSL_COMP *ctmp;
 	int i,nn;
 
 	if ((n == 0) || (sk == NULL)) return(NULL);
-	nn=sk_num(sk);
+	nn=sk_SSL_COMP_num(sk);
 	for (i=0; i<nn; i++)
 		{
-		ctmp=(SSL_COMP *)sk_value(sk,i);
+		ctmp=sk_SSL_COMP_value(sk,i);
 		if (ctmp->id == n)
 			return(ctmp);
 		}
 	return(NULL);
 	}
 
-static int sk_comp_cmp(a,b)
-SSL_COMP **a,**b;
+static int sk_comp_cmp(SSL_COMP **a,SSL_COMP **b)
 	{
 	return((*a)->id-(*b)->id);
 	}
 
-STACK *SSL_COMP_get_compression_methods()
+STACK_OF(SSL_COMP) *SSL_COMP_get_compression_methods(void)
 	{
 	return(ssl_comp_methods);
 	}
 
-int SSL_COMP_add_compression_method(id,cm)
-int id;
-COMP_METHOD *cm;
+int SSL_COMP_add_compression_method(int id, COMP_METHOD *cm)
 	{
 	SSL_COMP *comp;
-	STACK *sk;
+	STACK_OF(SSL_COMP) *sk;
 
 	comp=(SSL_COMP *)Malloc(sizeof(SSL_COMP));
 	comp->id=id;
 	comp->method=cm;
 	if (ssl_comp_methods == NULL)
-		sk=ssl_comp_methods=sk_new(sk_comp_cmp);
+		sk=ssl_comp_methods=sk_SSL_COMP_new(sk_comp_cmp);
 	else
 		sk=ssl_comp_methods;
-	if ((sk == NULL) || !sk_push(sk,(char *)comp))
+	if ((sk == NULL) || !sk_SSL_COMP_push(sk,comp))
 		{
 		SSLerr(SSL_F_SSL_COMP_ADD_COMPRESSION_METHOD,ERR_R_MALLOC_FAILURE);
 		return(0);

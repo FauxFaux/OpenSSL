@@ -56,17 +56,18 @@
  * [including the GNU Public Licence.]
  */
 
+#ifndef NO_DSA
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include "apps.h"
-#include "bio.h"
-#include "err.h"
-#include "dsa.h"
-#include "evp.h"
-#include "x509.h"
-#include "pem.h"
+#include <openssl/bio.h>
+#include <openssl/err.h>
+#include <openssl/dsa.h>
+#include <openssl/evp.h>
+#include <openssl/x509.h>
+#include <openssl/pem.h>
 
 #undef PROG
 #define PROG	dsa_main
@@ -82,14 +83,12 @@
  * -modulus	- print the DSA public key
  */
 
-int MAIN(argc, argv)
-int argc;
-char **argv;
+int MAIN(int argc, char **argv)
 	{
 	int ret=1;
 	DSA *dsa=NULL;
 	int i,badops=0;
-	EVP_CIPHER *enc=NULL;
+	const EVP_CIPHER *enc=NULL;
 	BIO *in=NULL,*out=NULL;
 	int informat,outformat,text=0,noout=0;
 	char *infile,*outfile,*prog;
@@ -254,4 +253,4 @@ end:
 	if (dsa != NULL) DSA_free(dsa);
 	EXIT(ret);
 	}
-
+#endif

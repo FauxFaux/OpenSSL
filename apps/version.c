@@ -60,15 +60,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include "apps.h"
-#include "evp.h"
-#include "crypto.h"
+#include <openssl/evp.h>
+#include <openssl/crypto.h>
 
 #undef PROG
 #define PROG	version_main
 
-int MAIN(argc, argv)
-int argc;
-char **argv;
+int MAIN(int argc, char **argv)
 	{
 	int i,ret=0;
 	int cflags=0,version=0,date=0,options=0,platform=0;
@@ -121,7 +119,7 @@ char **argv;
 #ifndef NO_IDEA
 		printf("%s ",idea_options());
 #endif
-#ifndef NO_BLOWFISH
+#ifndef NO_BF
 		printf("%s ",BF_options());
 #endif
 		printf("\n");

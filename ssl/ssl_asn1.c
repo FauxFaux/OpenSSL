@@ -58,8 +58,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "asn1_mac.h"
-#include "objects.h"
+#include <openssl/asn1_mac.h>
+#include <openssl/objects.h>
 #include "ssl_locl.h"
 
 typedef struct ssl_session_asn1_st
@@ -75,14 +75,7 @@ typedef struct ssl_session_asn1_st
 	ASN1_INTEGER timeout;
 	} SSL_SESSION_ASN1;
 
-/*
- * SSLerr(SSL_F_I2D_SSL_SESSION,SSL_R_CIPHER_CODE_WRONG_LENGTH);
- * SSLerr(SSL_F_D2I_SSL_SESSION,SSL_R_UNSUPPORTED_CIPHER);
- */
-
-int i2d_SSL_SESSION(in,pp)
-SSL_SESSION *in;
-unsigned char **pp;
+int i2d_SSL_SESSION(SSL_SESSION *in, unsigned char **pp)
 	{
 #define LSIZE2 (sizeof(long)*2)
 	int v1=0,v2=0,v3=0,v4=0;
@@ -199,10 +192,8 @@ unsigned char **pp;
 	M_ASN1_I2D_finish();
 	}
 
-SSL_SESSION *d2i_SSL_SESSION(a,pp,length)
-SSL_SESSION **a;
-unsigned char **pp;
-long length;
+SSL_SESSION *d2i_SSL_SESSION(SSL_SESSION **a, unsigned char **pp,
+	     long length)
 	{
 	int version,ssl_version=0,i;
 	long id;

@@ -7,6 +7,8 @@ TOP=	../..
 CC=	cc
 INCLUDES= -I.. -I../../include
 CFLAG=-g
+INSTALL_PREFIX=
+OPENSSLDIR=     /usr/local/ssl
 INSTALLTOP=/usr/local/ssl
 MAKE=		make -f Makefile.ssl
 MAKEDEPEND=	$(TOP)/util/domd $(TOP)
@@ -15,8 +17,6 @@ AR=		ar r
 
 CFLAGS= $(INCLUDES) $(CFLAG)
 
-ERR=comp
-ERRC=comp_err
 GENERAL=Makefile
 TEST=
 APPS=
@@ -42,23 +42,23 @@ all:	lib
 
 lib:	$(LIBOBJ)
 	$(AR) $(LIB) $(LIBOBJ)
-	sh $(TOP)/util/ranlib.sh $(LIB)
+	$(RANLIB) $(LIB)
 	@touch lib
 
 files:
-	perl $(TOP)/util/files.pl Makefile.ssl >> $(TOP)/MINFO
+	$(PERL) $(TOP)/util/files.pl Makefile.ssl >> $(TOP)/MINFO
 
 links:
 	@$(TOP)/util/point.sh Makefile.ssl Makefile
-	@$(TOP)/util/mklink.sh ../../include $(EXHEADER)
-	@$(TOP)/util/mklink.sh ../../test $(TEST)
-	@$(TOP)/util/mklink.sh ../../apps $(APPS)
+	@$(PERL) $(TOP)/util/mklink.pl ../../include/openssl $(EXHEADER)
+	@$(PERL) $(TOP)/util/mklink.pl ../../test $(TEST)
+	@$(PERL) $(TOP)/util/mklink.pl ../../apps $(APPS)
 
 install:
 	@for i in $(EXHEADER) ; \
 	do  \
-	(cp $$i $(INSTALLTOP)/include/$$i; \
-	chmod 644 $(INSTALLTOP)/include/$$i ); \
+	(cp $$i $(INSTALL_PREFIX)$(INSTALLTOP)/include/openssl/$$i; \
+	chmod 644 $(INSTALL_PREFIX)$(INSTALLTOP)/include/openssl/$$i ); \
 	done;
 
 tags:
@@ -70,35 +70,30 @@ lint:
 	lint -DLINT $(INCLUDES) $(SRC)>fluff
 
 depend:
-	$(MAKEDEPEND) $(INCLUDES) $(LIBSRC)
+	$(MAKEDEPEND) $(INCLUDES) $(DEPFLAG) $(LIBSRC)
 
 dclean:
-	perl -pe 'if (/^# DO NOT DELETE THIS LINE/) {print; exit(0);}' $(MAKEFILE) >Makefile.new
+	$(PERL) -pe 'if (/^# DO NOT DELETE THIS LINE/) {print; exit(0);}' $(MAKEFILE) >Makefile.new
 	mv -f Makefile.new $(MAKEFILE)
 
 clean:
 	rm -f *.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
 
-# This is a dummy to create comp.err: remove if we add any real errors to this
-# stuff.
-
-comp.err:
-	touch comp.err
-
-errors: $(ERRC).c
-
-$(ERRC).c: $(ERR).err
-	perl $(TOP)/util/err-ins.pl $(ERR).err $(ERR).h
-	perl ../err/err_genc.pl -s $(ERR).h $(ERRC).c
-
 # DO NOT DELETE THIS LINE -- make depend depends on it.
 
-c_rle.o: ../../include/asn1.h ../../include/bio.h ../../include/bn.h
-c_rle.o: ../../include/crypto.h ../../include/objects.h
-c_rle.o: ../../include/opensslv.h ../../include/stack.h comp.h
-c_zlib.o: ../../include/asn1.h ../../include/bio.h ../../include/bn.h
-c_zlib.o: ../../include/crypto.h ../../include/objects.h
-c_zlib.o: ../../include/opensslv.h ../../include/stack.h comp.h
-comp_lib.o: ../../include/asn1.h ../../include/bio.h ../../include/bn.h
-comp_lib.o: ../../include/crypto.h ../../include/objects.h
-comp_lib.o: ../../include/opensslv.h ../../include/stack.h comp.h
+c_rle.o: ../../include/openssl/asn1.h ../../include/openssl/bio.h
+c_rle.o: ../../include/openssl/bn.h ../../include/openssl/comp.h
+c_rle.o: ../../include/openssl/crypto.h ../../include/openssl/objects.h
+c_rle.o: ../../include/openssl/opensslconf.h ../../include/openssl/opensslv.h
+c_rle.o: ../../include/openssl/safestack.h ../../include/openssl/stack.h
+c_zlib.o: ../../include/openssl/asn1.h ../../include/openssl/bio.h
+c_zlib.o: ../../include/openssl/bn.h ../../include/openssl/comp.h
+c_zlib.o: ../../include/openssl/crypto.h ../../include/openssl/objects.h
+c_zlib.o: ../../include/openssl/opensslconf.h ../../include/openssl/opensslv.h
+c_zlib.o: ../../include/openssl/safestack.h ../../include/openssl/stack.h
+comp_lib.o: ../../include/openssl/asn1.h ../../include/openssl/bio.h
+comp_lib.o: ../../include/openssl/bn.h ../../include/openssl/comp.h
+comp_lib.o: ../../include/openssl/crypto.h ../../include/openssl/objects.h
+comp_lib.o: ../../include/openssl/opensslconf.h
+comp_lib.o: ../../include/openssl/opensslv.h ../../include/openssl/safestack.h
+comp_lib.o: ../../include/openssl/stack.h

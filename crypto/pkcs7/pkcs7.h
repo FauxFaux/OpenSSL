@@ -63,8 +63,13 @@
 extern "C" {
 #endif
 
-#include "bio.h"
-#include "x509.h"
+#include <openssl/bio.h>
+#include <openssl/x509.h>
+
+#ifdef WIN32
+/* Under Win32 this is defined in wincrypt.h */
+#undef PKCS7_ISSUER_AND_SERIAL
+#endif
 
 /*
 Encryption_ID		DES-CBC
@@ -106,7 +111,7 @@ typedef struct pkcs7_signed_st
 	{
 	ASN1_INTEGER			*version;	/* version 1 */
 	STACK /* X509_ALGOR's */	*md_algs;	/* md used */
-	STACK /* X509 */		*cert;		/* [ 0 ] */
+	STACK_OF(X509)			*cert;		/* [ 0 ] */
 	STACK /* X509_CRL */		*crl;		/* [ 1 ] */
 	STACK /* PKCS7_SIGNER_INFO */	*signer_info;
 
@@ -120,6 +125,7 @@ typedef struct pkcs7_enc_content_st
 	ASN1_OBJECT			*content_type;
 	X509_ALGOR			*algorithm;
 	ASN1_OCTET_STRING		*enc_data;	/* [ 0 ] */
+	const EVP_CIPHER		*cipher;
 	} PKCS7_ENC_CONTENT;
 
 typedef struct pkcs7_enveloped_st
@@ -128,12 +134,12 @@ typedef struct pkcs7_enveloped_st
 	STACK /* PKCS7_RECIP_INFO */	*recipientinfo;
 	PKCS7_ENC_CONTENT		*enc_data;
 	} PKCS7_ENVELOPE;
-	
+
 typedef struct pkcs7_signedandenveloped_st
 	{
 	ASN1_INTEGER			*version;	/* version 1 */
 	STACK /* X509_ALGOR's */	*md_algs;	/* md used */
-	STACK /* X509 */		*cert;		/* [ 0 ] */
+	STACK_OF(X509)			*cert;		/* [ 0 ] */
 	STACK /* X509_CRL */		*crl;		/* [ 1 ] */
 	STACK /* PKCS7_SIGNER_INFO */	*signer_info;
 
@@ -221,7 +227,6 @@ typedef struct pkcs7_st
 #endif
 
 
-#ifndef NOPROTO
 PKCS7_ISSUER_AND_SERIAL *PKCS7_ISSUER_AND_SERIAL_new(void );
 void			PKCS7_ISSUER_AND_SERIAL_free(
 				PKCS7_ISSUER_AND_SERIAL *a);
@@ -235,11 +240,11 @@ PKCS7_ISSUER_AND_SERIAL *d2i_PKCS7_ISSUER_AND_SERIAL(
 int PKCS7_ISSUER_AND_SERIAL_digest(PKCS7_ISSUER_AND_SERIAL *data,EVP_MD *type,
 	unsigned char *md,unsigned int *len);
 #ifndef NO_FP_API
-PKCS7 *d2i_PKCS7_fp(FILE *fp,PKCS7 *p7);
+PKCS7 *d2i_PKCS7_fp(FILE *fp,PKCS7 **p7);
 int i2d_PKCS7_fp(FILE *fp,PKCS7 *p7);
 #endif
 PKCS7 *PKCS7_dup(PKCS7 *p7);
-PKCS7 *d2i_PKCS7_bio(BIO *bp,PKCS7 *p7);
+PKCS7 *d2i_PKCS7_bio(BIO *bp,PKCS7 **p7);
 int i2d_PKCS7_bio(BIO *bp,PKCS7 *p7);
 #endif
 
@@ -325,7 +330,7 @@ int PKCS7_dataVerify(X509_STORE *cert_store, X509_STORE_CTX *ctx,
 
 BIO *PKCS7_dataInit(PKCS7 *p7, BIO *bio);
 int PKCS7_dataFinal(PKCS7 *p7, BIO *bio);
-BIO *PKCS7_dataDecode(PKCS7 *p7, EVP_PKEY *pkey, BIO *in_bio, X509_STORE *xs);
+BIO *PKCS7_dataDecode(PKCS7 *p7, EVP_PKEY *pkey, BIO *in_bio, X509 *pcert);
 
 
 PKCS7_SIGNER_INFO *PKCS7_add_signature(PKCS7 *p7, X509 *x509,
@@ -336,113 +341,26 @@ STACK *PKCS7_get_signer_info(PKCS7 *p7);
 PKCS7_RECIP_INFO *PKCS7_add_recipient(PKCS7 *p7, X509 *x509);
 int PKCS7_add_recipient_info(PKCS7 *p7, PKCS7_RECIP_INFO *ri);
 int PKCS7_RECIP_INFO_set(PKCS7_RECIP_INFO *p7i, X509 *x509);
-int PKCS7_set_cipher(PKCS7 *p7, EVP_CIPHER *cipher);
+int PKCS7_set_cipher(PKCS7 *p7, const EVP_CIPHER *cipher);
 
 PKCS7_ISSUER_AND_SERIAL *PKCS7_get_issuer_and_serial(PKCS7 *p7, int idx);
 ASN1_OCTET_STRING *PKCS7_digest_from_attributes(STACK *sk);
 int PKCS7_add_signed_attribute(PKCS7_SIGNER_INFO *p7si,int nid,int type,
-	char *data);
+	void *data);
 int PKCS7_add_attribute (PKCS7_SIGNER_INFO *p7si, int nid, int atrtype,
-	char *value);
+	void *value);
 ASN1_TYPE *PKCS7_get_attribute(PKCS7_SIGNER_INFO *si, int nid);
 ASN1_TYPE *PKCS7_get_signed_attribute(PKCS7_SIGNER_INFO *si, int nid);
 int PKCS7_set_signed_attributes(PKCS7_SIGNER_INFO *p7si, STACK *sk);
 int PKCS7_set_attributes(PKCS7_SIGNER_INFO *p7si, STACK *sk);
 
 
-#else
-
-PKCS7_ISSUER_AND_SERIAL *PKCS7_ISSUER_AND_SERIAL_new();
-void			PKCS7_ISSUER_AND_SERIAL_free();
-int 			i2d_PKCS7_ISSUER_AND_SERIAL();
-PKCS7_ISSUER_AND_SERIAL *d2i_PKCS7_ISSUER_AND_SERIAL();
-
-#ifndef SSLEAY_MACROS
-int			PKCS7_ISSUER_AND_SERIAL_digest();
-#ifndef NO_FP_API
-PKCS7 *d2i_PKCS7_fp();
-int i2d_PKCS7_fp();
-#endif
-PKCS7 *PKCS7_dup();
-PKCS7 *d2i_PKCS7_bio();
-int i2d_PKCS7_bio();
-
-#endif
-
-PKCS7_SIGNER_INFO	*PKCS7_SIGNER_INFO_new();
-void			PKCS7_SIGNER_INFO_free();
-int 			i2d_PKCS7_SIGNER_INFO();
-PKCS7_SIGNER_INFO	*d2i_PKCS7_SIGNER_INFO();
-PKCS7_RECIP_INFO	*PKCS7_RECIP_INFO_new();
-void			PKCS7_RECIP_INFO_free();
-int 			i2d_PKCS7_RECIP_INFO();
-PKCS7_RECIP_INFO	*d2i_PKCS7_RECIP_INFO();
-PKCS7_SIGNED		*PKCS7_SIGNED_new();
-void			PKCS7_SIGNED_free();
-int 			i2d_PKCS7_SIGNED();
-PKCS7_SIGNED		*d2i_PKCS7_SIGNED();
-PKCS7_ENC_CONTENT	*PKCS7_ENC_CONTENT_new();
-void			PKCS7_ENC_CONTENT_free();
-int 			i2d_PKCS7_ENC_CONTENT();
-PKCS7_ENC_CONTENT	*d2i_PKCS7_ENC_CONTENT();
-PKCS7_ENVELOPE		*PKCS7_ENVELOPE_new();
-void			PKCS7_ENVELOPE_free();
-int 			i2d_PKCS7_ENVELOPE();
-PKCS7_ENVELOPE		*d2i_PKCS7_ENVELOPE();
-PKCS7_SIGN_ENVELOPE	*PKCS7_SIGN_ENVELOPE_new();
-void			PKCS7_SIGN_ENVELOPE_free();
-int 			i2d_PKCS7_SIGN_ENVELOPE();
-PKCS7_SIGN_ENVELOPE	*d2i_PKCS7_SIGN_ENVELOPE();
-PKCS7_DIGEST		*PKCS7_DIGEST_new();
-void			PKCS7_DIGEST_free();
-int 			i2d_PKCS7_DIGEST();
-PKCS7_DIGEST		*d2i_PKCS7_DIGEST();
-PKCS7_ENCRYPT		*PKCS7_ENCRYPT_new();
-void			PKCS7_ENCRYPT_free();
-int 			i2d_PKCS7_ENCRYPT();
-PKCS7_ENCRYPT		*d2i_PKCS7_ENCRYPT();
-PKCS7			*PKCS7_new();
-void			PKCS7_free();
-void			PKCS7_content_free();
-int 			i2d_PKCS7();
-PKCS7			*d2i_PKCS7();
-
-void ERR_load_PKCS7_strings();
-
-long PKCS7_ctrl();
-int PKCS7_set_type();
-int PKCS7_set_content();
-int PKCS7_SIGNER_INFO_set();
-int PKCS7_add_signer();
-int PKCS7_add_certificate();
-int PKCS7_add_crl();
-int PKCS7_content_new();
-int PKCS7_dataVerify();
-BIO *PKCS7_dataInit();
-int PKCS7_dataFinal();
-BIO *PKCS7_dataDecode();
-PKCS7_SIGNER_INFO *PKCS7_add_signature();
-X509 *PKCS7_cert_from_signer_info();
-STACK *PKCS7_get_signer_info();
-
-PKCS7_RECIP_INFO *PKCS7_add_recipient();
-int PKCS7_add_recipient_info();
-int PKCS7_RECIP_INFO_set();
-int PKCS7_set_cipher();
-
-PKCS7_ISSUER_AND_SERIAL *PKCS7_get_issuer_and_serial();
-ASN1_OCTET_STRING *PKCS7_digest_from_attributes();
-int PKCS7_add_signed_attribute();
-int PKCS7_add_attribute();
-ASN1_TYPE *PKCS7_get_attribute();
-ASN1_TYPE *PKCS7_get_signed_attribute();
-void PKCS7_set_signed_attributes();
-void PKCS7_set_attributes();
-
-#endif
-
 
 /* BEGIN ERROR CODES */
+/* The following lines are auto generated by the script mkerr.pl. Any changes
+ * made after this point may be overwritten when the script is next run.
+ */
+
 /* Error codes for the PKCS7 functions. */
 
 /* Function codes. */
@@ -451,19 +369,21 @@ void PKCS7_set_attributes();
 #define PKCS7_F_PKCS7_ADD_RECIPIENT_INFO		 102
 #define PKCS7_F_PKCS7_ADD_SIGNER			 103
 #define PKCS7_F_PKCS7_CTRL				 104
+#define PKCS7_F_PKCS7_DATADECODE			 112
 #define PKCS7_F_PKCS7_DATAINIT				 105
 #define PKCS7_F_PKCS7_DATASIGN				 106
 #define PKCS7_F_PKCS7_DATAVERIFY			 107
 #define PKCS7_F_PKCS7_SET_CIPHER			 108
 #define PKCS7_F_PKCS7_SET_CONTENT			 109
 #define PKCS7_F_PKCS7_SET_TYPE				 110
-#define PKCS7_F_PKCS7_SIGNENVELOPEDECRYPT		 111
 
 /* Reason codes. */
+#define PKCS7_R_CIPHER_NOT_INITIALIZED			 116
 #define PKCS7_R_DECRYPTED_KEY_IS_WRONG_LENGTH		 100
 #define PKCS7_R_DIGEST_FAILURE				 101
 #define PKCS7_R_INTERNAL_ERROR				 102
 #define PKCS7_R_MISSING_CERIPEND_INFO			 103
+#define PKCS7_R_NO_RECIPIENT_MATCHES_CERTIFICATE	 115
 #define PKCS7_R_OPERATION_NOT_SUPPORTED_ON_THIS_TYPE	 104
 #define PKCS7_R_SIGNATURE_FAILURE			 105
 #define PKCS7_R_UNABLE_TO_FIND_CERTIFICATE		 106
@@ -475,7 +395,7 @@ void PKCS7_set_attributes();
 #define PKCS7_R_UNSUPPORTED_CONTENT_TYPE		 112
 #define PKCS7_R_WRONG_CONTENT_TYPE			 113
 #define PKCS7_R_WRONG_PKCS7_TYPE			 114
- 
+
 #ifdef  __cplusplus
 }
 #endif

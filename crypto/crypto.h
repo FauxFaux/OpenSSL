@@ -63,8 +63,12 @@
 extern "C" {
 #endif
 
-#include "stack.h"
-#include "opensslv.h"
+#ifndef NO_FP_API
+#include <stdio.h>
+#endif
+
+#include <openssl/stack.h>
+#include <openssl/opensslv.h>
 
 /* Backward compatibility to SSLeay */
 /* This is more to be used to check the correct DLL is being used
@@ -94,13 +98,16 @@ extern "C" {
 #define	CRYPTO_LOCK_SSL_CTX		12
 #define	CRYPTO_LOCK_SSL_CERT		13
 #define	CRYPTO_LOCK_SSL_SESSION		14
-#define	CRYPTO_LOCK_SSL			15
-#define	CRYPTO_LOCK_RAND		16
-#define	CRYPTO_LOCK_MALLOC		17
-#define	CRYPTO_LOCK_BIO			18
-#define	CRYPTO_LOCK_BIO_GETHOSTBYNAME	19
-#define CRYPTO_LOCK_RSA_BLINDING	20
-#define	CRYPTO_NUM_LOCKS		21
+#define	CRYPTO_LOCK_SSL_SESS_CERT	15
+#define	CRYPTO_LOCK_SSL			16
+#define	CRYPTO_LOCK_RAND		17
+#define	CRYPTO_LOCK_MALLOC		18
+#define	CRYPTO_LOCK_BIO			19
+#define	CRYPTO_LOCK_GETHOSTBYNAME	20
+#define	CRYPTO_LOCK_GETSERVBYNAME	21
+#define	CRYPTO_LOCK_READDIR		22
+#define	CRYPTO_LOCK_RSA_BLINDING	23
+#define	CRYPTO_NUM_LOCKS		24
 
 #define CRYPTO_LOCK		1
 #define CRYPTO_UNLOCK		2
@@ -200,9 +207,9 @@ typedef struct crypto_ex_data_func_st
 #define Remalloc(addr,num) \
 	CRYPTO_dbg_remalloc((char **)addr,(int)num,__FILE__,__LINE__)
 #define FreeFunc	CRYPTO_dbg_free
-#define Free(addr)	CRYPTO_dbg_free((char *)(addr))
+#define Free(addr)	CRYPTO_dbg_free(addr)
 #define Malloc_locked(num) CRYPTO_malloc_locked((int)num)
-#define Free_locked(addr) CRYPTO_free_locked((char *)(addr))
+#define Free_locked(addr) CRYPTO_free_locked(addr)
 #else
 #define MemCheck_start()
 #define MemCheck_stop()
@@ -211,29 +218,28 @@ typedef struct crypto_ex_data_func_st
 #define Remalloc	CRYPTO_remalloc
 #if defined(WIN32) || defined(MFUNC)
 #define Malloc		CRYPTO_malloc
-#define Realloc(a,n)	CRYPTO_realloc((char *)(a),(n))
+#define Realloc(a,n)	CRYPTO_realloc(a,(n))
 #define FreeFunc	CRYPTO_free
-#define Free(addr)	CRYPTO_free((char *)(addr))
+#define Free(addr)	CRYPTO_free(addr)
 #define Malloc_locked	CRYPTO_malloc_locked
-#define Free_locked(addr) CRYPTO_free_locked((char *)(addr))
+#define Free_locked(addr) CRYPTO_free_locked(addr)
 #else
 #define Malloc		malloc
 #define Realloc		realloc
 #define FreeFunc	free
-#define Free(addr)	free((char *)(addr))
+#define Free(addr)	free(addr)
 #define Malloc_locked	malloc
-#define Free_locked(addr) free((char *)(addr))
+#define Free_locked(addr) free(addr)
 #endif /* WIN32 || MFUNC */
 #endif /* MDEBUG */
 
 /* Case insensiteve linking causes problems.... */
-#ifdef WIN16
+#if defined(WIN16) || defined(VMS)
 #define ERR_load_CRYPTO_strings	ERR_load_CRYPTOlib_strings
 #endif
 
-#ifndef NOPROTO
 
-char *SSLeay_version(int type);
+const char *SSLeay_version(int type);
 unsigned long SSLeay(void);
 
 int CRYPTO_get_ex_new_index(int idx,STACK **sk,long argl,char *argp,
@@ -246,37 +252,38 @@ void CRYPTO_new_ex_data(STACK *meth, char *obj, CRYPTO_EX_DATA *ad);
 
 int CRYPTO_mem_ctrl(int mode);
 int CRYPTO_get_new_lockid(char *name);
-void CRYPTO_lock(int mode, int type,char *file,int line);
-void CRYPTO_set_locking_callback(void (*func)(int mode,int type,char *file,
-		int line));
-void (*CRYPTO_get_locking_callback(void))(int mode,int type,char *file,
+void CRYPTO_lock(int mode, int type,const char *file,int line);
+void CRYPTO_set_locking_callback(void (*func)(int mode,int type,
+					      const char *file,int line));
+void (*CRYPTO_get_locking_callback(void))(int mode,int type,const char *file,
 		int line);
-void CRYPTO_set_add_lock_callback(int (*func)(int *num,int mount,
-		int type,char *file, int line));
-int (*CRYPTO_get_add_lock_callback(void))(int *num,int mount,
-		int type,char *file,int line);
+void CRYPTO_set_add_lock_callback(int (*func)(int *num,int mount,int type,
+					      const char *file, int line));
+int (*CRYPTO_get_add_lock_callback(void))(int *num,int mount,int type,
+					  const char *file,int line);
 void CRYPTO_set_id_callback(unsigned long (*func)(void));
 unsigned long (*CRYPTO_get_id_callback(void))(void);
 unsigned long CRYPTO_thread_id(void);
-char *CRYPTO_get_lock_name(int type);
-int CRYPTO_add_lock(int *pointer,int amount,int type, char *file,int line);
+const char *CRYPTO_get_lock_name(int type);
+int CRYPTO_add_lock(int *pointer,int amount,int type, const char *file,
+		    int line);
 
 void CRYPTO_set_mem_functions(char *(*m)(),char *(*r)(), void (*free_func)());
 void CRYPTO_get_mem_functions(char *(**m)(),char *(**r)(), void (**f)());
 void CRYPTO_set_locked_mem_functions(char *(*m)(), void (*free_func)());
 void CRYPTO_get_locked_mem_functions(char *(**m)(), void (**f)());
 
-char *CRYPTO_malloc_locked(int num);
-void CRYPTO_free_locked(char *);
-char *CRYPTO_malloc(int num);
-void CRYPTO_free(char *);
-char *CRYPTO_realloc(char *addr,int num);
-char *CRYPTO_remalloc(char *addr,int num);
+void *CRYPTO_malloc_locked(int num);
+void CRYPTO_free_locked(void *);
+void *CRYPTO_malloc(int num);
+void CRYPTO_free(void *);
+void *CRYPTO_realloc(void *addr,int num);
+void *CRYPTO_remalloc(void *addr,int num);
 
-char *CRYPTO_dbg_malloc(int num,char *file,int line);
-char *CRYPTO_dbg_realloc(char *addr,int num,char *file,int line);
-void CRYPTO_dbg_free(char *);
-char *CRYPTO_dbg_remalloc(char *addr,int num,char *file,int line);
+void *CRYPTO_dbg_malloc(int num,const char *file,int line);
+void *CRYPTO_dbg_realloc(void *addr,int num,const char *file,int line);
+void CRYPTO_dbg_free(void *);
+void *CRYPTO_dbg_remalloc(void *addr,int num,const char *file,int line);
 #ifndef NO_FP_API
 void CRYPTO_mem_leaks_fp(FILE *);
 #endif
@@ -286,52 +293,11 @@ void CRYPTO_mem_leaks_cb(void (*cb)());
 
 void ERR_load_CRYPTO_strings(void );
 
-#else 
-
-int CRYPTO_get_ex_new_index();
-int CRYPTO_set_ex_data();
-char *CRYPTO_get_ex_data();
-int CRYPTO_dup_ex_data();
-void CRYPTO_free_ex_data();
-void CRYPTO_new_ex_data();
-
-int CRYPTO_mem_ctrl();
-char *SSLeay_version();
-unsigned long SSLeay();
-
-int CRYPTO_get_new_lockid();
-void CRYPTO_lock();
-void CRYPTO_set_locking_callback();
-void (*CRYPTO_get_locking_callback())();
-void CRYPTO_set_add_lock_callback();
-int (*CRYPTO_get_add_lock_callback())();
-void CRYPTO_set_id_callback();
-unsigned long (*CRYPTO_get_id_callback())();
-unsigned long CRYPTO_thread_id();
-char *CRYPTO_get_lock_name();
-int CRYPTO_add_lock();
-
-void CRYPTO_set_mem_functions();
-void CRYPTO_get_mem_functions();
-char *CRYPTO_malloc();
-char *CRYPTO_realloc();
-void CRYPTO_free();
-char *CRYPTO_remalloc();
-char *CRYPTO_dbg_remalloc();
-char *CRYPTO_dbg_malloc();
-char *CRYPTO_dbg_realloc();
-void CRYPTO_dbg_free();
-#ifndef NO_FP_API
-void CRYPTO_mem_leaks_fp();
-#endif
-void CRYPTO_mem_leaks();
-void CRYPTO_mem_leaks_cb();
-
-void ERR_load_CRYPTO_strings();
-
-#endif
-
 /* BEGIN ERROR CODES */
+/* The following lines are auto generated by the script mkerr.pl. Any changes
+ * made after this point may be overwritten when the script is next run.
+ */
+
 /* Error codes for the CRYPTO functions. */
 
 /* Function codes. */
@@ -340,7 +306,7 @@ void ERR_load_CRYPTO_strings();
 #define CRYPTO_F_CRYPTO_SET_EX_DATA			 102
 
 /* Reason codes. */
- 
+
 #ifdef  __cplusplus
 }
 #endif

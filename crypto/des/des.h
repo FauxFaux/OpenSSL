@@ -1,4 +1,4 @@
-/* crypto/des/des.org */
+/* crypto/des/des.h */
 /* Copyright (C) 1995-1997 Eric Young (eay@cryptsoft.com)
  * All rights reserved.
  *
@@ -56,14 +56,6 @@
  * [including the GNU Public Licence.]
  */
 
-/* WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING 
- *
- * Always modify des.org since des.h is automatically generated from
- * it during SSLeay configuration.
- *
- * WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
- */
-
 #ifndef HEADER_DES_H
 #define HEADER_DES_H
 
@@ -71,17 +63,27 @@
 extern "C" {
 #endif
 
-#include <stdio.h>
+#ifdef NO_DES
+#error DES is disabled.
+#endif
 
-/* If this is set to 'unsigned int' on a DEC Alpha, this gives about a
- * %20 speed up (longs are 8 bytes, int's are 4). */
-#ifndef DES_LONG
-#define DES_LONG unsigned long
+#include <stdio.h>
+#include <openssl/opensslconf.h> /* DES_LONG */
+#include <openssl/e_os2.h>	/* OPENSSL_EXTERN */
+
+#ifdef VMS
+#undef des_init_random_number_generator
+#define des_init_random_number_generator des_init_random_num_generator
 #endif
 
 typedef unsigned char des_cblock[8];
-typedef unsigned char *des_cblocks; /* Unfortunately there's no way to say that
-				       we want a multiple of 8 */
+typedef /* const */ unsigned char const_des_cblock[8];
+/* With "const", gcc 2.8.1 on Solaris thinks that des_cblock *
+ * and const_des_cblock * are incompatible pointer types.
+ * I haven't seen that warning on other systems ... I'll look
+ * what the standard says. */
+
+
 typedef struct des_ks_struct
 	{
 	union	{
@@ -90,7 +92,9 @@ typedef struct des_ks_struct
 		 * 8 byte longs */
 		DES_LONG pad[2];
 		} ks;
-#undef _
+#if defined _
+# error "_ is defined, but some strange definition the DES library cannot handle that."
+#endif
 #define _	ks._
 	int weak_key;
 	} des_key_schedule[16];
@@ -141,37 +145,30 @@ typedef des_key_schedule bit_64;
 #define des_fixup_key_parity des_set_odd_parity
 #define des_check_key_parity check_parity
 
-extern int des_check_key;	/* defaults to false */
-extern int des_rw_mode;		/* defaults to DES_PCBC_MODE */
-extern int des_set_weak_key_flag; /* set the weak key flag */
+OPENSSL_EXTERN int des_check_key;	/* defaults to false */
+OPENSSL_EXTERN int des_rw_mode;		/* defaults to DES_PCBC_MODE */
+OPENSSL_EXTERN int des_set_weak_key_flag; /* set the weak key flag */
 
-/* The next line is used to disable full ANSI prototypes, if your
- * compiler has problems with the prototypes, make sure this line always
- * evaluates to true :-) */
-#if defined(MSDOS) || defined(__STDC__)
-#undef NOPROTO
-#endif
-#ifndef NOPROTO
-char *des_options(void);
-void des_ecb3_encrypt(const unsigned char *input,unsigned char *output,
+const char *des_options(void);
+void des_ecb3_encrypt(const_des_cblock *input, des_cblock *output,
 		      des_key_schedule ks1,des_key_schedule ks2,
 		      des_key_schedule ks3, int enc);
-DES_LONG des_cbc_cksum(const unsigned char *input,des_cblock output,
+DES_LONG des_cbc_cksum(const unsigned char *input,des_cblock *output,
 		       long length,des_key_schedule schedule,
-		       const des_cblock ivec);
+		       const_des_cblock *ivec);
 void des_cbc_encrypt(const unsigned char *input,unsigned char *output,
-		     long length,des_key_schedule schedule,des_cblock ivec,
+		     long length,des_key_schedule schedule,des_cblock *ivec,
 		     int enc);
 void des_ncbc_encrypt(const unsigned char *input,unsigned char *output,
-		      long length,des_key_schedule schedule,des_cblock ivec,
+		      long length,des_key_schedule schedule,des_cblock *ivec,
 		      int enc);
 void des_xcbc_encrypt(const unsigned char *input,unsigned char *output,
-		      long length,des_key_schedule schedule,des_cblock ivec,
-		      const des_cblock inw,const des_cblock outw,int enc);
+		      long length,des_key_schedule schedule,des_cblock *ivec,
+		      const_des_cblock *inw,const_des_cblock *outw,int enc);
 void des_cfb_encrypt(const unsigned char *in,unsigned char *out,int numbits,
-		     long length,des_key_schedule schedule,des_cblock ivec,
+		     long length,des_key_schedule schedule,des_cblock *ivec,
 		     int enc);
-void des_ecb_encrypt(const des_cblock input,des_cblock output,
+void des_ecb_encrypt(const_des_cblock *input,des_cblock *output,
 		     des_key_schedule ks,int enc);
 void des_encrypt(DES_LONG *data,des_key_schedule ks, int enc);
 void des_encrypt2(DES_LONG *data,des_key_schedule ks, int enc);
@@ -182,29 +179,29 @@ void des_decrypt3(DES_LONG *data, des_key_schedule ks1,
 void des_ede3_cbc_encrypt(const unsigned char *input,unsigned char *output, 
 			  long length,
 			  des_key_schedule ks1,des_key_schedule ks2,
-			  des_key_schedule ks3,des_cblock ivec,int enc);
+			  des_key_schedule ks3,des_cblock *ivec,int enc);
 void des_ede3_cbcm_encrypt(const unsigned char *in,unsigned char *out,
 			   long length,
 			   des_key_schedule ks1,des_key_schedule ks2,
 			   des_key_schedule ks3,
-			   des_cblock ivec1,des_cblock ivec2,
+			   des_cblock *ivec1,des_cblock *ivec2,
 			   int enc);
 void des_ede3_cfb64_encrypt(const unsigned char *in,unsigned char *out,
 			    long length,des_key_schedule ks1,
 			    des_key_schedule ks2,des_key_schedule ks3,
-			    des_cblock ivec,int *num,int enc);
+			    des_cblock *ivec,int *num,int enc);
 void des_ede3_ofb64_encrypt(const unsigned char *in,unsigned char *out,
 			    long length,des_key_schedule ks1,
 			    des_key_schedule ks2,des_key_schedule ks3,
-			    des_cblock ivec,int *num);
+			    des_cblock *ivec,int *num);
 
-void des_xwhite_in2out(const des_cblock des_key,const des_cblock in_white,
-		       des_cblock out_white);
+void des_xwhite_in2out(const_des_cblock *des_key,const_des_cblock *in_white,
+		       des_cblock *out_white);
 
-int des_enc_read(int fd,char *buf,int len,des_key_schedule sched,
-		 des_cblock iv);
-int des_enc_write(int fd,const char *buf,int len,des_key_schedule sched,
-		  des_cblock iv);
+int des_enc_read(int fd,void *buf,int len,des_key_schedule sched,
+		 des_cblock *iv);
+int des_enc_write(int fd,const void *buf,int len,des_key_schedule sched,
+		  des_cblock *iv);
 char *des_fcrypt(const char *buf,const char *salt, char *ret);
 #if defined(PERL5) || defined(__FreeBSD__)
 char *des_crypt(const char *buf,const char *salt);
@@ -218,33 +215,35 @@ char *crypt();
 #endif
 #endif
 void des_ofb_encrypt(const unsigned char *in,unsigned char *out,int numbits,
-		     long length,des_key_schedule schedule,des_cblock ivec);
+		     long length,des_key_schedule schedule,des_cblock *ivec);
 void des_pcbc_encrypt(const unsigned char *input,unsigned char *output,
-		      long length,des_key_schedule schedule,des_cblock ivec,
+		      long length,des_key_schedule schedule,des_cblock *ivec,
 		      int enc);
-DES_LONG des_quad_cksum(const unsigned char *input,des_cblocks output,
-			long length,int out_count,des_cblock seed);
-void des_random_seed(des_cblock key);
-void des_random_key(des_cblock ret);
-int des_read_password(des_cblock key,const char *prompt,int verify);
-int des_read_2passwords(des_cblock key1,des_cblock key2,
+DES_LONG des_quad_cksum(const unsigned char *input,des_cblock output[],
+			long length,int out_count,des_cblock *seed);
+void des_random_seed(des_cblock *key);
+void des_random_key(des_cblock *ret);
+int des_read_password(des_cblock *key,const char *prompt,int verify);
+int des_read_2passwords(des_cblock *key1,des_cblock *key2,
 			const char *prompt,int verify);
 int des_read_pw_string(char *buf,int length,const char *prompt,int verify);
-void des_set_odd_parity(des_cblock key);
-int des_is_weak_key(const des_cblock key);
-int des_set_key(const des_cblock key,des_key_schedule schedule);
-int des_key_sched(const des_cblock key,des_key_schedule schedule);
-void des_string_to_key(const char *str,des_cblock key);
-void des_string_to_2keys(const char *str,des_cblock key1,des_cblock key2);
+void des_set_odd_parity(des_cblock *key);
+int des_is_weak_key(const_des_cblock *key);
+int des_set_key(const_des_cblock *key,des_key_schedule schedule);
+int des_key_sched(const_des_cblock *key,des_key_schedule schedule);
+void des_string_to_key(const char *str,des_cblock *key);
+void des_string_to_2keys(const char *str,des_cblock *key1,des_cblock *key2);
 void des_cfb64_encrypt(const unsigned char *in,unsigned char *out,long length,
-		       des_key_schedule schedule,des_cblock ivec,int *num,
+		       des_key_schedule schedule,des_cblock *ivec,int *num,
 		       int enc);
 void des_ofb64_encrypt(const unsigned char *in,unsigned char *out,long length,
-		       des_key_schedule schedule,des_cblock ivec,int *num);
+		       des_key_schedule schedule,des_cblock *ivec,int *num);
 int des_read_pw(char *buf,char *buff,int size,const char *prompt,int verify);
 
 /* Extra functions from Mark Murray <mark@grondar.za> */
-void des_cblock_print_file(const des_cblock cb, FILE *fp);
+void des_cblock_print_file(const_des_cblock *cb, FILE *fp);
+
+#ifdef FreeBSD
 /* The following functions are not in the normal unix build or the
  * SSLeay build.  When using the SSLeay build, use RAND_seed()
  * and RAND_bytes() instead. */
@@ -253,65 +252,6 @@ void des_init_random_number_generator(des_cblock *key);
 void des_set_random_generator_seed(des_cblock *key);
 void des_set_sequence_number(des_cblock new_sequence_number);
 void des_generate_random_block(des_cblock *block);
-
-#else
-
-char *des_options();
-void des_ecb3_encrypt();
-DES_LONG des_cbc_cksum();
-void des_cbc_encrypt();
-void des_ncbc_encrypt();
-void des_xcbc_encrypt();
-void des_cfb_encrypt();
-void des_ede3_cfb64_encrypt();
-void des_ede3_ofb64_encrypt();
-void des_ecb_encrypt();
-void des_encrypt();
-void des_encrypt2();
-void des_encrypt3();
-void des_decrypt3();
-void des_ede3_cbc_encrypt();
-void des_ede3_cbcm_encrypt();
-int des_enc_read();
-int des_enc_write();
-char *des_fcrypt();
-#ifdef PERL5
-char *des_crypt();
-#else
-char *crypt();
-#endif
-void des_ofb_encrypt();
-void des_pcbc_encrypt();
-DES_LONG des_quad_cksum();
-void des_random_seed();
-void des_random_key();
-int des_read_password();
-int des_read_2passwords();
-int des_read_pw_string();
-void des_set_odd_parity();
-int des_is_weak_key();
-int des_set_key();
-int des_key_sched();
-void des_string_to_key();
-void des_string_to_2keys();
-void des_cfb64_encrypt();
-void des_ofb64_encrypt();
-int des_read_pw();
-void des_xwhite_in2out();
-
-/* Extra functions from Mark Murray <mark@grondar.za> */
-void des_cblock_print_file();
-/* The following functions are not in the normal unix build or the
- * SSLeay build.  When using the SSLeay build, use RAND_seed()
- * and RAND_bytes() instead. */
-#ifdef FreeBSD
-int des_new_random_key();
-void des_init_random_number_generator();
-void des_set_random_generator_seed();
-void des_set_sequence_number();
-void des_generate_random_block();
-#endif
-
 #endif
 
 #ifdef  __cplusplus

@@ -59,7 +59,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "sha.h"
+
+#ifdef NO_SHA
+int main(int argc, char *argv[])
+{
+    printf("No SHA support\n");
+    return(0);
+}
+#else
+#include <openssl/sha.h>
 
 #define SHA_0 /* FIPS 180 */
 #undef  SHA_1 /* FIPS 180-1 */
@@ -87,15 +95,8 @@ char *bigret=
 	"34aa973cd4c4daa4f61eeb2bdbad27316534016f";
 #endif
 
-#ifndef NOPROTO
 static char *pt(unsigned char *md);
-#else
-static char *pt();
-#endif
-
-int main(argc,argv)
-int argc;
-char *argv[];
+int main(int argc, char *argv[])
 	{
 	int i,err=0;
 	unsigned char **P,**R;
@@ -143,8 +144,7 @@ char *argv[];
 	return(0);
 	}
 
-static char *pt(md)
-unsigned char *md;
+static char *pt(unsigned char *md)
 	{
 	int i;
 	static char buf[80];
@@ -153,3 +153,4 @@ unsigned char *md;
 		sprintf(&(buf[i*2]),"%02x",md[i]);
 	return(buf);
 	}
+#endif
