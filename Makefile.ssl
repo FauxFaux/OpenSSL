@@ -4,7 +4,7 @@
 ## Makefile for OpenSSL
 ##
 
-VERSION=0.9.5
+VERSION=0.9.5a
 MAJOR=0
 MINOR=9.5
 PLATFORM=dist
@@ -30,8 +30,6 @@ OPENSSLDIR=/usr/local/ssl
 # DEVRANDOM - Give this the value of the 'random device' if your OS supports
 #           one.  32 bytes will be read from this when the random
 #           number generator is initalised.
-# SSL_ALLOW_ADH - define if you want the server to be able to use the
-#           SSLv3 anon-DH ciphers.
 # SSL_FORBID_ENULL - define if you want the server to be not able to use the
 #           NULL encryption ciphers.
 #
@@ -56,8 +54,8 @@ DEPFLAG=
 PEX_LIBS= -L. -L.. -L../.. -L../../..
 EX_LIBS= 
 AR=ar r
-RANLIB= /usr/ccs/bin/ranlib
-PERL= /sw/bin/perl
+RANLIB= /usr/bin/ranlib
+PERL= /usr/local/bin/perl
 TAR= tar
 TARFLAGS= --norecurse
 
@@ -370,21 +368,28 @@ install_docs:
 		$(INSTALL_PREFIX)$(MANDIR)/man7
 	@echo installing man 1 and man 5
 	@for i in doc/apps/*.pod; do \
-		(cd `dirname $$i`; \
 		fn=`basename $$i .pod`; \
 		sec=`[ "$$fn" = "config" ] && echo 5 || echo 1`; \
+		(cd `dirname $$i`; \
 		$(PERL) ../../util/pod2man.pl --section=$$sec --center=OpenSSL \
-			 --release=$(VERSION) `basename $$i` \
-			>  $(INSTALL_PREFIX)$(MANDIR)/man$$sec/`basename $$i .pod`.$$sec); \
+			 --release=$(VERSION) `basename $$i`) \
+			>  $(INSTALL_PREFIX)$(MANDIR)/man$$sec/`basename $$i .pod`.$$sec; \
 	done
 	@echo installing man 3 and man 7
 	@for i in doc/crypto/*.pod doc/ssl/*.pod; do \
-		(cd `dirname $$i`; \
 		fn=`basename $$i .pod`; \
 		sec=`[ "$$fn" = "des_modes" ] && echo 7 || echo 3`; \
+		(cd `dirname $$i`; \
 		$(PERL) ../../util/pod2man.pl --section=$$sec --center=OpenSSL \
-			--release=$(VERSION) `basename $$i` \
-			>  $(INSTALL_PREFIX)$(MANDIR)/man$$sec/`basename $$i .pod`.$$sec); \
+			--release=$(VERSION) `basename $$i`) \
+			>  $(INSTALL_PREFIX)$(MANDIR)/man$$sec/`basename $$i .pod`.$$sec; \
 	done
+
+shlib: all
+	if [ ! -d shlib_dir ] ; then mkdir shlib_dir ; else rm -f shlib_dir/* ; fi
+	cd shlib_dir ; ar -x ../libcrypto.a && $(CC) -shared ./*.o -Wl,-soname -Wl,libcrypto.so.0.9 \
+            -o ./libcrypto.so.0.9.4 && rm *.o
+	cd shlib_dir ; ar -x ../libssl.a && $(CC) -shared ./*.o -Wl,-soname -Wl,libssl.so.0.9 \
+            -o ./libssl.so.0.9.4 && rm *.o
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
