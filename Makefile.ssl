@@ -2,7 +2,7 @@
 ## Makefile for OpenSSL
 ##
 
-VERSION=0.9.3
+VERSION=0.9.3a
 MAJOR=0
 MINOR=9.3
 PLATFORM=dist

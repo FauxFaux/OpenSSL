@@ -109,10 +109,10 @@ dclean:
 	mv -f Makefile.new $(MAKEFILE)
 
 clean:
-	rm -f *.o asm/*.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
+	rm -f asm/mx86unix.cpp *.o asm/*.o *.obj lib tags core .pure .nfs* *.old *.bak fluff
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
 
-md5_dgst.o: ../../include/openssl/md5.h ../../include/openssl/opensslv.h
-md5_dgst.o: ../md32_common.h md5_locl.h
+md5_dgst.o: ../../include/openssl/md5.h ../../include/openssl/opensslconf.h
+md5_dgst.o: ../../include/openssl/opensslv.h ../md32_common.h md5_locl.h
 md5_one.o: ../../include/openssl/md5.h
