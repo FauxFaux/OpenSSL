@@ -198,6 +198,22 @@ static int engine_internal_check(void)
 	if(!engine_list_add(ENGINE_atalla()))
 		return 0;
 #endif /* !NO_HW_ATALLA */
+#ifndef NO_HW_AEP
+	if(!engine_list_add(ENGINE_aep()))
+		return 0;
+#endif /* !NO_HW_AEP */
+#ifndef NO_HW_SUREWARE
+       if(!engine_list_add(ENGINE_sureware()))
+                return 0;
+#endif /* !NO_HW_SUREWARE */
+#ifndef NO_HW_UBSEC
+	if(!engine_list_add(ENGINE_ubsec()))
+		return 0;
+#endif /* !NO_HW_UBSEC */
+#ifndef NO_HW_KEYCLIENT
+	if(!engine_list_add(ENGINE_keyclient()))
+		return 0;
+#endif /* !NO_HW_KEYCLIENT */
 #endif /* !NO_HW */
 	engine_list_flag = 1;
 	return 1;

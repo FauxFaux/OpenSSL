@@ -151,6 +151,25 @@ ENGINE *ENGINE_ncipher();
 ENGINE *ENGINE_atalla();
 #endif /* !NO_HW_ATALLA */
 
+#ifndef NO_HW_AEP
+/* Returns a structure of AEP methods. */
+ENGINE *ENGINE_aep();
+#endif /* !NO_HW_AEP */
+
+#ifndef NO_HW_SUREWARE
+/* Returns a structure of atalla methods. */
+ENGINE *ENGINE_sureware();
+#endif /* !NO_HW_SUREWARE */
+
+#ifndef NO_HW_UBSEC
+/* Returns a structure of ubsec methods. */
+ENGINE *ENGINE_ubsec();
+#endif /* !NO_HW_UBSEC */
+
+#ifndef NO_HW_KEYCLIENT
+/* Returns a structure of keyclient methods. */
+ENGINE *ENGINE_keyclient();
+#endif /* !NO_HW_KEYCLIENT */
 #endif /* !NO_HW */
 
 #ifdef  __cplusplus

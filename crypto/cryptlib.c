@@ -90,6 +90,7 @@ static const char* lock_names[CRYPTO_NUM_LOCKS] =
 	"ssl_sess_cert",
 	"ssl",
 	"rand",
+	"rand2",
 	"debug_malloc",
 	"BIO",
 	"gethostbyname",
@@ -101,7 +102,7 @@ static const char* lock_names[CRYPTO_NUM_LOCKS] =
 	"dso",
 	"dynlock",
 	"engine",
-#if CRYPTO_NUM_LOCKS != 29
+#if CRYPTO_NUM_LOCKS != 30
 # error "Inconsistency between crypto.h and cryptlib.c"
 #endif
 	};
@@ -228,7 +229,10 @@ void CRYPTO_destroy_dynlockid(int i)
 	CRYPTO_w_lock(CRYPTO_LOCK_DYNLOCK);
 
 	if (dyn_locks == NULL || i >= sk_CRYPTO_dynlock_num(dyn_locks))
-		return;
+		{
+		CRYPTO_w_unlock(CRYPTO_LOCK_DYNLOCK);
+ 		return;
+		}
 	pointer = sk_CRYPTO_dynlock_value(dyn_locks, i);
 	if (pointer != NULL)
 		{
