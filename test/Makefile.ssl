@@ -110,7 +110,7 @@ tests:	exe apps \
 	test_ss test_ca test_engine test_ssl
 
 apps:
-	@(cd ../apps; $(MAKE)  CC='${CC}' CFLAG='${CFLAG}' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' all)
+	@(cd ../apps; $(MAKE)  CC='${CC}' PLATFORM='${PLATFORM}' CFLAG='${CFLAG}' SDIRS='$(SDIRS)' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' AR='${AR}' PROCESSOR='${PROCESSOR}' PERL='${PERL}' RANLIB='${RANLIB}' TESTS='${TESTS}' EXE_EXT='${EXE_EXT}' SHARED_LIBS='${SHARED_LIBS}' SHLIB_EXT='${SHLIB_EXT}' SHLIB_TARGET='${SHLIB_TARGET}' all)
 
 test_des:
 	./$(DESTEST)
@@ -248,10 +248,10 @@ clean:
 	rm -f .rnd tmp.bntest tmp.bctest *.o *.obj lib tags core .pure .nfs* *.old *.bak fluff $(EXE) *.ss log
 
 $(DLIBSSL):
-	(cd ../ssl; $(MAKE))
+	(cd ../ssl; $(MAKE) CC='${CC}' PLATFORM='${PLATFORM}' CFLAG='${CFLAG}' SDIRS='$(SDIRS)' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' AR='${AR}' PROCESSOR='${PROCESSOR}' PERL='${PERL}' RANLIB='${RANLIB}' TESTS='${TESTS}' EXE_EXT='${EXE_EXT}' SHARED_LIBS='${SHARED_LIBS}' SHLIB_EXT='${SHLIB_EXT}' SHLIB_TARGET='${SHLIB_TARGET}')
 
 $(DLIBCRYPTO):
-	(cd ../crypto; $(MAKE))
+	(cd ../crypto; $(MAKE) CC='${CC}' PLATFORM='${PLATFORM}' CFLAG='${CFLAG}' SDIRS='$(SDIRS)' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' AR='${AR}' PROCESSOR='${PROCESSOR}' PERL='${PERL}' RANLIB='${RANLIB}' TESTS='${TESTS}' EXE_EXT='${EXE_EXT}' SHARED_LIBS='${SHARED_LIBS}' SHLIB_EXT='${SHLIB_EXT}' SHLIB_TARGET='${SHLIB_TARGET}')
 
 $(RSATEST): $(RSATEST).o $(DLIBCRYPTO)
 	$(CC) -o $(RSATEST) $(CFLAGS) $(RSATEST).o $(PEX_LIBS) $(LIBCRYPTO) $(EX_LIBS)
@@ -365,21 +365,21 @@ dsatest.o: ../include/openssl/safestack.h ../include/openssl/stack.h
 dsatest.o: ../include/openssl/symhacks.h
 enginetest.o: ../include/openssl/asn1.h ../include/openssl/bio.h
 enginetest.o: ../include/openssl/blowfish.h ../include/openssl/bn.h
-enginetest.o: ../include/openssl/cast.h ../include/openssl/crypto.h
-enginetest.o: ../include/openssl/des.h ../include/openssl/dh.h
-enginetest.o: ../include/openssl/dsa.h ../include/openssl/e_os2.h
-enginetest.o: ../include/openssl/engine.h ../include/openssl/err.h
-enginetest.o: ../include/openssl/evp.h ../include/openssl/idea.h
-enginetest.o: ../include/openssl/lhash.h ../include/openssl/md2.h
-enginetest.o: ../include/openssl/md4.h ../include/openssl/md5.h
-enginetest.o: ../include/openssl/mdc2.h ../include/openssl/obj_mac.h
-enginetest.o: ../include/openssl/objects.h ../include/openssl/opensslconf.h
-enginetest.o: ../include/openssl/opensslv.h ../include/openssl/rand.h
-enginetest.o: ../include/openssl/rc2.h ../include/openssl/rc4.h
-enginetest.o: ../include/openssl/rc5.h ../include/openssl/ripemd.h
-enginetest.o: ../include/openssl/rsa.h ../include/openssl/safestack.h
-enginetest.o: ../include/openssl/sha.h ../include/openssl/stack.h
-enginetest.o: ../include/openssl/symhacks.h
+enginetest.o: ../include/openssl/buffer.h ../include/openssl/cast.h
+enginetest.o: ../include/openssl/crypto.h ../include/openssl/des.h
+enginetest.o: ../include/openssl/dh.h ../include/openssl/dsa.h
+enginetest.o: ../include/openssl/e_os2.h ../include/openssl/engine.h
+enginetest.o: ../include/openssl/err.h ../include/openssl/evp.h
+enginetest.o: ../include/openssl/idea.h ../include/openssl/lhash.h
+enginetest.o: ../include/openssl/md2.h ../include/openssl/md4.h
+enginetest.o: ../include/openssl/md5.h ../include/openssl/mdc2.h
+enginetest.o: ../include/openssl/obj_mac.h ../include/openssl/objects.h
+enginetest.o: ../include/openssl/opensslconf.h ../include/openssl/opensslv.h
+enginetest.o: ../include/openssl/rand.h ../include/openssl/rc2.h
+enginetest.o: ../include/openssl/rc4.h ../include/openssl/rc5.h
+enginetest.o: ../include/openssl/ripemd.h ../include/openssl/rsa.h
+enginetest.o: ../include/openssl/safestack.h ../include/openssl/sha.h
+enginetest.o: ../include/openssl/stack.h ../include/openssl/symhacks.h
 exptest.o: ../include/openssl/bio.h ../include/openssl/bn.h
 exptest.o: ../include/openssl/crypto.h ../include/openssl/err.h
 exptest.o: ../include/openssl/lhash.h ../include/openssl/opensslconf.h
