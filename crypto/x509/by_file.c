@@ -66,7 +66,7 @@
 #include <openssl/x509.h>
 #include <openssl/pem.h>
 
-#ifndef OPENSSL_NO_STDIO
+#ifndef NO_STDIO
 
 static int by_file_ctrl(X509_LOOKUP *ctx, int cmd, const char *argc,
 	long argl, char **ret);
@@ -105,7 +105,7 @@ static int by_file_ctrl(X509_LOOKUP *ctx, int cmd, const char *argp, long argl,
 				ok = (X509_load_cert_crl_file(ctx,file,
 					      X509_FILETYPE_PEM) != 0);
 
-			else
+			if (!ok)
 				ok = (X509_load_cert_crl_file(ctx,X509_get_default_cert_file(),
 					      X509_FILETYPE_PEM) != 0);
 
@@ -295,5 +295,5 @@ int X509_load_cert_crl_file(X509_LOOKUP *ctx, const char *file, int type)
 }
 
 
-#endif /* OPENSSL_NO_STDIO */
+#endif /* NO_STDIO */
 

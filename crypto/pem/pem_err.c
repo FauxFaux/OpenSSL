@@ -63,7 +63,7 @@
 #include <openssl/pem.h>
 
 /* BEGIN ERROR CODES */
-#ifndef OPENSSL_NO_ERR
+#ifndef NO_ERR
 static ERR_STRING_DATA PEM_str_functs[]=
 	{
 {ERR_PACK(0,PEM_F_D2I_PKCS8PRIVATEKEY_BIO,0),	"d2i_PKCS8PrivateKey_bio"},
@@ -122,7 +122,7 @@ void ERR_load_PEM_strings(void)
 	if (init)
 		{
 		init=0;
-#ifndef OPENSSL_NO_ERR
+#ifndef NO_ERR
 		ERR_load_strings(ERR_LIB_PEM,PEM_str_functs);
 		ERR_load_strings(ERR_LIB_PEM,PEM_str_reasons);
 #endif

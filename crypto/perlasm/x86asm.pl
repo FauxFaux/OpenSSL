@@ -87,12 +87,6 @@ $tmp
 #ifdef OUT
 #define OK	1
 #define ALIGN	4
-#if defined(__CYGWIN__) || defined(__DJGPP__)
-#undef SIZE
-#undef TYPE
-#define SIZE(a,b)
-#define TYPE(a,b)
-#endif /* __CYGWIN || __DJGPP */
 #endif
 
 #if defined(BSDI) && !defined(ELF)

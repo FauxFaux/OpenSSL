@@ -12,8 +12,7 @@ INSTALL_PREFIX=
 OPENSSLDIR=     /usr/local/ssl
 INSTALLTOP=/usr/local/ssl
 MAKE=           make -f Makefile.ssl
-MAKEDEPPROG=	makedepend
-MAKEDEPEND=	$(TOP)/util/domd $(TOP) -MD $(MAKEDEPPROG)
+MAKEDEPEND=	$(TOP)/util/domd $(TOP)
 MAKEFILE=       Makefile.ssl
 AR=             ar r
 
@@ -51,7 +50,8 @@ all:    lib
 
 lib:    $(LIBOBJ)
 	$(AR) $(LIB) $(LIBOBJ)
-	$(RANLIB) $(LIB) || echo Never mind.
+	@echo You may get an error following this line.  Please ignore.
+	- $(RANLIB) $(LIB)
 	@touch lib
 
 # elf
@@ -118,7 +118,7 @@ lint:
 	lint -DLINT $(INCLUDES) $(SRC)>fluff
 
 depend:
-	$(MAKEDEPEND) -- $(CFLAG) $(INCLUDES) $(DEPFLAG) -- $(PROGS) $(LIBSRC)
+	$(MAKEDEPEND) -- $(INCLUDES) $(DEPFLAG) -- $(PROGS) $(LIBSRC)
 
 dclean:
 	$(PERL) -pe 'if (/^# DO NOT DELETE THIS LINE/) {print; exit(0);}' $(MAKEFILE) >Makefile.new
@@ -129,12 +129,8 @@ clean:
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
 
-md5_dgst.o: ../../include/openssl/e_os2.h ../../include/openssl/md5.h
-md5_dgst.o: ../../include/openssl/opensslconf.h
-md5_dgst.o: ../../include/openssl/opensslv.h ../md32_common.h md5_dgst.c
-md5_dgst.o: md5_locl.h
-md5_one.o: ../../include/openssl/crypto.h ../../include/openssl/e_os2.h
-md5_one.o: ../../include/openssl/md5.h ../../include/openssl/opensslconf.h
+md5_dgst.o: ../../include/openssl/md5.h ../../include/openssl/opensslconf.h
+md5_dgst.o: ../../include/openssl/opensslv.h ../md32_common.h md5_locl.h
+md5_one.o: ../../include/openssl/crypto.h ../../include/openssl/md5.h
 md5_one.o: ../../include/openssl/opensslv.h ../../include/openssl/safestack.h
 md5_one.o: ../../include/openssl/stack.h ../../include/openssl/symhacks.h
-md5_one.o: md5_one.c

@@ -56,29 +56,18 @@
  * [including the GNU Public Licence.]
  */
 
-#ifndef OPENSSL_NO_RC4
+#ifndef NO_RC4
 
 #include <stdio.h>
 #include "cryptlib.h"
 #include <openssl/evp.h>
 #include <openssl/objects.h>
-#include <openssl/rc4.h>
-
-/* FIXME: surely this is available elsewhere? */
-#define EVP_RC4_KEY_SIZE		16
-
-typedef struct
-    {
-    RC4_KEY ks;	/* working key */
-    } EVP_RC4_KEY;
-
-#define data(ctx) ((EVP_RC4_KEY *)(ctx)->cipher_data)
 
 static int rc4_init_key(EVP_CIPHER_CTX *ctx, const unsigned char *key,
 			const unsigned char *iv,int enc);
 static int rc4_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
 		      const unsigned char *in, unsigned int inl);
-static const EVP_CIPHER r4_cipher=
+static EVP_CIPHER r4_cipher=
 	{
 	NID_rc4,
 	1,EVP_RC4_KEY_SIZE,0,
@@ -86,13 +75,14 @@ static const EVP_CIPHER r4_cipher=
 	rc4_init_key,
 	rc4_cipher,
 	NULL,
-	sizeof(EVP_RC4_KEY),
+	sizeof(EVP_CIPHER_CTX)-sizeof((((EVP_CIPHER_CTX *)NULL)->c))+
+		sizeof((((EVP_CIPHER_CTX *)NULL)->c.rc4)),
 	NULL,
 	NULL,
 	NULL
 	};
 
-static const EVP_CIPHER r4_40_cipher=
+static EVP_CIPHER r4_40_cipher=
 	{
 	NID_rc4_40,
 	1,5 /* 40 bit */,0,
@@ -100,18 +90,19 @@ static const EVP_CIPHER r4_40_cipher=
 	rc4_init_key,
 	rc4_cipher,
 	NULL,
-	sizeof(EVP_RC4_KEY),
+	sizeof(EVP_CIPHER_CTX)-sizeof((((EVP_CIPHER_CTX *)NULL)->c))+
+		sizeof((((EVP_CIPHER_CTX *)NULL)->c.rc4)),
 	NULL, 
 	NULL,
 	NULL
 	};
 
-const EVP_CIPHER *EVP_rc4(void)
+EVP_CIPHER *EVP_rc4(void)
 	{
 	return(&r4_cipher);
 	}
 
-const EVP_CIPHER *EVP_rc4_40(void)
+EVP_CIPHER *EVP_rc4_40(void)
 	{
 	return(&r4_40_cipher);
 	}
@@ -119,15 +110,16 @@ const EVP_CIPHER *EVP_rc4_40(void)
 static int rc4_init_key(EVP_CIPHER_CTX *ctx, const unsigned char *key,
 			const unsigned char *iv, int enc)
 	{
-	RC4_set_key(&data(ctx)->ks,EVP_CIPHER_CTX_key_length(ctx),
-		    key);
+	memcpy(&(ctx->c.rc4.key[0]),key,EVP_CIPHER_CTX_key_length(ctx));
+	RC4_set_key(&(ctx->c.rc4.ks),EVP_CIPHER_CTX_key_length(ctx),
+		ctx->c.rc4.key);
 	return 1;
 	}
 
 static int rc4_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
 		      const unsigned char *in, unsigned int inl)
 	{
-	RC4(&data(ctx)->ks,inl,in,out);
+	RC4(&(ctx->c.rc4.ks),inl,in,out);
 	return 1;
 	}
 #endif

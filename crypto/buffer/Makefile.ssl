@@ -5,14 +5,13 @@
 DIR=	buffer
 TOP=	../..
 CC=	cc
-INCLUDES= -I.. -I$(TOP) -I../../include
+INCLUDES= -I.. -I../../include
 CFLAG=-g
 INSTALL_PREFIX=
 OPENSSLDIR=     /usr/local/ssl
 INSTALLTOP=/usr/local/ssl
 MAKE=		make -f Makefile.ssl
-MAKEDEPPROG=	makedepend
-MAKEDEPEND=	$(TOP)/util/domd $(TOP) -MD $(MAKEDEPPROG)
+MAKEDEPEND=	$(TOP)/util/domd $(TOP)
 MAKEFILE=	Makefile.ssl
 AR=		ar r
 
@@ -40,7 +39,8 @@ all:	lib
 
 lib:	$(LIBOBJ)
 	$(AR) $(LIB) $(LIBOBJ)
-	$(RANLIB) $(LIB) || echo Never mind.
+	@echo You may get an error following this line.  Please ignore.
+	- $(RANLIB) $(LIB)
 	@touch lib
 
 files:
@@ -68,7 +68,7 @@ lint:
 	lint -DLINT $(INCLUDES) $(SRC)>fluff
 
 depend:
-	$(MAKEDEPEND) -- $(CFLAG) $(INCLUDES) $(DEPFLAG) -- $(PROGS) $(LIBSRC)
+	$(MAKEDEPEND) -- $(INCLUDES) $(DEPFLAG) -- $(PROGS) $(LIBSRC)
 
 dclean:
 	$(PERL) -pe 'if (/^# DO NOT DELETE THIS LINE/) {print; exit(0);}' $(MAKEFILE) >Makefile.new
@@ -80,15 +80,14 @@ clean:
 # DO NOT DELETE THIS LINE -- make depend depends on it.
 
 buf_err.o: ../../include/openssl/bio.h ../../include/openssl/buffer.h
-buf_err.o: ../../include/openssl/crypto.h ../../include/openssl/e_os2.h
-buf_err.o: ../../include/openssl/err.h ../../include/openssl/lhash.h
-buf_err.o: ../../include/openssl/opensslconf.h ../../include/openssl/opensslv.h
+buf_err.o: ../../include/openssl/crypto.h ../../include/openssl/err.h
+buf_err.o: ../../include/openssl/lhash.h ../../include/openssl/opensslv.h
 buf_err.o: ../../include/openssl/safestack.h ../../include/openssl/stack.h
-buf_err.o: ../../include/openssl/symhacks.h buf_err.c
-buffer.o: ../../e_os.h ../../include/openssl/bio.h
-buffer.o: ../../include/openssl/buffer.h ../../include/openssl/crypto.h
+buf_err.o: ../../include/openssl/symhacks.h
+buffer.o: ../../include/openssl/bio.h ../../include/openssl/buffer.h
+buffer.o: ../../include/openssl/crypto.h ../../include/openssl/e_os.h
 buffer.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h
 buffer.o: ../../include/openssl/lhash.h ../../include/openssl/opensslconf.h
 buffer.o: ../../include/openssl/opensslv.h ../../include/openssl/safestack.h
 buffer.o: ../../include/openssl/stack.h ../../include/openssl/symhacks.h
-buffer.o: ../cryptlib.h buffer.c
+buffer.o: ../cryptlib.h

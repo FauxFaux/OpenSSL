@@ -1,5 +1,5 @@
 /* dso_dl.c */
-/* Written by Richard Levitte (richard@levitte.org) for the OpenSSL
+/* Written by Richard Levitte (levitte@openssl.org) for the OpenSSL
  * project 2000.
  */
 /* ====================================================================
@@ -72,7 +72,7 @@ DSO_METHOD *DSO_METHOD_dl(void)
 /* Part of the hack in "dl_load" ... */
 #define DSO_MAX_TRANSLATED_SIZE 256
 
-static int dl_load(DSO *dso);
+static int dl_load(DSO *dso, const char *filename);
 static int dl_unload(DSO *dso);
 static void *dl_bind_var(DSO *dso, const char *symname);
 static DSO_FUNC_TYPE dl_bind_func(DSO *dso, const char *symname);
@@ -81,9 +81,8 @@ static int dl_unbind_var(DSO *dso, char *symname, void *symptr);
 static int dl_unbind_func(DSO *dso, char *symname, DSO_FUNC_TYPE symptr);
 static int dl_init(DSO *dso);
 static int dl_finish(DSO *dso);
-static int dl_ctrl(DSO *dso, int cmd, long larg, void *parg);
 #endif
-static char *dl_name_converter(DSO *dso, const char *filename);
+static long dl_ctrl(DSO *dso, int cmd, long larg, void *parg);
 
 static DSO_METHOD dso_meth_dl = {
 	"OpenSSL 'dl' shared library method",
@@ -96,8 +95,7 @@ static DSO_METHOD dso_meth_dl = {
 	NULL, /* unbind_var */
 	NULL, /* unbind_func */
 #endif
-	NULL, /* ctrl */
-	dl_name_converter,
+	dl_ctrl,
 	NULL, /* init */
 	NULL  /* finish */
 	};
@@ -113,43 +111,40 @@ DSO_METHOD *DSO_METHOD_dl(void)
  * type so the cast is safe.
  */
 
-static int dl_load(DSO *dso)
+#if defined(__hpux)
+static const char extension[] = ".sl";
+#else
+static const char extension[] = ".so";
+#endif
+static int dl_load(DSO *dso, const char *filename)
 	{
-	shl_t ptr = NULL;
-	/* We don't do any fancy retries or anything, just take the method's
-	 * (or DSO's if it has the callback set) best translation of the
-	 * platform-independant filename and try once with that. */
-	char *filename= DSO_convert_filename(dso, NULL);
+	shl_t ptr;
+	char translated[DSO_MAX_TRANSLATED_SIZE];
+	int len;
 
-	if(filename == NULL)
+	/* The same comment as in dlfcn_load applies here. bleurgh. */
+	len = strlen(filename) + strlen(extension);
+	if((dso->flags & DSO_FLAG_NAME_TRANSLATION) &&
+			(len + 3 < DSO_MAX_TRANSLATED_SIZE) &&
+			(strstr(filename, "/") == NULL))
 		{
-		DSOerr(DSO_F_DL_LOAD,DSO_R_NO_FILENAME);
-		goto err;
+		sprintf(translated, "lib%s%s", filename, extension);
+		ptr = shl_load(translated, BIND_IMMEDIATE, NULL);
 		}
-	ptr = shl_load(filename, BIND_IMMEDIATE|DYNAMIC_PATH, NULL);
+	else
+		ptr = shl_load(filename, BIND_IMMEDIATE, NULL);
 	if(ptr == NULL)
 		{
 		DSOerr(DSO_F_DL_LOAD,DSO_R_LOAD_FAILED);
-		ERR_add_error_data(4, "filename(", filename, "): ",
-			strerror(errno));
-		goto err;
+		return(0);
 		}
 	if(!sk_push(dso->meth_data, (char *)ptr))
 		{
 		DSOerr(DSO_F_DL_LOAD,DSO_R_STACK_ERROR);
-		goto err;
-		}
-	/* Success, stick the converted filename we've loaded under into the DSO
-	 * (it also serves as the indicator that we are currently loaded). */
-	dso->loaded_filename = filename;
-	return(1);
-err:
-	/* Cleanup! */
-	if(filename != NULL)
-		OPENSSL_free(filename);
-	if(ptr != NULL)
 		shl_unload(ptr);
-	return(0);
+		return(0);
+		}
+	return(1);
 	}
 
 static int dl_unload(DSO *dso)
@@ -200,8 +195,6 @@ static void *dl_bind_var(DSO *dso, const char *symname)
 	if (shl_findsym(&ptr, symname, TYPE_UNDEFINED, &sym) < 0)
 		{
 		DSOerr(DSO_F_DL_BIND_VAR,DSO_R_SYM_FAILURE);
-		ERR_add_error_data(4, "symname(", symname, "): ",
-			strerror(errno));
 		return(NULL);
 		}
 	return(sym);
@@ -231,54 +224,33 @@ static DSO_FUNC_TYPE dl_bind_func(DSO *dso, const char *symname)
 	if (shl_findsym(&ptr, symname, TYPE_UNDEFINED, &sym) < 0)
 		{
 		DSOerr(DSO_F_DL_BIND_FUNC,DSO_R_SYM_FAILURE);
-		ERR_add_error_data(4, "symname(", symname, "): ",
-			strerror(errno));
 		return(NULL);
 		}
 	return((DSO_FUNC_TYPE)sym);
 	}
 
-/* This function is identical to the one in dso_dlfcn.c, but as it is highly
- * unlikely that both the "dl" *and* "dlfcn" variants are being compiled at the
- * same time, there's no great duplicating the code. Figuring out an elegant 
- * way to share one copy of the code would be more difficult and would not
- * leave the implementations independant. */
-#if defined(__hpux)
-static const char extension[] = ".sl";
-#else
-static const char extension[] = ".so";
-#endif
-static char *dl_name_converter(DSO *dso, const char *filename)
+static long dl_ctrl(DSO *dso, int cmd, long larg, void *parg)
 	{
-	char *translated;
-	int len, rsize, transform;
-
-	len = strlen(filename);
-	rsize = len + 1;
-	transform = (strstr(filename, "/") == NULL);
+	if(dso == NULL)
 		{
-		/* We will convert this to "%s.s?" or "lib%s.s?" */
-		rsize += strlen(extension);/* The length of ".s?" */
-		if ((DSO_flags(dso) & DSO_FLAG_NAME_TRANSLATION_EXT_ONLY) == 0)
-			rsize += 3; /* The length of "lib" */
+		DSOerr(DSO_F_DL_CTRL,ERR_R_PASSED_NULL_PARAMETER);
+		return(-1);
 		}
-	translated = OPENSSL_malloc(rsize);
-	if(translated == NULL)
+	switch(cmd)
 		{
-		DSOerr(DSO_F_DL_NAME_CONVERTER,
-				DSO_R_NAME_TRANSLATION_FAILED); 
-		return(NULL);   
+	case DSO_CTRL_GET_FLAGS:
+		return dso->flags;
+	case DSO_CTRL_SET_FLAGS:
+		dso->flags = larg;
+		return(0);
+	case DSO_CTRL_OR_FLAGS:
+		dso->flags |= larg;
+		return(0);
+	default:
+		break;
 		}
-	if(transform)
-		{
-		if ((DSO_flags(dso) & DSO_FLAG_NAME_TRANSLATION_EXT_ONLY) == 0)
-			sprintf(translated, "lib%s%s", filename, extension);
-		else
-			sprintf(translated, "%s%s", filename, extension);
-		}
-	else
-		sprintf(translated, "%s", filename);
-	return(translated);
+	DSOerr(DSO_F_DL_CTRL,DSO_R_UNKNOWN_COMMAND);
+	return(-1);
 	}
 
 #endif /* DSO_DL */

@@ -63,6 +63,9 @@
 #include <openssl/bio.h>
 #include <openssl/stack.h>
 
+static STACK_OF(CRYPTO_EX_DATA_FUNCS) *bio_meth=NULL;
+static int bio_meth_num=0;
+
 BIO *BIO_new(BIO_METHOD *method)
 	{
 	BIO *ret=NULL;
@@ -97,14 +100,10 @@ int BIO_set(BIO *bio, BIO_METHOD *method)
 	bio->references=1;
 	bio->num_read=0L;
 	bio->num_write=0L;
-	CRYPTO_new_ex_data(CRYPTO_EX_INDEX_BIO, bio, &bio->ex_data);
+	CRYPTO_new_ex_data(bio_meth,bio,&bio->ex_data);
 	if (method->create != NULL)
 		if (!method->create(bio))
-			{
-			CRYPTO_free_ex_data(CRYPTO_EX_INDEX_BIO, bio,
-					&bio->ex_data);
 			return(0);
-			}
 	return(1);
 	}
 
@@ -130,7 +129,7 @@ int BIO_free(BIO *a)
 		((i=(int)a->callback(a,BIO_CB_FREE,NULL,0,0L,1L)) <= 0))
 			return(i);
 
-	CRYPTO_free_ex_data(CRYPTO_EX_INDEX_BIO, a, &a->ex_data);
+	CRYPTO_free_ex_data(bio_meth,a,&a->ex_data);
 
 	if ((a->method == NULL) || (a->method->destroy == NULL)) return(1);
 	ret=a->method->destroy(a);
@@ -270,18 +269,6 @@ int BIO_gets(BIO *b, char *in, int inl)
 		i=(int)cb(b,BIO_CB_GETS|BIO_CB_RETURN,in,inl,
 			0L,(long)i);
 	return(i);
-	}
-
-int BIO_indent(BIO *b,int indent,int max)
-	{
-	if(indent < 0)
-		indent=0;
-	if(indent > max)
-		indent=max;
-	while(indent--)
-		if(BIO_puts(b," ") != 1)
-			return 0;
-	return 1;
 	}
 
 long BIO_int_ctrl(BIO *b, int cmd, long larg, int iarg)
@@ -495,8 +482,7 @@ BIO *BIO_dup_chain(BIO *in)
 			}
 
 		/* copy app data */
-		if (!CRYPTO_dup_ex_data(CRYPTO_EX_INDEX_BIO, &new->ex_data,
-					&bio->ex_data))
+		if (!CRYPTO_dup_ex_data(bio_meth,&new->ex_data,&bio->ex_data))
 			goto err;
 
 		if (ret == NULL)
@@ -526,8 +512,9 @@ void BIO_copy_next_retry(BIO *b)
 int BIO_get_ex_new_index(long argl, void *argp, CRYPTO_EX_new *new_func,
 	     CRYPTO_EX_dup *dup_func, CRYPTO_EX_free *free_func)
 	{
-	return CRYPTO_get_ex_new_index(CRYPTO_EX_INDEX_BIO, argl, argp,
-				new_func, dup_func, free_func);
+	bio_meth_num++;
+	return(CRYPTO_get_ex_new_index(bio_meth_num-1,&bio_meth,
+		argl,argp,new_func,dup_func,free_func));
 	}
 
 int BIO_set_ex_data(BIO *bio, int idx, void *data)

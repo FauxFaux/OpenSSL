@@ -119,7 +119,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "e_os.h"
+#include "openssl/e_os.h"
 
 #include <openssl/rand.h>
 #include "rand_lcl.h"
@@ -192,7 +192,7 @@ static void ssleay_rand_add(const void *buf, int num, double add)
 	int i,j,k,st_idx;
 	long md_c[2];
 	unsigned char local_md[MD_DIGEST_LENGTH];
-	EVP_MD_CTX m;
+	MD_CTX m;
 	int do_not_lock;
 
 	/*
@@ -254,7 +254,6 @@ static void ssleay_rand_add(const void *buf, int num, double add)
 
 	if (!do_not_lock) CRYPTO_w_unlock(CRYPTO_LOCK_RAND);
 
-	EVP_MD_CTX_init(&m);
 	for (i=0; i<num; i+=MD_DIGEST_LENGTH)
 		{
 		j=(num-i);
@@ -273,7 +272,7 @@ static void ssleay_rand_add(const void *buf, int num, double add)
 			
 		MD_Update(&m,buf,j);
 		MD_Update(&m,(unsigned char *)&(md_c[0]),sizeof(md_c));
-		MD_Final(&m,local_md);
+		MD_Final(local_md,&m);
 		md_c[1]++;
 
 		buf=(const char *)buf + j;
@@ -293,7 +292,7 @@ static void ssleay_rand_add(const void *buf, int num, double add)
 				st_idx=0;
 			}
 		}
-	EVP_MD_CTX_cleanup(&m);
+	memset((char *)&m,0,sizeof(m));
 
 	if (!do_not_lock) CRYPTO_w_lock(CRYPTO_LOCK_RAND);
 	/* Don't just copy back local_md into md -- this could mean that
@@ -308,7 +307,7 @@ static void ssleay_rand_add(const void *buf, int num, double add)
 	    entropy += add;
 	if (!do_not_lock) CRYPTO_w_unlock(CRYPTO_LOCK_RAND);
 	
-#if !defined(OPENSSL_THREADS) && !defined(OPENSSL_SYS_WIN32)
+#if !defined(THREADS) && !defined(WIN32)
 	assert(md_c[1] == md_count[1]);
 #endif
 	}
@@ -326,7 +325,7 @@ static int ssleay_rand_bytes(unsigned char *buf, int num)
 	int ok;
 	long md_c[2];
 	unsigned char local_md[MD_DIGEST_LENGTH];
-	EVP_MD_CTX m;
+	MD_CTX m;
 #ifndef GETPID_IS_MEANINGLESS
 	pid_t curr_pid = getpid();
 #endif
@@ -345,8 +344,7 @@ static int ssleay_rand_bytes(unsigned char *buf, int num)
 
 	if (num <= 0)
 		return 1;
-
-	EVP_MD_CTX_init(&m);
+	
 	/* round upwards to multiple of MD_DIGEST_LENGTH/2 */
 	num_ceil = (1 + (num-1)/(MD_DIGEST_LENGTH/2)) * (MD_DIGEST_LENGTH/2);
 
@@ -475,7 +473,7 @@ static int ssleay_rand_bytes(unsigned char *buf, int num)
 			}
 		else
 			MD_Update(&m,&(state[st_idx]),MD_DIGEST_LENGTH/2);
-		MD_Final(&m,local_md);
+		MD_Final(local_md,&m);
 
 		for (i=0; i<MD_DIGEST_LENGTH/2; i++)
 			{
@@ -492,10 +490,10 @@ static int ssleay_rand_bytes(unsigned char *buf, int num)
 	MD_Update(&m,local_md,MD_DIGEST_LENGTH);
 	CRYPTO_w_lock(CRYPTO_LOCK_RAND);
 	MD_Update(&m,md,MD_DIGEST_LENGTH);
-	MD_Final(&m,md);
+	MD_Final(md,&m);
 	CRYPTO_w_unlock(CRYPTO_LOCK_RAND);
 
-	EVP_MD_CTX_cleanup(&m);
+	memset(&m,0,sizeof(m));
 	if (ok)
 		return(1);
 	else

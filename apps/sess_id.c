@@ -156,7 +156,7 @@ int MAIN(int argc, char **argv)
 		{
 bad:
 		for (pp=sess_id_usage; (*pp != NULL); pp++)
-			BIO_printf(bio_err,"%s",*pp);
+			BIO_printf(bio_err,*pp);
 		goto end;
 		}
 
@@ -208,7 +208,7 @@ bad:
 		if (outfile == NULL)
 			{
 			BIO_set_fp(out,stdout,BIO_NOCLOSE);
-#ifdef OPENSSL_SYS_VMS
+#ifdef VMS
 			{
 			BIO *tmpbio = BIO_new(BIO_f_linebuffer());
 			out = BIO_push(tmpbio, out);
@@ -272,7 +272,6 @@ bad:
 end:
 	if (out != NULL) BIO_free_all(out);
 	if (x != NULL) SSL_SESSION_free(x);
-	apps_shutdown();
 	OPENSSL_EXIT(ret);
 	}
 

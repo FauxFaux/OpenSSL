@@ -108,7 +108,7 @@ void do_fp(FILE *f)
 	MD4_Init(&c);
 	for (;;)
 		{
-		i=read(fd,buf,sizeof buf);
+		i=read(fd,buf,BUFSIZE);
 		if (i <= 0) break;
 		MD4_Update(&c,buf,(unsigned long)i);
 		}

@@ -12,8 +12,7 @@ echo Generating x86 for GNU assember
 
 echo Bignum
 cd crypto\bn\asm
-perl bn-586.pl gaswin > bn-win32.s
-perl co-586.pl gaswin > co-win32.s
+perl x86.pl gaswin > bn-win32.s
 cd ..\..\..
 
 echo DES

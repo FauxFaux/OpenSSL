@@ -61,7 +61,7 @@
 
 int main(int argc, char *argv[])
 	{
-	DES_cblock k,k1;
+	des_cblock k,k1;
 	int i;
 
 	printf("read passwd\n");

@@ -60,8 +60,6 @@
 #include "cryptlib.h"
 #include <openssl/asn1_mac.h>
 
-#ifndef NO_ASN1_OLD
-
 typedef struct
     {
     unsigned char *pbData;
@@ -217,4 +215,3 @@ err:
 	return(NULL);
 	}
 
-#endif

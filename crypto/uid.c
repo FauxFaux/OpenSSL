@@ -54,18 +54,17 @@
  */
 
 #include <openssl/crypto.h>
-#include <openssl/opensslconf.h>
 
 #if defined(__OpenBSD__) || (defined(__FreeBSD__) && __FreeBSD__ > 2)
 
-#include OPENSSL_UNISTD
+#include <unistd.h>
 
 int OPENSSL_issetugid(void)
 	{
 	return issetugid();
 	}
 
-#elif defined(OPENSSL_SYS_WIN32) || defined(OPENSSL_SYS_VXWORKS)
+#elif defined(WIN32) || defined(VXWORKS)
 
 int OPENSSL_issetugid(void)
 	{
@@ -74,7 +73,7 @@ int OPENSSL_issetugid(void)
 
 #else
 
-#include OPENSSL_UNISTD
+#include <unistd.h>
 #include <sys/types.h>
 
 int OPENSSL_issetugid(void)
