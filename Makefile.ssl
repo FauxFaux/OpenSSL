@@ -4,7 +4,7 @@
 ## Makefile for OpenSSL
 ##
 
-VERSION=0.9.6h
+VERSION=0.9.6i
 MAJOR=0
 MINOR=9.6
 SHLIB_VERSION_NUMBER=0.9.6
