@@ -567,7 +567,7 @@ int X509_cmp_time(ASN1_TIME *ctm, time_t *cmp_time)
 	{
 	char *str;
 	ASN1_TIME atm;
-	time_t offset;
+	long offset;
 	char buff1[24],buff2[24],*p;
 	int i,j;
 
@@ -897,7 +897,7 @@ void X509_STORE_CTX_cleanup(X509_STORE_CTX *ctx)
 		ctx->chain=NULL;
 		}
 	CRYPTO_free_ex_data(x509_store_ctx_method,ctx,&(ctx->ex_data));
-	memset(&ctx->ex_data,0,sizeof(CRYPTO_EX_DATA));
+	OPENSSL_cleanse(&ctx->ex_data,sizeof(CRYPTO_EX_DATA));
 	}
 
 void X509_STORE_CTX_set_flags(X509_STORE_CTX *ctx, long flags)
