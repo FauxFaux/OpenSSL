@@ -1257,21 +1257,17 @@
 #define NID_id_pda_placeOfBirth		349
 #define OBJ_id_pda_placeOfBirth		OBJ_id_pda,2L
 
-#define SN_id_pda_pseudonym		"id-pda-pseudonym"
-#define NID_id_pda_pseudonym		350
-#define OBJ_id_pda_pseudonym		OBJ_id_pda,3L
-
 #define SN_id_pda_gender		"id-pda-gender"
 #define NID_id_pda_gender		351
-#define OBJ_id_pda_gender		OBJ_id_pda,4L
+#define OBJ_id_pda_gender		OBJ_id_pda,3L
 
 #define SN_id_pda_countryOfCitizenship		"id-pda-countryOfCitizenship"
 #define NID_id_pda_countryOfCitizenship		352
-#define OBJ_id_pda_countryOfCitizenship		OBJ_id_pda,5L
+#define OBJ_id_pda_countryOfCitizenship		OBJ_id_pda,4L
 
 #define SN_id_pda_countryOfResidence		"id-pda-countryOfResidence"
 #define NID_id_pda_countryOfResidence		353
-#define OBJ_id_pda_countryOfResidence		OBJ_id_pda,6L
+#define OBJ_id_pda_countryOfResidence		OBJ_id_pda,5L
 
 #define SN_id_aca_authenticationInfo		"id-aca-authenticationInfo"
 #define NID_id_aca_authenticationInfo		354
@@ -1821,12 +1817,12 @@
 #define SN_Enterprises		"enterprises"
 #define LN_Enterprises		"Enterprises"
 #define NID_Enterprises		389
-#define OBJ_Enterprises		OBJ_private,1L
+#define OBJ_Enterprises		OBJ_Private,1L
 
 #define SN_dcObject		"dcobject"
 #define LN_dcObject		"dcObject"
 #define NID_dcObject		390
-#define OBJ_dcObject		OBJ_enterprises,1466L,344L
+#define OBJ_dcObject		OBJ_Enterprises,1466L,344L
 
 #define SN_domainComponent		"DC"
 #define LN_domainComponent		"domainComponent"
