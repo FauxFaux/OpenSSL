@@ -162,6 +162,8 @@ STACK_OF(X509) *load_certs(BIO *err, char *file, int format);
 #define FORMAT_NETSCAPE 4
 #define FORMAT_PKCS12   5
 #define FORMAT_SMIME    6
+/* Since this is currently inofficial, let's give it a high number */
+#define FORMAT_ENGINE   127
 
 #define NETSCAPE_CERT_HDR	"certificate"
 
