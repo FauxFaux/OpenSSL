@@ -58,18 +58,7 @@
 
 #include <stdio.h>
 #include "cryptlib.h"
-#include <openssl/asn1_mac.h>
-
-static unsigned long tag2bit[32]={
-0,	0,	0,	B_ASN1_BIT_STRING,	/* tags  0 -  3 */
-B_ASN1_OCTET_STRING,	0,	0,		B_ASN1_UNKNOWN,/* tags  4- 7 */
-B_ASN1_UNKNOWN,	B_ASN1_UNKNOWN,	B_ASN1_UNKNOWN,	B_ASN1_UNKNOWN,/* tags  8-11 */
-B_ASN1_UTF8STRING,B_ASN1_UNKNOWN,B_ASN1_UNKNOWN,B_ASN1_UNKNOWN,/* tags 12-15 */
-0,	0,	B_ASN1_NUMERICSTRING,B_ASN1_PRINTABLESTRING,
-B_ASN1_T61STRING,B_ASN1_VIDEOTEXSTRING,B_ASN1_IA5STRING,0,
-0,B_ASN1_GRAPHICSTRING,B_ASN1_ISO64STRING,B_ASN1_GENERALSTRING,
-B_ASN1_UNIVERSALSTRING,B_ASN1_UNKNOWN,B_ASN1_BMPSTRING,B_ASN1_UNKNOWN,
-	};
+#include <openssl/asn1.h>
 
 static int asn1_collate_primitive(ASN1_STRING *a, ASN1_CTX *c);
 /* type is a 'bitmap' of acceptable string types.
@@ -92,7 +81,7 @@ ASN1_STRING *d2i_ASN1_type_bytes(ASN1_STRING **a, unsigned char **pp,
 		i=ASN1_R_TAG_VALUE_TOO_HIGH;;
 		goto err;
 		}
-	if (!(tag2bit[tag] & type))
+	if (!(ASN1_tag2bit(tag) & type))
 		{
 		i=ASN1_R_WRONG_TYPE;
 		goto err;
@@ -201,10 +190,7 @@ ASN1_STRING *d2i_ASN1_bytes(ASN1_STRING **a, unsigned char **pp, long length,
 		c.pp=pp;
 		c.p=p;
 		c.inf=inf;
-		if (inf & 1)
-			c.slen = length - (p - *pp);
-		else
-			c.slen=len;
+		c.slen=len;
 		c.tag=Ptag;
 		c.xclass=Pclass;
 		c.max=(length == 0)?0:(p+length);
@@ -282,7 +268,8 @@ static int asn1_collate_primitive(ASN1_STRING *a, ASN1_CTX *c)
 		{
 		if (c->inf & 1)
 			{
-			c->eos=ASN1_check_infinite_end(&c->p, c->slen);
+			c->eos=ASN1_check_infinite_end(&c->p,
+				(long)(c->max-c->p));
 			if (c->eos) break;
 			}
 		else
@@ -291,20 +278,21 @@ static int asn1_collate_primitive(ASN1_STRING *a, ASN1_CTX *c)
 			}
 
 		c->q=c->p;
-		if (d2i_ASN1_bytes(&os,&c->p,c->slen,c->tag,c->xclass)
+		if (d2i_ASN1_bytes(&os,&c->p,c->max-c->p,c->tag,c->xclass)
 			== NULL)
 			{
 			c->error=ERR_R_ASN1_LIB;
 			goto err;
 			}
 
-		if (!BUF_MEM_grow(&b,num+os->length))
+		if (!BUF_MEM_grow_clean(&b,num+os->length))
 			{
 			c->error=ERR_R_BUF_LIB;
 			goto err;
 			}
 		memcpy(&(b.data[num]),os->data,os->length);
-		c->slen-=(c->p-c->q);
+		if (!(c->inf & 1))
+			c->slen-=(c->p-c->q);
 		num+=os->length;
 		}
 

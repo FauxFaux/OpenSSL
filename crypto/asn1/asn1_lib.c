@@ -306,7 +306,7 @@ int asn1_GetSequence(ASN1_CTX *c, long *length)
 		return(0);
 		}
 	if (c->inf == (1|V_ASN1_CONSTRUCTED))
-		c->slen= *length;
+		c->slen= *length+ *(c->pp)-c->p;
 	c->eos=0;
 	return(1);
 	}
@@ -414,8 +414,8 @@ void asn1_add_error(unsigned char *address, int offset)
 	{
 	char buf1[DECIMAL_SIZE(address)+1],buf2[DECIMAL_SIZE(offset)+1];
 
-	sprintf(buf1,"%lu",(unsigned long)address);
-	sprintf(buf2,"%d",offset);
+	BIO_snprintf(buf1,sizeof buf1,"%lu",(unsigned long)address);
+	BIO_snprintf(buf2,sizeof buf2,"%d",offset);
 	ERR_add_error_data(4,"address=",buf1," offset=",buf2);
 	}
 

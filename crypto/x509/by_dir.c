@@ -303,7 +303,7 @@ static int get_cert_by_subject(X509_LOOKUP *xl, int type, X509_NAME *name,
 		for (;;)
 			{
 			char c = '/';
-#ifdef VMS
+#ifdef OPENSSL_SYS_VMS
 			c = ctx->dirs[i][strlen(ctx->dirs[i])-1];
 			if (c != ':' && c != '>' && c != ']')
 				{
@@ -324,13 +324,15 @@ static int get_cert_by_subject(X509_LOOKUP *xl, int type, X509_NAME *name,
 				{
 				/* This is special.  When c == '\0', no
 				   directory separator should be added. */
-				sprintf(b->data,"%s%08lx.%s%d",ctx->dirs[i],h,
+				BIO_snprintf(b->data,b->max,
+					"%s%08lx.%s%d",ctx->dirs[i],h,
 					postfix,k);
 				}
 			else
 				{
-				sprintf(b->data,"%s%c%08lx.%s%d",
-					ctx->dirs[i],c,h,postfix,k);
+				BIO_snprintf(b->data,b->max,
+					"%s%c%08lx.%s%d",ctx->dirs[i],c,h,
+					postfix,k);
 				}
 			k++;
 			if (stat(b->data,&st) < 0)

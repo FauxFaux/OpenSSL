@@ -57,13 +57,15 @@
  */
 
 #include "des_locl.h"
+#include "des_ver.h"
 #include "spr.h"
 #include <openssl/opensslv.h>
+#include <openssl/bio.h>
 
 OPENSSL_GLOBAL const char *libdes_version="libdes" OPENSSL_VERSION_PTEXT;
 OPENSSL_GLOBAL const char *DES_version="DES" OPENSSL_VERSION_PTEXT;
 
-const char *des_options(void)
+const char *DES_options(void)
 	{
 	static int init=1;
 	static char buf[32];
@@ -96,16 +98,16 @@ const char *des_options(void)
 			size="int";
 		else
 			size="long";
-		sprintf(buf,"des(%s,%s,%s,%s)",ptr,risc,unroll,size);
+		BIO_snprintf(buf,sizeof buf,"des(%s,%s,%s,%s)",ptr,risc,unroll,
+			     size);
 		init=0;
 		}
 	return(buf);
 	}
 		
 
-void des_ecb_encrypt(const_des_cblock *input, des_cblock *output,
-	     des_key_schedule ks,
-	     int enc)
+void DES_ecb_encrypt(const_DES_cblock *input, DES_cblock *output,
+		     DES_key_schedule *ks, int enc)
 	{
 	register DES_LONG l;
 	DES_LONG ll[2];
@@ -114,9 +116,8 @@ void des_ecb_encrypt(const_des_cblock *input, des_cblock *output,
 
 	c2l(in,l); ll[0]=l;
 	c2l(in,l); ll[1]=l;
-	des_encrypt1(ll,ks,enc);
+	DES_encrypt1(ll,ks,enc);
 	l=ll[0]; l2c(l,out);
 	l=ll[1]; l2c(l,out);
 	l=ll[0]=ll[1]=0;
 	}
-

@@ -1,5 +1,9 @@
 #!/usr/local/bin/perl
 
+# fixes bug in floating point emulation on sparc64 when
+# this script produces off-by-one output on sparc64
+use integer;
+
 sub obj_cmp
 	{
 	local(@a,@b,$_,$r);
@@ -168,7 +172,7 @@ print OUT <<'EOF';
 
 /* THIS FILE IS GENERATED FROM objects.h by obj_dat.pl via the
  * following command:
- * perl obj_dat.pl objects.h obj_dat.h
+ * perl obj_dat.pl obj_mac.h obj_dat.h
  */
 
 /* Copyright (C) 1995-1997 Eric Young (eay@cryptsoft.com)

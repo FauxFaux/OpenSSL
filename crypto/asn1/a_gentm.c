@@ -61,13 +61,10 @@
 #include <stdio.h>
 #include <time.h>
 #include "cryptlib.h"
+#include "o_time.h"
 #include <openssl/asn1.h>
 
-ASN1_GENERALIZEDTIME *ASN1_GENERALIZEDTIME_new(void)
-{ return M_ASN1_GENERALIZEDTIME_new(); }
-
-void ASN1_GENERALIZEDTIME_free(ASN1_GENERALIZEDTIME *x)
-{ M_ASN1_GENERALIZEDTIME_free(x); }
+#if 0
 
 int i2d_ASN1_GENERALIZEDTIME(ASN1_GENERALIZEDTIME *a, unsigned char **pp)
 	{
@@ -116,6 +113,8 @@ err:
 	return(NULL);
 	}
 
+#endif
+
 int ASN1_GENERALIZEDTIME_check(ASN1_GENERALIZEDTIME *d)
 	{
 	static int min[9]={ 0, 0, 1, 1, 0, 0, 0, 0, 0};
@@ -147,6 +146,19 @@ int ASN1_GENERALIZEDTIME_check(ASN1_GENERALIZEDTIME *d)
 
 		if ((n < min[i]) || (n > max[i])) goto err;
 		}
+	/* Optional fractional seconds: decimal point followed by one
+	 * or more digits.
+	 */
+	if (a[o] == '.')
+		{
+		if (++o > l) goto err;
+		i = o;
+		while ((a[o] >= '0') && (a[o] <= '9') && (o <= l))
+			o++;
+		/* Must have at least one digit after decimal point */
+		if (i == o) goto err;
+		}
+
 	if (a[o] == 'Z')
 		o++;
 	else if ((a[o] == '+') || (a[o] == '-'))
@@ -182,6 +194,7 @@ int ASN1_GENERALIZEDTIME_set_string(ASN1_GENERALIZEDTIME *s, char *str)
 			{
 			ASN1_STRING_set((ASN1_STRING *)s,
 				(unsigned char *)str,t.length);
+			s->type=V_ASN1_GENERALIZEDTIME;
 			}
 		return(1);
 		}
@@ -194,33 +207,30 @@ ASN1_GENERALIZEDTIME *ASN1_GENERALIZEDTIME_set(ASN1_GENERALIZEDTIME *s,
 	{
 	char *p;
 	struct tm *ts;
-#if defined(THREADS) && !defined(WIN32)
 	struct tm data;
-#endif
+	size_t len = 20; 
 
 	if (s == NULL)
 		s=M_ASN1_GENERALIZEDTIME_new();
 	if (s == NULL)
 		return(NULL);
 
-#if defined(THREADS) && !defined(WIN32) && ! defined(_DARWIN)
-	gmtime_r(&t,&data); /* should return &data, but doesn't on some systems, so we don't even look at the return value */
-	ts=&data;
-#else
-	ts=gmtime(&t);
-#endif
+	ts=OPENSSL_gmtime(&t, &data);
+	if (ts == NULL)
+		return(NULL);
+
 	p=(char *)s->data;
-	if ((p == NULL) || (s->length < 16))
+	if ((p == NULL) || ((size_t)s->length < len))
 		{
-		p=OPENSSL_malloc(20);
+		p=OPENSSL_malloc(len);
 		if (p == NULL) return(NULL);
 		if (s->data != NULL)
 			OPENSSL_free(s->data);
 		s->data=(unsigned char *)p;
 		}
 
-	sprintf(p,"%04d%02d%02d%02d%02d%02dZ",ts->tm_year + 1900,
-		ts->tm_mon+1,ts->tm_mday,ts->tm_hour,ts->tm_min,ts->tm_sec);
+	BIO_snprintf(p,len,"%04d%02d%02d%02d%02d%02dZ",ts->tm_year + 1900,
+		     ts->tm_mon+1,ts->tm_mday,ts->tm_hour,ts->tm_min,ts->tm_sec);
 	s->length=strlen(p);
 	s->type=V_ASN1_GENERALIZEDTIME;
 #ifdef CHARSET_EBCDIC_not
