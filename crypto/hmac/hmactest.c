@@ -62,7 +62,7 @@
 
 #include "../e_os.h"
 
-#ifdef OPENSSL_NO_HMAC
+#ifdef NO_HMAC
 int main(int argc, char *argv[])
 {
     printf("No HMAC support\n");
@@ -70,15 +70,11 @@ int main(int argc, char *argv[])
 }
 #else
 #include <openssl/hmac.h>
-#ifndef OPENSSL_NO_MD5
-#include <openssl/md5.h>
-#endif
 
 #ifdef CHARSET_EBCDIC
 #include <openssl/ebcdic.h>
 #endif
 
-#ifndef OPENSSL_NO_MD5
 static struct test_st
 	{
 	unsigned char key[16];
@@ -118,20 +114,13 @@ static struct test_st
 		(unsigned char *)"56be34521d144c88dbb8c733f0e8b3f6",
 	},
 	};
-#endif
+
 
 static char *pt(unsigned char *md);
 int main(int argc, char *argv[])
 	{
-#ifndef OPENSSL_NO_MD5
-	int i;
+	int i,err=0;
 	char *p;
-#endif
-	int err=0;
-
-#ifdef OPENSSL_NO_MD5
-	printf("test skipped: MD5 disabled\n");
-#else
 
 #ifdef CHARSET_EBCDIC
 	ebcdic2ascii(test[0].data, test[0].data, test[0].data_len);
@@ -156,12 +145,10 @@ int main(int argc, char *argv[])
 		else
 			printf("test %d ok\n",i);
 		}
-#endif /* OPENSSL_NO_MD5 */
 	EXIT(err);
 	return(0);
 	}
 
-#ifndef OPENSSL_NO_MD5
 static char *pt(unsigned char *md)
 	{
 	int i;
@@ -171,5 +158,4 @@ static char *pt(unsigned char *md)
 		sprintf(&(buf[i*2]),"%02x",md[i]);
 	return(buf);
 	}
-#endif
 #endif

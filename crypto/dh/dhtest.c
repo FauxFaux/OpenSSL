@@ -62,13 +62,16 @@
 
 #include "../e_os.h"
 
+#ifdef WINDOWS
+#include "../bio/bss_file.c" 
+#endif
 #include <openssl/crypto.h>
 #include <openssl/bio.h>
 #include <openssl/bn.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
 
-#ifdef OPENSSL_NO_DH
+#ifdef NO_DH
 int main(int argc, char *argv[])
 {
     printf("No DH support\n");
@@ -77,13 +80,17 @@ int main(int argc, char *argv[])
 #else
 #include <openssl/dh.h>
 
-#ifdef OPENSSL_SYS_WIN16
+#ifdef WIN16
 #define MS_CALLBACK	_far _loadds
 #else
 #define MS_CALLBACK
 #endif
 
 static void MS_CALLBACK cb(int p, int n, void *arg);
+#ifdef NO_STDIO
+#define APPS_WIN16
+#include "bss_file.c"
+#endif
 
 static const char rnd_seed[] = "string to make the random number generator think it has entropy";
 
@@ -96,11 +103,7 @@ int main(int argc, char *argv[])
 	int i,alen,blen,aout,bout,ret=1;
 	BIO *out;
 
-	CRYPTO_malloc_debug_init();
-	CRYPTO_dbg_set_options(V_CRYPTO_MDEBUG_ALL);
-	CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ON);
-
-#ifdef OPENSSL_SYS_WIN32
+#ifdef WIN32
 	CRYPTO_malloc_init();
 #endif
 
@@ -188,9 +191,6 @@ err:
 	if(b != NULL) DH_free(b);
 	if(a != NULL) DH_free(a);
 	BIO_free(out);
-	CRYPTO_cleanup_all_ex_data();
-	ERR_remove_state(0);
-	CRYPTO_mem_leaks_fp(stderr);
 	EXIT(ret);
 	return(ret);
 	}

@@ -61,22 +61,16 @@
 #include <openssl/bn.h>
 #include <openssl/evp.h>
 #include <openssl/objects.h>
-#ifndef OPENSSL_NO_RSA
-#include <openssl/rsa.h>
-#endif
-#ifndef OPENSSL_NO_DSA
-#include <openssl/dsa.h>
-#endif
 
 int i2d_PublicKey(EVP_PKEY *a, unsigned char **pp)
 	{
 	switch (a->type)
 		{
-#ifndef OPENSSL_NO_RSA
+#ifndef NO_RSA
 	case EVP_PKEY_RSA:
 		return(i2d_RSAPublicKey(a->pkey.rsa,pp));
 #endif
-#ifndef OPENSSL_NO_DSA
+#ifndef NO_DSA
 	case EVP_PKEY_DSA:
 		return(i2d_DSAPublicKey(a->pkey.dsa,pp));
 #endif

@@ -63,7 +63,6 @@
 #include <openssl/asn1.h>
 
 #include "charmap.h"
-#include "cryptlib.h"
 
 /* ASN1_STRING_print_ex() and X509_NAME_print_ex().
  * Enhanced string and name printing routines handling
@@ -78,8 +77,8 @@
 /* Three IO functions for sending data to memory, a BIO and
  * and a FILE pointer.
  */
-#if 0				/* never used */
-static int send_mem_chars(void *arg, const void *buf, int len)
+
+int send_mem_chars(void *arg, const void *buf, int len)
 {
 	unsigned char **out = arg;
 	if(!out) return 1;
@@ -87,16 +86,15 @@ static int send_mem_chars(void *arg, const void *buf, int len)
 	*out += len;
 	return 1;
 }
-#endif
 
-static int send_bio_chars(void *arg, const void *buf, int len)
+int send_bio_chars(void *arg, const void *buf, int len)
 {
 	if(!arg) return 1;
 	if(BIO_write(arg, buf, len) != len) return 0;
 	return 1;
 }
 
-static int send_fp_chars(void *arg, const void *buf, int len)
+int send_fp_chars(void *arg, const void *buf, int len)
 {
 	if(!arg) return 1;
 	if(fwrite(buf, 1, len, arg) != (unsigned int)len) return 0;
@@ -115,17 +113,14 @@ typedef int char_io(void *arg, const void *buf, int len);
 static int do_esc_char(unsigned long c, unsigned char flags, char *do_quotes, char_io *io_ch, void *arg)
 {
 	unsigned char chflgs, chtmp;
-	char tmphex[HEX_SIZE(long)+3];
-
-	if(c > 0xffffffffL)
-		return -1;
+	char tmphex[11];
 	if(c > 0xffff) {
-		BIO_snprintf(tmphex, sizeof tmphex, "\\W%08lX", c);
+		BIO_snprintf(tmphex, 11, "\\W%08lX", c);
 		if(!io_ch(arg, tmphex, 10)) return -1;
 		return 10;
 	}
 	if(c > 0xff) {
-		BIO_snprintf(tmphex, sizeof tmphex, "\\U%04lX", c);
+		BIO_snprintf(tmphex, 11, "\\U%04lX", c);
 		if(!io_ch(arg, tmphex, 6)) return -1;
 		return 6;
 	}
@@ -199,7 +194,7 @@ static int do_buf(unsigned char *buf, int buflen,
 		if(type & BUF_TYPE_CONVUTF8) {
 			unsigned char utfbuf[6];
 			int utflen;
-			utflen = UTF8_putc(utfbuf, sizeof utfbuf, c);
+			utflen = UTF8_putc(utfbuf, 6, c);
 			for(i = 0; i < utflen; i++) {
 				/* We don't need to worry about setting orflags correctly
 				 * because if utflen==1 its value will be correct anyway 
@@ -245,7 +240,7 @@ static int do_hex_dump(char_io *io_ch, void *arg, unsigned char *buf, int buflen
  * #01234 format.
  */
 
-static int do_dump(unsigned long lflags, char_io *io_ch, void *arg, ASN1_STRING *str)
+int do_dump(unsigned long lflags, char_io *io_ch, void *arg, ASN1_STRING *str)
 {
 	/* Placing the ASN1_STRING in a temp ASN1_TYPE allows
 	 * the DER encoding to readily obtained
@@ -376,8 +371,6 @@ static int do_indent(char_io *io_ch, void *arg, int indent)
 	return 1;
 }
 
-#define FN_WIDTH_LN	25
-#define FN_WIDTH_SN	10
 
 static int do_name_ex(char_io *io_ch, void *arg, X509_NAME *n,
 				int indent, unsigned long flags)
@@ -463,29 +456,19 @@ static int do_name_ex(char_io *io_ch, void *arg, X509_NAME *n,
 		val = X509_NAME_ENTRY_get_data(ent);
 		fn_nid = OBJ_obj2nid(fn);
 		if(fn_opt != XN_FLAG_FN_NONE) {
-			int objlen, fld_len;
+			int objlen;
 			if((fn_opt == XN_FLAG_FN_OID) || (fn_nid==NID_undef) ) {
-				OBJ_obj2txt(objtmp, sizeof objtmp, fn, 1);
-				fld_len = 0; /* XXX: what should this be? */
+				OBJ_obj2txt(objtmp, 80, fn, 1);
 				objbuf = objtmp;
 			} else {
-				if(fn_opt == XN_FLAG_FN_SN) {
-					fld_len = FN_WIDTH_SN;
+				if(fn_opt == XN_FLAG_FN_SN) 
 					objbuf = OBJ_nid2sn(fn_nid);
-				} else if(fn_opt == XN_FLAG_FN_LN) {
-					fld_len = FN_WIDTH_LN;
+				else if(fn_opt == XN_FLAG_FN_LN)
 					objbuf = OBJ_nid2ln(fn_nid);
-				} else {
-					fld_len = 0; /* XXX: what should this be? */
-					objbuf = "";
-				}
+				else objbuf = "";
 			}
 			objlen = strlen(objbuf);
 			if(!io_ch(arg, objbuf, objlen)) return -1;
-			if ((objlen < fld_len) && (flags & XN_FLAG_FN_ALIGN)) {
-				if (!do_indent(io_ch, arg, fld_len - objlen)) return -1;
-				outlen += fld_len - objlen;
-			}
 			if(!io_ch(arg, sep_eq, sep_eq_len)) return -1;
 			outlen += objlen + sep_eq_len;
 		}
@@ -508,24 +491,12 @@ static int do_name_ex(char_io *io_ch, void *arg, X509_NAME *n,
 
 int X509_NAME_print_ex(BIO *out, X509_NAME *nm, int indent, unsigned long flags)
 {
-	if(flags == XN_FLAG_COMPAT)
-		return X509_NAME_print(out, nm, indent);
 	return do_name_ex(send_bio_chars, out, nm, indent, flags);
 }
 
 
 int X509_NAME_print_ex_fp(FILE *fp, X509_NAME *nm, int indent, unsigned long flags)
 {
-	if(flags == XN_FLAG_COMPAT)
-		{
-		BIO *btmp;
-		int ret;
-		btmp = BIO_new_fp(fp, BIO_NOCLOSE);
-		if(!btmp) return -1;
-		ret = X509_NAME_print(btmp, nm, indent);
-		BIO_free(btmp);
-		return ret;
-		}
 	return do_name_ex(send_fp_chars, fp, nm, indent, flags);
 }
 

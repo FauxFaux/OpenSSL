@@ -58,7 +58,7 @@
 
 #include <stdio.h>
 #include <openssl/rc4.h>
-#ifdef OPENSSL_NO_DES
+#ifdef NO_DES
 #include <des.h>
 #else
 #include <openssl/des.h>

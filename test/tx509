@@ -1,10 +1,6 @@
 #!/bin/sh
 
-if test "$OSTYPE" = msdosdjgpp; then
-    PATH=../apps\;$PATH
-else
-    PATH=../apps:$PATH
-fi
+PATH=../apps:$PATH
 export PATH
 
 cmd='../apps/openssl x509'

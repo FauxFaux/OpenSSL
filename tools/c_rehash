@@ -17,10 +17,10 @@ if(defined $ENV{OPENSSL}) {
 
 $ENV{PATH} .= ":$dir/bin";
 
-if(! -x $openssl) {
+if(! -f $openssl) {
 	my $found = 0;
 	foreach (split /:/, $ENV{PATH}) {
-		if(-x "$_/$openssl") {
+		if(-f "$_/$openssl") {
 			$found = 1;
 			last;
 		}	

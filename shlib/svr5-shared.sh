@@ -1,7 +1,7 @@
 #!/usr/bin/sh
 
 major="0"
-minor="9.7b"
+minor="9.6b"
 
 slib=libssl
 sh_slib=$slib.so.$major.$minor

@@ -65,8 +65,7 @@ char *argv[];
 
 	fprintf(stderr,"please enter challenge string:");
 	fflush(stderr);
-	buf[0]='\0';
-	fgets(buf,sizeof buf,stdin);
+	fgets(buf,120,stdin);
 	i=strlen(buf);
 	if (i > 0) buf[--i]='\0';
 	if (!ASN1_STRING_set((ASN1_STRING *)spki->spkac->challenge,

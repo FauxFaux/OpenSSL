@@ -92,8 +92,6 @@ sub get_mem
 		$addr="_$addr";
 		}
 
-	if ($addr =~ /^.+\-.+$/) { $addr="($addr)"; }
-
 	$reg1="$regs{$reg1}" if defined($regs{$reg1});
 	$reg2="$regs{$reg2}" if defined($regs{$reg2});
 	if (($addr ne "") && ($addr ne 0))
@@ -113,7 +111,6 @@ sub get_mem
 		{
 		$ret.="[$reg1$post]"
 		}
-	$ret =~ s/\[\]//;	# in case $addr was the only argument
 	return($ret);
 	}
 
@@ -157,7 +154,7 @@ sub main'push	{ &out1("push",@_); $stack+=4; }
 sub main'pop	{ &out1("pop",@_); $stack-=4; }
 sub main'bswap	{ &out1("bswap",@_); &using486(); }
 sub main'not	{ &out1("not",@_); }
-sub main'call	{ &out1("call",($_[0]=~/^\$L/?'':'_').$_[0]); }
+sub main'call	{ &out1("call",'_'.$_[0]); }
 sub main'ret	{ &out0("ret"); }
 sub main'nop	{ &out0("nop"); }
 
@@ -344,7 +341,7 @@ sub main'set_label
 	{
 	if (!defined($label{$_[0]}))
 		{
-		$label{$_[0]}="\$${label}${_[0]}";
+		$label{$_[0]}="${label}${_[0]}";
 		$label++;
 		}
 	if((defined $_[2]) && ($_[2] == 1))
@@ -369,11 +366,3 @@ sub out1p
 
 	push(@out,"\t$name\t ".&conv($p1)."\n");
 	}
-
-sub main'picmeup
-	{
-	local($dst,$sym)=@_;
-	&main'lea($dst,&main'DWP($sym));
-	}
-
-sub main'blindpop { &out1("pop",@_); }

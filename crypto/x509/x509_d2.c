@@ -61,7 +61,7 @@
 #include <openssl/crypto.h>
 #include <openssl/x509.h>
 
-#ifndef OPENSSL_NO_STDIO
+#ifndef NO_STDIO
 int X509_STORE_set_default_paths(X509_STORE *ctx)
 	{
 	X509_LOOKUP *lookup;

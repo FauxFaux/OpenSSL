@@ -113,7 +113,7 @@
 #include <openssl/rand.h>
 #include "rand_lcl.h"
 
-#if defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_WIN32)
+#if defined(WINDOWS) || defined(WIN32)
 #include <windows.h>
 #ifndef _WIN32_WINNT
 # define _WIN32_WINNT 0x0400
@@ -125,7 +125,7 @@
  * http://developer.intel.com/design/security/rng/redist_license.htm
  */
 #define PROV_INTEL_SEC 22
-#define INTEL_DEF_PROV TEXT("Intel Hardware Cryptographic Service Provider")
+#define INTEL_DEF_PROV "Intel Hardware Cryptographic Service Provider"
 
 static void readtimer(void);
 static void readscreen(void);
@@ -171,9 +171,7 @@ typedef BOOL (WINAPI *THREAD32)(HANDLE, LPTHREADENTRY32);
 typedef BOOL (WINAPI *MODULE32)(HANDLE, LPMODULEENTRY32);
 
 #include <lmcons.h>
-#ifndef OPENSSL_SYS_WINCE
 #include <lmstats.h>
-#endif
 #if 1 /* The NET API is Unicode only.  It requires the use of the UNICODE
        * macro.  When UNICODE is defined LPTSTR becomes LPWSTR.  LMSTR was
        * was added to the Platform SDK to allow the NET API to be used in
@@ -212,32 +210,20 @@ int RAND_poll(void)
         osverinfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO) ;
         GetVersionEx( &osverinfo ) ;
 
-#if defined(OPENSSL_SYS_WINCE) && WCEPLATFORM!=MS_HPC_PRO
-	/* poll the CryptoAPI PRNG */
-	/* The CryptoAPI returns sizeof(buf) bytes of randomness */
-	if (CryptAcquireContext(&hProvider, 0, 0, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
-		{
-		if (CryptGenRandom(hProvider, sizeof(buf), buf))
-			RAND_add(buf, sizeof(buf), sizeof(buf));
-		CryptReleaseContext(hProvider, 0); 
-		}
-#endif
-
 	/* load functions dynamically - not available on all systems */
-	advapi = LoadLibrary(TEXT("ADVAPI32.DLL"));
-	kernel = LoadLibrary(TEXT("KERNEL32.DLL"));
-	user = LoadLibrary(TEXT("USER32.DLL"));
-	netapi = LoadLibrary(TEXT("NETAPI32.DLL"));
+	advapi = LoadLibrary("ADVAPI32.DLL");
+	kernel = LoadLibrary("KERNEL32.DLL");
+	user = LoadLibrary("USER32.DLL");
+	netapi = LoadLibrary("NETAPI32.DLL");
 
-#ifndef OPENSSL_SYS_WINCE
 #if 1 /* There was previously a problem with NETSTATGET.  Currently, this
        * section is still experimental, but if all goes well, this conditional
        * will be removed
        */
 	if (netapi)
 		{
-		netstatget = (NETSTATGET) GetProcAddress(netapi,TEXT("NetStatisticsGet"));
-		netfree = (NETFREE) GetProcAddress(netapi,TEXT("NetApiBufferFree"));
+		netstatget = (NETSTATGET) GetProcAddress(netapi,"NetStatisticsGet");
+		netfree = (NETFREE) GetProcAddress(netapi,"NetApiBufferFree");
 		}
 
 	if (netstatget && netfree)
@@ -264,9 +250,7 @@ int RAND_poll(void)
 	if (netapi)
 		FreeLibrary(netapi);
 #endif /* 1 */
-#endif /* !OPENSSL_SYS_WINCE */
  
-#ifndef OPENSSL_SYS_WINCE
         /* It appears like this can cause an exception deep within ADVAPI32.DLL
          * at random times on Windows 2000.  Reported by Jeffrey Altman.  
          * Only use it on NT.
@@ -297,7 +281,7 @@ int RAND_poll(void)
 			bufsz += 8192;
 
 			length = bufsz;
-			rc = RegQueryValueEx(HKEY_PERFORMANCE_DATA, TEXT("Global"),
+			rc = RegQueryValueEx(HKEY_PERFORMANCE_DATA, "Global",
 				NULL, NULL, buf, &length);
 			}
 		if (rc == ERROR_SUCCESS)
@@ -321,16 +305,15 @@ int RAND_poll(void)
 			free(buf);
 		}
 #endif
-#endif /* !OPENSSL_SYS_WINCE */
 
 	if (advapi)
 		{
 		acquire = (CRYPTACQUIRECONTEXT) GetProcAddress(advapi,
-			TEXT("CryptAcquireContextA"));
+			"CryptAcquireContextA");
 		gen = (CRYPTGENRANDOM) GetProcAddress(advapi,
-			TEXT("CryptGenRandom"));
+			"CryptGenRandom");
 		release = (CRYPTRELEASECONTEXT) GetProcAddress(advapi,
-			TEXT("CryptReleaseContext"));
+			"CryptReleaseContext");
 		}
 
 	if (acquire && gen && release)
@@ -342,7 +325,7 @@ int RAND_poll(void)
 			{
 			if (gen(hProvider, sizeof(buf), buf) != 0)
 				{
-				RAND_add(buf, sizeof(buf), 0);
+				RAND_add(buf, sizeof(buf), sizeof(buf));
 #if 0
 				printf("randomness from PROV_RSA_FULL\n");
 #endif
@@ -384,9 +367,9 @@ int RAND_poll(void)
 		GETFOREGROUNDWINDOW win;
 		GETQUEUESTATUS queue;
 
-		win = (GETFOREGROUNDWINDOW) GetProcAddress(user, TEXT("GetForegroundWindow"));
-		cursor = (GETCURSORINFO) GetProcAddress(user, TEXT("GetCursorInfo"));
-		queue = (GETQUEUESTATUS) GetProcAddress(user, TEXT("GetQueueStatus"));
+		win = (GETFOREGROUNDWINDOW) GetProcAddress(user, "GetForegroundWindow");
+		cursor = (GETCURSORINFO) GetProcAddress(user, "GetCursorInfo");
+		queue = (GETQUEUESTATUS) GetProcAddress(user, "GetQueueStatus");
 
 		if (win)
 			{
@@ -458,19 +441,19 @@ int RAND_poll(void)
 		MODULEENTRY32 m;
 
 		snap = (CREATETOOLHELP32SNAPSHOT)
-			GetProcAddress(kernel, TEXT("CreateToolhelp32Snapshot"));
+			GetProcAddress(kernel, "CreateToolhelp32Snapshot");
 		close_snap = (CLOSETOOLHELP32SNAPSHOT)
-			GetProcAddress(kernel, TEXT("CloseToolhelp32Snapshot"));
-		heap_first = (HEAP32FIRST) GetProcAddress(kernel, TEXT("Heap32First"));
-		heap_next = (HEAP32NEXT) GetProcAddress(kernel, TEXT("Heap32Next"));
-		heaplist_first = (HEAP32LIST) GetProcAddress(kernel, TEXT("Heap32ListFirst"));
-		heaplist_next = (HEAP32LIST) GetProcAddress(kernel, TEXT("Heap32ListNext"));
-		process_first = (PROCESS32) GetProcAddress(kernel, TEXT("Process32First"));
-		process_next = (PROCESS32) GetProcAddress(kernel, TEXT("Process32Next"));
-		thread_first = (THREAD32) GetProcAddress(kernel, TEXT("Thread32First"));
-		thread_next = (THREAD32) GetProcAddress(kernel, TEXT("Thread32Next"));
-		module_first = (MODULE32) GetProcAddress(kernel, TEXT("Module32First"));
-		module_next = (MODULE32) GetProcAddress(kernel, TEXT("Module32Next"));
+			GetProcAddress(kernel, "CloseToolhelp32Snapshot");
+		heap_first = (HEAP32FIRST) GetProcAddress(kernel, "Heap32First");
+		heap_next = (HEAP32NEXT) GetProcAddress(kernel, "Heap32Next");
+		heaplist_first = (HEAP32LIST) GetProcAddress(kernel, "Heap32ListFirst");
+		heaplist_next = (HEAP32LIST) GetProcAddress(kernel, "Heap32ListNext");
+		process_first = (PROCESS32) GetProcAddress(kernel, "Process32First");
+		process_next = (PROCESS32) GetProcAddress(kernel, "Process32Next");
+		thread_first = (THREAD32) GetProcAddress(kernel, "Thread32First");
+		thread_next = (THREAD32) GetProcAddress(kernel, "Thread32Next");
+		module_first = (MODULE32) GetProcAddress(kernel, "Module32First");
+		module_next = (MODULE32) GetProcAddress(kernel, "Module32Next");
 
 		if (snap && heap_first && heap_next && heaplist_first &&
 			heaplist_next && process_first && process_next &&
@@ -607,7 +590,7 @@ static void readtimer(void)
 	DWORD w;
 	LARGE_INTEGER l;
 	static int have_perfc = 1;
-#if defined(_MSC_VER) && !defined(OPENSSL_SYS_WINCE)
+#ifdef _MSC_VER
 	static int have_tsc = 1;
 	DWORD cyclecount;
 
@@ -660,7 +643,6 @@ static void readtimer(void)
 
 static void readscreen(void)
 {
-#ifndef OPENSSL_SYS_WINCE
   HDC		hScrDC;		/* screen DC */
   HDC		hMemDC;		/* memory DC */
   HBITMAP	hBitmap;	/* handle for our bitmap */
@@ -674,7 +656,7 @@ static void readscreen(void)
   int		n = 16;		/* number of screen lines to grab at a time */
 
   /* Create a screen DC and a memory DC compatible to screen DC */
-  hScrDC = CreateDC(TEXT("DISPLAY"), NULL, NULL, NULL);
+  hScrDC = CreateDC("DISPLAY", NULL, NULL, NULL);
   hMemDC = CreateCompatibleDC(hScrDC);
 
   /* Get screen resolution */
@@ -721,7 +703,54 @@ static void readscreen(void)
   DeleteObject(hBitmap);
   DeleteDC(hMemDC);
   DeleteDC(hScrDC);
-#endif /* !OPENSSL_SYS_WINCE */
+}
+
+#else /* Unix version */
+
+#include <time.h>
+
+int RAND_poll(void)
+{
+	unsigned long l;
+	pid_t curr_pid = getpid();
+#ifdef DEVRANDOM
+	FILE *fh;
+#endif
+
+#ifdef DEVRANDOM
+	/* Use a random entropy pool device. Linux, FreeBSD and OpenBSD
+	 * have this. Use /dev/urandom if you can as /dev/random may block
+	 * if it runs out of random entries.  */
+
+	if ((fh = fopen(DEVRANDOM, "r")) != NULL)
+		{
+		unsigned char tmpbuf[ENTROPY_NEEDED];
+		int n;
+		
+		setvbuf(fh, NULL, _IONBF, 0);
+		n=fread((unsigned char *)tmpbuf,1,ENTROPY_NEEDED,fh);
+		fclose(fh);
+		RAND_add(tmpbuf,sizeof tmpbuf,n);
+		memset(tmpbuf,0,n);
+		}
+#endif
+
+	/* put in some default random data, we need more than just this */
+	l=curr_pid;
+	RAND_add(&l,sizeof(l),0);
+#ifndef VXWORKS
+	l=getuid();
+	RAND_add(&l,sizeof(l),0);
+#endif
+
+	l=time(NULL);
+	RAND_add(&l,sizeof(l),0);
+
+#ifdef DEVRANDOM
+	return 1;
+#else
+	return 0;
+#endif
 }
 
 #endif

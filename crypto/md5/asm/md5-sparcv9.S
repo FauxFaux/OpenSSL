@@ -24,21 +24,19 @@
  *
  * To compile with SC4.x/SC5.x:
  *
- *	cc -xarch=v[9|8plus] -DOPENSSL_SYSNAME_ULTRASPARC -DMD5_BLOCK_DATA_ORDER \
+ *	cc -xarch=v[9|8plus] -DULTRASPARC -DMD5_BLOCK_DATA_ORDER \
  *		-c md5-sparcv9.S
  *
  * and with gcc:
  *
- *	gcc -mcpu=ultrasparc -DOPENSSL_SYSNAME_ULTRASPARC -DMD5_BLOCK_DATA_ORDER \
+ *	gcc -mcpu=ultrasparc -DULTRASPARC -DMD5_BLOCK_DATA_ORDER \
  *		-c md5-sparcv9.S
  *
  * or if above fails (it does if you have gas):
  *
- *	gcc -E -DOPENSSL_SYSNAMEULTRASPARC -DMD5_BLOCK_DATA_ORDER md5_block.sparc.S | \
+ *	gcc -E -DULTRASPARC -DMD5_BLOCK_DATA_ORDER md5_block.sparc.S | \
  *		as -xarch=v8plus /dev/fd/0 -o md5-sparcv9.o
  */
-
-#include <openssl/e_os2.h>
 
 #define	A	%o0
 #define B	%o1
@@ -74,7 +72,7 @@
 #define Dval	R8
 
 #if defined(MD5_BLOCK_DATA_ORDER)
-# if defined(OPENSSL_SYSNAME_ULTRASPARC)
+# if defined(ULTRASPARC)
 #  define	LOAD			lda
 #  define	X(i)			[%i1+i*4]%asi
 #  define	md5_block		md5_block_asm_data_order_aligned
@@ -1014,7 +1012,7 @@ md5_block:
 	st	B,[Bptr]
 	nop				!=
 
-#ifdef	OPENSSL_SYSNAME_ULTRASPARC
+#ifdef	ULTRASPARC
 	bg,a,pt	%icc,.Lmd5_block_loop
 #else
 	bg,a	.Lmd5_block_loop

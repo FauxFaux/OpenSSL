@@ -1,6 +1,6 @@
 /* crypto/md32_common.h */
 /* ====================================================================
- * Copyright (c) 1999-2002 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1999 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -179,7 +179,7 @@
  */
 #undef ROTATE
 #ifndef PEDANTIC
-# if 0 /* defined(_MSC_VER) */
+# if defined(_MSC_VER)
 #  define ROTATE(a,n)	_lrotl(a,n)
 # elif defined(__MWERKS__)
 #  if defined(__POWERPC__)
@@ -190,7 +190,7 @@
 #  else
 #   define ROTATE(a,n)	__rol(a,n)
 #  endif
-# elif defined(__GNUC__) && __GNUC__>=2 && !defined(OPENSSL_NO_ASM) && !defined(OPENSSL_NO_INLINE_ASM)
+# elif defined(__GNUC__) && __GNUC__>=2 && !defined(NO_ASM) && !defined(NO_INLINE_ASM)
   /*
    * Some GNU C inline assembler templates. Note that these are
    * rotates by *constant* number of bits! But that's exactly
@@ -198,7 +198,7 @@
    *
    * 					<appro@fy.chalmers.se>
    */
-#  if defined(__i386) || defined(__i386__) || defined(__x86_64) || defined(__x86_64__)
+#  if defined(__i386) || defined(__i386__)
 #   define ROTATE(a,n)	({ register unsigned int ret;	\
 				asm (			\
 				"roll %1,%0"		\
@@ -222,9 +222,9 @@
  * Engage compiler specific "fetch in reverse byte order"
  * intrinsic function if available.
  */
-# if defined(__GNUC__) && __GNUC__>=2 && !defined(OPENSSL_NO_ASM) && !defined(OPENSSL_NO_INLINE_ASM)
+# if defined(__GNUC__) && __GNUC__>=2 && !defined(NO_ASM) && !defined(NO_INLINE_ASM)
   /* some GNU C inline assembler templates by <appro@fy.chalmers.se> */
-#  if (defined(__i386) || defined(__i386__) || defined(__x86_64) || defined(__x86_64__)) && !defined(I386_ONLY)
+#  if (defined(__i386) || defined(__i386__)) && !defined(I386_ONLY)
 #   define BE_FETCH32(a)	({ register unsigned int l=(a);\
 				asm (			\
 				"bswapl %0"		\
@@ -240,7 +240,7 @@
 			   l;				\
 			})
 
-#  elif defined(__sparc) && defined(OPENSSL_SYS_ULTRASPARC)
+#  elif defined(__sparc) && defined(ULTRASPARC)
 #  define LE_FETCH32(a)	({ register unsigned int l;		\
 				asm (				\
 				"lda [%1]#ASI_PRIMARY_LITTLE,%0"\
@@ -410,14 +410,14 @@
  * Time for some action:-)
  */
 
-int HASH_UPDATE (HASH_CTX *c, const void *data_, unsigned long len)
+void HASH_UPDATE (HASH_CTX *c, const void *data_, unsigned long len)
 	{
 	const unsigned char *data=data_;
 	register HASH_LONG * p;
 	register unsigned long l;
 	int sw,sc,ew,ec;
 
-	if (len==0) return 1;
+	if (len==0) return;
 
 	l=(c->Nl+(len<<3))&0xffffffffL;
 	/* 95-05-24 eay Fixed a bug with the overflow handling, thanks to
@@ -456,10 +456,7 @@ int HASH_UPDATE (HASH_CTX *c, const void *data_, unsigned long len)
 				{
 				ew=(c->num>>2);
 				ec=(c->num&0x03);
-				if (sc)
-					l=p[sw];
-				HOST_p_c2l(data,l,sc);
-				p[sw++]=l;
+				l=p[sw]; HOST_p_c2l(data,l,sc); p[sw++]=l;
 				for (; sw < ew; sw++)
 					{
 					HOST_c2l(data,l); p[sw]=l;
@@ -469,7 +466,7 @@ int HASH_UPDATE (HASH_CTX *c, const void *data_, unsigned long len)
 					HOST_c2l_p(data,l,ec); p[sw]=l;
 					}
 				}
-			return 1;
+			return;
 			}
 		}
 
@@ -523,7 +520,6 @@ int HASH_UPDATE (HASH_CTX *c, const void *data_, unsigned long len)
 		HOST_c2l_p(data,l,ec);
 		*p=l;
 		}
-	return 1;
 	}
 
 
@@ -547,7 +543,7 @@ void HASH_TRANSFORM (HASH_CTX *c, const unsigned char *data)
 	}
 
 
-int HASH_FINAL (unsigned char *md, HASH_CTX *c)
+void HASH_FINAL (unsigned char *md, HASH_CTX *c)
 	{
 	register HASH_LONG *p;
 	register unsigned long l;
@@ -608,30 +604,4 @@ int HASH_FINAL (unsigned char *md, HASH_CTX *c)
 	 * but I'm not worried :-)
 	OPENSSL_cleanse((void *)c,sizeof(HASH_CTX));
 	 */
-	return 1;
 	}
-
-#ifndef MD32_REG_T
-#define MD32_REG_T long
-/*
- * This comment was originaly written for MD5, which is why it
- * discusses A-D. But it basically applies to all 32-bit digests,
- * which is why it was moved to common header file.
- *
- * In case you wonder why A-D are declared as long and not
- * as MD5_LONG. Doing so results in slight performance
- * boost on LP64 architectures. The catch is we don't
- * really care if 32 MSBs of a 64-bit register get polluted
- * with eventual overflows as we *save* only 32 LSBs in
- * *either* case. Now declaring 'em long excuses the compiler
- * from keeping 32 MSBs zeroed resulting in 13% performance
- * improvement under SPARC Solaris7/64 and 5% under AlphaLinux.
- * Well, to be honest it should say that this *prevents* 
- * performance degradation.
- *				<appro@fy.chalmers.se>
- * Apparently there're LP64 compilers that generate better
- * code if A-D are declared int. Most notably GCC-x86_64
- * generates better code.
- *				<appro@fy.chalmers.se>
- */
-#endif

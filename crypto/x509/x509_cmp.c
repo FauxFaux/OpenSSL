@@ -76,27 +76,24 @@ int X509_issuer_and_serial_cmp(const X509 *a, const X509 *b)
 	return(X509_NAME_cmp(ai->issuer,bi->issuer));
 	}
 
-#ifndef OPENSSL_NO_MD5
+#ifndef NO_MD5
 unsigned long X509_issuer_and_serial_hash(X509 *a)
 	{
 	unsigned long ret=0;
-	EVP_MD_CTX ctx;
+	MD5_CTX ctx;
 	unsigned char md[16];
-	char *f;
+	char str[256];
 
-	EVP_MD_CTX_init(&ctx);
-	f=X509_NAME_oneline(a->cert_info->issuer,NULL,0);
-	ret=strlen(f);
-	EVP_DigestInit_ex(&ctx, EVP_md5(), NULL);
-	EVP_DigestUpdate(&ctx,(unsigned char *)f,ret);
-	OPENSSL_free(f);
-	EVP_DigestUpdate(&ctx,(unsigned char *)a->cert_info->serialNumber->data,
+	X509_NAME_oneline(a->cert_info->issuer,str,256);
+	ret=strlen(str);
+	MD5_Init(&ctx);
+	MD5_Update(&ctx,(unsigned char *)str,ret);
+	MD5_Update(&ctx,(unsigned char *)a->cert_info->serialNumber->data,
 		(unsigned long)a->cert_info->serialNumber->length);
-	EVP_DigestFinal_ex(&ctx,&(md[0]),NULL);
+	MD5_Final(&(md[0]),&ctx);
 	ret=(	((unsigned long)md[0]     )|((unsigned long)md[1]<<8L)|
 		((unsigned long)md[2]<<16L)|((unsigned long)md[3]<<24L)
 		)&0xffffffffL;
-	EVP_MD_CTX_cleanup(&ctx);
 	return(ret);
 	}
 #endif
@@ -141,7 +138,7 @@ unsigned long X509_subject_name_hash(X509 *x)
 	return(X509_NAME_hash(x->cert_info->subject));
 	}
 
-#ifndef OPENSSL_NO_SHA
+#ifndef NO_SHA
 /* Compare two certificates: they must be identical for
  * this to work. NB: Although "cmp" operations are generally
  * prototyped to take "const" arguments (eg. for use in
@@ -299,7 +296,7 @@ int X509_NAME_cmp(const X509_NAME *a, const X509_NAME *b)
 	return(0);
 	}
 
-#ifndef OPENSSL_NO_MD5
+#ifndef NO_MD5
 /* I now DER encode the name and hash it.  Since I cache the DER encoding,
  * this is reasonably efficient. */
 unsigned long X509_NAME_hash(X509_NAME *x)
@@ -307,9 +304,12 @@ unsigned long X509_NAME_hash(X509_NAME *x)
 	unsigned long ret=0;
 	unsigned char md[16];
 
-	/* Make sure X509_NAME structure contains valid cached encoding */
+	/* Ensure cached version is up to date */
 	i2d_X509_NAME(x,NULL);
-	EVP_Digest(x->bytes->data, x->bytes->length, md, NULL, EVP_md5(), NULL);
+	/* Use cached encoding directly rather than copying: this should
+	 * keep libsafe happy.
+	 */
+	MD5((unsigned char *)x->bytes->data,x->bytes->length,&(md[0]));
 
 	ret=(	((unsigned long)md[0]     )|((unsigned long)md[1]<<8L)|
 		((unsigned long)md[2]<<16L)|((unsigned long)md[3]<<24L)
@@ -362,12 +362,6 @@ EVP_PKEY *X509_get_pubkey(X509 *x)
 	return(X509_PUBKEY_get(x->cert_info->key));
 	}
 
-ASN1_BIT_STRING *X509_get0_pubkey_bitstr(const X509 *x)
-	{
-	if(!x) return NULL;
-	return x->cert_info->key->public_key;
-	}
-
 int X509_check_private_key(X509 *x, EVP_PKEY *k)
 	{
 	EVP_PKEY *xk=NULL;
@@ -381,7 +375,7 @@ int X509_check_private_key(X509 *x, EVP_PKEY *k)
 	    }
 	switch (k->type)
 		{
-#ifndef OPENSSL_NO_RSA
+#ifndef NO_RSA
 	case EVP_PKEY_RSA:
 		if (BN_cmp(xk->pkey.rsa->n,k->pkey.rsa->n) != 0
 		    || BN_cmp(xk->pkey.rsa->e,k->pkey.rsa->e) != 0)
@@ -391,7 +385,7 @@ int X509_check_private_key(X509 *x, EVP_PKEY *k)
 		    }
 		break;
 #endif
-#ifndef OPENSSL_NO_DSA
+#ifndef NO_DSA
 	case EVP_PKEY_DSA:
 		if (BN_cmp(xk->pkey.dsa->pub_key,k->pkey.dsa->pub_key) != 0)
 		    {
@@ -400,7 +394,7 @@ int X509_check_private_key(X509 *x, EVP_PKEY *k)
 		    }
 		break;
 #endif
-#ifndef OPENSSL_NO_DH
+#ifndef NO_DH
 	case EVP_PKEY_DH:
 		/* No idea */
 	        X509err(X509_F_X509_CHECK_PRIVATE_KEY,X509_R_CANT_CHECK_DH_KEY);

@@ -19,21 +19,20 @@
  */
 
 
-#if !defined(OPENSSL_NO_SHA) && !defined(OPENSSL_NO_SHA1)
+#if !defined(NO_SHA) && !defined(NO_SHA1)
 #include <stdio.h>
 #include "cryptlib.h"
 #include <openssl/bn.h>
 #include <openssl/rsa.h>
-#include <openssl/evp.h>
-#include <openssl/rand.h>
 #include <openssl/sha.h>
+#include <openssl/rand.h>
 
 int MGF1(unsigned char *mask, long len,
-	const unsigned char *seed, long seedlen);
+	unsigned char *seed, long seedlen);
 
 int RSA_padding_add_PKCS1_OAEP(unsigned char *to, int tlen,
-	const unsigned char *from, int flen,
-	const unsigned char *param, int plen)
+	unsigned char *from, int flen,
+	unsigned char *param, int plen)
 	{
 	int i, emlen = tlen - 1;
 	unsigned char *db, *seed;
@@ -63,7 +62,7 @@ int RSA_padding_add_PKCS1_OAEP(unsigned char *to, int tlen,
 	seed = to + 1;
 	db = to + SHA_DIGEST_LENGTH + 1;
 
-	EVP_Digest((void *)param, plen, db, NULL, EVP_sha1(), NULL);
+	SHA1(param, plen, db);
 	memset(db + SHA_DIGEST_LENGTH, 0,
 		emlen - flen - 2 * SHA_DIGEST_LENGTH - 1);
 	db[emlen - flen - SHA_DIGEST_LENGTH - 1] = 0x01;
@@ -89,11 +88,11 @@ int RSA_padding_add_PKCS1_OAEP(unsigned char *to, int tlen,
 	}
 
 int RSA_padding_check_PKCS1_OAEP(unsigned char *to, int tlen,
-	const unsigned char *from, int flen, int num,
-	const unsigned char *param, int plen)
+	     unsigned char *from, int flen, int num, unsigned char *param,
+	     int plen)
 	{
 	int i, dblen, mlen = -1;
-	const unsigned char *maskeddb;
+	unsigned char *maskeddb;
 	int lzero;
 	unsigned char *db = NULL, seed[SHA_DIGEST_LENGTH], phash[SHA_DIGEST_LENGTH];
 	int bad = 0;
@@ -129,12 +128,12 @@ int RSA_padding_check_PKCS1_OAEP(unsigned char *to, int tlen,
 	MGF1(seed, SHA_DIGEST_LENGTH, maskeddb, dblen);
 	for (i = lzero; i < SHA_DIGEST_LENGTH; i++)
 		seed[i] ^= from[i - lzero];
-  
+
 	MGF1(db, dblen, seed, SHA_DIGEST_LENGTH);
 	for (i = 0; i < dblen; i++)
 		db[i] ^= maskeddb[i];
 
-	EVP_Digest((void *)param, plen, phash, NULL, EVP_sha1(), NULL);
+	SHA1(param, plen, phash);
 
 	if (memcmp(db, phash, SHA_DIGEST_LENGTH) != 0 || bad)
 		goto decoding_err;
@@ -170,37 +169,34 @@ decoding_err:
 	return -1;
 	}
 
-int MGF1(unsigned char *mask, long len,
-	const unsigned char *seed, long seedlen)
+int MGF1(unsigned char *mask, long len, unsigned char *seed, long seedlen)
 	{
 	long i, outlen = 0;
 	unsigned char cnt[4];
-	EVP_MD_CTX c;
+	SHA_CTX c;
 	unsigned char md[SHA_DIGEST_LENGTH];
 
-	EVP_MD_CTX_init(&c);
 	for (i = 0; outlen < len; i++)
 		{
 		cnt[0] = (unsigned char)((i >> 24) & 255);
 		cnt[1] = (unsigned char)((i >> 16) & 255);
 		cnt[2] = (unsigned char)((i >> 8)) & 255;
 		cnt[3] = (unsigned char)(i & 255);
-		EVP_DigestInit_ex(&c,EVP_sha1(), NULL);
-		EVP_DigestUpdate(&c, seed, seedlen);
-		EVP_DigestUpdate(&c, cnt, 4);
+		SHA1_Init(&c);
+		SHA1_Update(&c, seed, seedlen);
+		SHA1_Update(&c, cnt, 4);
 		if (outlen + SHA_DIGEST_LENGTH <= len)
 			{
-			EVP_DigestFinal_ex(&c, mask + outlen, NULL);
+			SHA1_Final(mask + outlen, &c);
 			outlen += SHA_DIGEST_LENGTH;
 			}
 		else
 			{
-			EVP_DigestFinal_ex(&c, md, NULL);
+			SHA1_Final(md, &c);
 			memcpy(mask + outlen, md, len - outlen);
 			outlen = len;
 			}
 		}
-	EVP_MD_CTX_cleanup(&c);
 	return 0;
 	}
 #endif

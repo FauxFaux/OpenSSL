@@ -63,7 +63,7 @@
 extern "C" {
 #endif
 
-#ifdef OPENSSL_NO_CAST
+#ifdef NO_CAST
 #error CAST is disabled.
 #endif
 

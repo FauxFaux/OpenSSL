@@ -59,8 +59,7 @@
 #include <stdio.h>
 #include <openssl/conf.h>
 
-static void print_conf(CONF_VALUE *cv);
-static IMPLEMENT_LHASH_DOALL_FN(print_conf, CONF_VALUE *);
+void print_conf(CONF_VALUE *cv);
 
 main()
 	{
@@ -74,11 +73,11 @@ main()
 		exit(1);
 		}
 
-	lh_doall(conf,LHASH_DOALL_FN(print_conf));
+	lh_doall(conf,print_conf);
 	}
 
 
-static void print_conf(CONF_VALUE *cv)
+void print_conf(CONF_VALUE *cv)
 	{
 	int i;
 	CONF_VALUE *v;

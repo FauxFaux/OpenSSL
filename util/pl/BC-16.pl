@@ -21,14 +21,14 @@ $lflags="$base_lflags";
 if ($win16)
 	{
 	$shlib=1;
-	$cflags.=" -DOPENSSL_SYSNAME_WIN16";
+	$cflags.=" -DWINDOWS -DWIN16";
 	$app_cflag="-W";
 	$lib_cflag="-WD";
 	$lflags.="/Twe";
 	}
 else
 	{
-	$cflags.=" -DOENSSL_SYSNAME_MSDOS";
+	$cflags.=" -DMSDOS";
 	$lflags.=" /Tde";
 	}
 

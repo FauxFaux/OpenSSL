@@ -66,6 +66,9 @@
 #include <openssl/bn.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
+#ifdef WINDOWS
+#include "../bio/bss_file.c"
+#endif
 
 #define NUM_BITS	(BN_BITS*2)
 

@@ -4,6 +4,7 @@
 
 $ssl=	"ssleay16";
 $crypto="libeay16";
+$RSAref="RSAref16";
 
 $o='\\';
 $cp='copy';
@@ -33,7 +34,7 @@ $lflags="$base_lflags /STACK:20000";
 
 if ($win16)
 	{
-	$cflags.=" -DOPENSSL_SYSNAME_WIN16";
+	$cflags.=" -DWINDOWS -DWIN16";
 	$app_cflag="/Gw /FPi87";
 	$lib_cflag="/Gw";
 	$lib_cflag.=" -D_WINDLL -D_DLL" if $shlib;

@@ -166,8 +166,7 @@ bad:
 		BIO_printf(bio_err," -certfile arg  certificates file of chain to a trusted CA\n");
 		BIO_printf(bio_err,"                (can be used more than once)\n");
 		BIO_printf(bio_err," -nocrl         no crl to load, just certs from '-certfile'\n");
-		ret = 1;
-		goto end;
+		OPENSSL_EXIT(1);
 		}
 
 	ERR_load_crypto_strings();
@@ -242,7 +241,7 @@ bad:
 	if (outfile == NULL)
 		{
 		BIO_set_fp(out,stdout,BIO_NOCLOSE);
-#ifdef OPENSSL_SYS_VMS
+#ifdef VMS
 		{
 		BIO *tmpbio = BIO_new(BIO_f_linebuffer());
 		out = BIO_push(tmpbio, out);
@@ -279,7 +278,6 @@ end:
 	if (p7 != NULL) PKCS7_free(p7);
 	if (crl != NULL) X509_CRL_free(crl);
 
-	apps_shutdown();
 	OPENSSL_EXIT(ret);
 	}
 

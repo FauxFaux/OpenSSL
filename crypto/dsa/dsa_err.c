@@ -63,7 +63,7 @@
 #include <openssl/dsa.h>
 
 /* BEGIN ERROR CODES */
-#ifndef OPENSSL_NO_ERR
+#ifndef NO_ERR
 static ERR_STRING_DATA DSA_str_functs[]=
 	{
 {ERR_PACK(0,DSA_F_D2I_DSA_SIG,0),	"d2i_DSA_SIG"},
@@ -71,7 +71,7 @@ static ERR_STRING_DATA DSA_str_functs[]=
 {ERR_PACK(0,DSA_F_DSAPARAMS_PRINT_FP,0),	"DSAparams_print_fp"},
 {ERR_PACK(0,DSA_F_DSA_DO_SIGN,0),	"DSA_do_sign"},
 {ERR_PACK(0,DSA_F_DSA_DO_VERIFY,0),	"DSA_do_verify"},
-{ERR_PACK(0,DSA_F_DSA_NEW_METHOD,0),	"DSA_new_method"},
+{ERR_PACK(0,DSA_F_DSA_NEW,0),	"DSA_new"},
 {ERR_PACK(0,DSA_F_DSA_PRINT,0),	"DSA_print"},
 {ERR_PACK(0,DSA_F_DSA_PRINT_FP,0),	"DSA_print_fp"},
 {ERR_PACK(0,DSA_F_DSA_SIGN,0),	"DSA_sign"},
@@ -79,7 +79,6 @@ static ERR_STRING_DATA DSA_str_functs[]=
 {ERR_PACK(0,DSA_F_DSA_SIG_NEW,0),	"DSA_SIG_new"},
 {ERR_PACK(0,DSA_F_DSA_VERIFY,0),	"DSA_verify"},
 {ERR_PACK(0,DSA_F_I2D_DSA_SIG,0),	"i2d_DSA_SIG"},
-{ERR_PACK(0,DSA_F_SIG_CB,0),	"SIG_CB"},
 {0,NULL}
 	};
 
@@ -99,7 +98,7 @@ void ERR_load_DSA_strings(void)
 	if (init)
 		{
 		init=0;
-#ifndef OPENSSL_NO_ERR
+#ifndef NO_ERR
 		ERR_load_strings(ERR_LIB_DSA,DSA_str_functs);
 		ERR_load_strings(ERR_LIB_DSA,DSA_str_reasons);
 #endif
