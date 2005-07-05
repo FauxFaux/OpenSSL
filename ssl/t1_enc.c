@@ -115,7 +115,6 @@
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/md5.h>
-#include <openssl/fips.h>
 
 static void tls1_P_hash(const EVP_MD *md, const unsigned char *sec,
 			int sec_len, unsigned char *seed, int seed_len,
@@ -132,8 +131,6 @@ static void tls1_P_hash(const EVP_MD *md, const unsigned char *sec,
 
 	HMAC_CTX_init(&ctx);
 	HMAC_CTX_init(&ctx_tmp);
-	HMAC_CTX_set_flags(&ctx, EVP_MD_CTX_FLAG_NON_FIPS_ALLOW);
-	HMAC_CTX_set_flags(&ctx_tmp, EVP_MD_CTX_FLAG_NON_FIPS_ALLOW);
 	HMAC_Init_ex(&ctx,sec,sec_len,md, NULL);
 	HMAC_Init_ex(&ctx_tmp,sec,sec_len,md, NULL);
 	HMAC_Update(&ctx,seed,seed_len);
@@ -180,6 +177,7 @@ static void tls1_PRF(const EVP_MD *md5, const EVP_MD *sha1,
 	S2= &(sec[len]);
 	len+=(slen&1); /* add for odd, make longer */
 
+	
 	tls1_P_hash(md5 ,S1,len,label,label_len,out1,olen);
 	tls1_P_hash(sha1,S2,len,label,label_len,out2,olen);
 
@@ -286,7 +284,9 @@ int tls1_change_cipher_state(SSL *s, int which)
 			if (s->s3->rrec.comp == NULL)
 				goto err;
 			}
-		memset(&(s->s3->read_sequence[0]),0,8);
+		/* this is done by dtls1_reset_seq_numbers for DTLS1_VERSION */
+ 		if (s->version != DTLS1_VERSION)
+			memset(&(s->s3->read_sequence[0]),0,8);
 		mac_secret= &(s->s3->read_mac_secret[0]);
 		}
 	else
@@ -315,7 +315,9 @@ int tls1_change_cipher_state(SSL *s, int which)
 				goto err2;
 				}
 			}
-		memset(&(s->s3->write_sequence[0]),0,8);
+		/* this is done by dtls1_reset_seq_numbers for DTLS1_VERSION */
+ 		if (s->version != DTLS1_VERSION)
+			memset(&(s->s3->write_sequence[0]),0,8);
 		mac_secret= &(s->s3->write_mac_secret[0]);
 		}
 
@@ -503,7 +505,7 @@ printf("\nkey block\n");
 #endif
 			}
 		}
-
+		
 	return(1);
 err:
 	SSLerr(SSL_F_TLS1_SETUP_KEY_BLOCK,ERR_R_MALLOC_FAILURE);
@@ -744,10 +746,13 @@ printf("rec=");
 {unsigned int z; for (z=0; z<rec->length; z++) printf("%02X ",buf[z]); printf("\n"); }
 #endif
 
-	for (i=7; i>=0; i--)
-		{
-		++seq[i];
-		if (seq[i] != 0) break; 
+    if ( SSL_version(ssl) != DTLS1_VERSION)
+	    {
+		for (i=7; i>=0; i--)
+			{
+			++seq[i];
+			if (seq[i] != 0) break; 
+			}
 		}
 
 #ifdef TLS_DEBUG
@@ -810,6 +815,8 @@ int tls1_alert_code(int code)
 	case SSL_AD_INTERNAL_ERROR:	return(TLS1_AD_INTERNAL_ERROR);
 	case SSL_AD_USER_CANCELLED:	return(TLS1_AD_USER_CANCELLED);
 	case SSL_AD_NO_RENEGOTIATION:	return(TLS1_AD_NO_RENEGOTIATION);
+	case DTLS1_AD_MISSING_HANDSHAKE_MESSAGE: return 
+					  (DTLS1_AD_MISSING_HANDSHAKE_MESSAGE);
 	default:			return(-1);
 		}
 	}

@@ -76,6 +76,12 @@ extern "C" {
 # define OPENSSL_SYS_MACINTOSH_CLASSIC
 #endif
 
+/* ----------------------- NetWare ----------------------------------------- */
+#if defined(NETWARE) || defined(OPENSSL_SYSNAME_NETWARE)
+# undef OPENSSL_SYS_UNIX
+# define OPENSSL_SYS_NETWARE
+#endif
+
 /* ---------------------- Microsoft operating systems ---------------------- */
 
 /* The 16 bit environments are pretty straightforward */
@@ -205,6 +211,9 @@ extern "C" {
 
 
 /* Specials for I/O an exit */
+#ifdef OPENSSL_SYS_WIN16
+# define OPENSSL_NO_FP_API
+#endif
 #ifdef OPENSSL_SYS_MSDOS
 # define OPENSSL_UNISTD_IO <io.h>
 # define OPENSSL_DECLARE_EXIT extern void exit(int);
@@ -237,8 +246,8 @@ extern "C" {
 # define OPENSSL_IMPORT globalref
 # define OPENSSL_GLOBAL globaldef
 #elif defined(OPENSSL_SYS_WINDOWS) && defined(OPENSSL_OPT_WINDLL)
-# define OPENSSL_EXPORT extern _declspec(dllexport)
-# define OPENSSL_IMPORT extern _declspec(dllimport)
+# define OPENSSL_EXPORT extern __declspec(dllexport)
+# define OPENSSL_IMPORT extern __declspec(dllimport)
 # define OPENSSL_GLOBAL
 #else
 # define OPENSSL_EXPORT extern
@@ -248,7 +257,7 @@ extern "C" {
 #define OPENSSL_EXTERN OPENSSL_IMPORT
 
 /* Macros to allow global variables to be reached through function calls when
-   required (if a shared library version requires it, for example.
+   required (if a shared library version requvres it, for example.
    The way it's done allows definitions like this:
 
 	// in foobar.c

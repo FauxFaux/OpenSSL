@@ -84,19 +84,20 @@ EVP_PBE_alg_add(NID_pbe_WithSHA1And40BitRC2_CBC, EVP_rc2_40_cbc(),
 #endif
 }
 
-int PKCS12_PBE_keyivgen (EVP_CIPHER_CTX *ctx, const char *pass, int passlen,
+int PKCS12_PBE_keyivgen(EVP_CIPHER_CTX *ctx, const char *pass, int passlen,
 		ASN1_TYPE *param, const EVP_CIPHER *cipher, const EVP_MD *md, int en_de)
 {
 	PBEPARAM *pbe;
 	int saltlen, iter, ret;
-	unsigned char *salt, *pbuf;
+	unsigned char *salt;
+	const unsigned char *pbuf;
 	unsigned char key[EVP_MAX_KEY_LENGTH], iv[EVP_MAX_IV_LENGTH];
 
 	/* Extract useful info from parameter */
 	pbuf = param->value.sequence->data;
 	if (!param || (param->type != V_ASN1_SEQUENCE) ||
 	   !(pbe = d2i_PBEPARAM (NULL, &pbuf, param->value.sequence->length))) {
-		EVPerr(PKCS12_F_PKCS12_PBE_KEYIVGEN,EVP_R_DECODE_ERROR);
+		PKCS12err(PKCS12_F_PKCS12_PBE_KEYIVGEN,PKCS12_R_DECODE_ERROR);
 		return 0;
 	}
 

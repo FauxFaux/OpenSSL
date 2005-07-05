@@ -117,6 +117,17 @@
 
 #include <openssl/e_os2.h>
 
+/* need for #define _POSIX_C_SOURCE arises whenever you pass -ansi to gcc
+ * [maybe others?], because it masks interfaces not discussed in standard,
+ * sigaction and fileno included. -pedantic would be more appropriate for
+ * the intended purposes, but we can't prevent users from adding -ansi.
+ */
+#define _POSIX_C_SOURCE 1
+#include <signal.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+
 #if !defined(OPENSSL_SYS_MSDOS) && !defined(OPENSSL_SYS_VMS)
 # ifdef OPENSSL_UNISTD
 #  include OPENSSL_UNISTD
@@ -145,10 +156,6 @@
 /* 06-Apr-92 Luke Brennan    Support for VMS */
 #include "ui_locl.h"
 #include "cryptlib.h"
-#include <signal.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
 
 #ifdef OPENSSL_SYS_VMS		/* prototypes for sys$whatever */
 # include <starlet.h>
@@ -194,6 +201,12 @@
 #endif
 
 #if defined(OPENSSL_SYS_VXWORKS)
+#undef TERMIOS
+#undef TERMIO
+#undef SGTTY
+#endif
+
+#if defined(OPENSSL_SYS_NETWARE)
 #undef TERMIOS
 #undef TERMIO
 #undef SGTTY
@@ -247,7 +260,7 @@ struct IOSB {
 	typedef int sig_atomic_t;
 #endif
 
-#if defined(OPENSSL_SYS_MACINTOSH_CLASSIC) || defined(MAC_OS_GUSI_SOURCE)
+#if defined(OPENSSL_SYS_MACINTOSH_CLASSIC) || defined(MAC_OS_GUSI_SOURCE) || defined(OPENSSL_SYS_NETWARE)
 /*
  * This one needs work. As a matter of fact the code is unoperational
  * and this is only a trick to get it compiled.
@@ -460,7 +473,7 @@ static int open_console(UI *ui)
 	CRYPTO_w_lock(CRYPTO_LOCK_UI);
 	is_a_tty = 1;
 
-#if defined(OPENSSL_SYS_MACINTOSH_CLASSIC) || defined(OPENSSL_SYS_VXWORKS)
+#if defined(OPENSSL_SYS_MACINTOSH_CLASSIC) || defined(OPENSSL_SYS_VXWORKS) || defined(OPENSSL_SYS_NETWARE)
 	tty_in=stdin;
 	tty_out=stderr;
 #else
@@ -476,7 +489,7 @@ static int open_console(UI *ui)
 #endif
 
 #if defined(TTY_get) && !defined(OPENSSL_SYS_VMS)
-	if (TTY_get(fileno(tty_in),&tty_orig) == -1)
+ 	if (TTY_get(fileno(tty_in),&tty_orig) == -1)
 		{
 #ifdef ENOTTY
 		if (errno == ENOTTY)

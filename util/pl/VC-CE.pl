@@ -12,7 +12,7 @@ $rm='del';
 
 # C compiler stuff
 $cc='$(CC)';
-$cflags=' /W3 /WX /Ox /O2 /Ob2 /Gs0 /GF /Gy /nologo $(WCETARGETDEFS) -DUNICODE -D_UNICODE -DWIN32 -DWIN32_LEAN_AND_MEAN -DL_ENDIAN -DDSO_WIN32 -DNO_CHMOD -I$(WCECOMPAT)/include';
+$cflags=' /W3 /WX /Ox /O2 /Ob2 /Gs0 /GF /Gy /nologo $(WCETARGETDEFS) -DUNICODE -D_UNICODE -DOPENSSL_SYSNAME_WINCE -DWIN32_LEAN_AND_MEAN -DL_ENDIAN -DDSO_WIN32 -DNO_CHMOD -I$(WCECOMPAT)/include';
 $lflags='/nologo /subsystem:windowsce,$(WCELDVERSION) /machine:$(WCELDMACHINE) /opt:ref';
 $mlflags='';
 
@@ -22,7 +22,7 @@ $inc_def="inc32";
 
 if ($debug)
 	{
-	$cflags=" /MDd /W3 /WX /Zi /Yd /Od /nologo -DWIN32 -D_DEBUG -DL_ENDIAN -DWIN32_LEAN_AND_MEAN -DDEBUG -DDSO_WIN32";
+	$cflags=" /MDd /W3 /WX /Zi /Yd /Od /nologo -DUNICODE -D_UNICODE -DOPENSSL_SYSNAME_WINCE -D_DEBUG -DL_ENDIAN -DWIN32_LEAN_AND_MEAN -DDEBUG -DDSO_WIN32";
 	$lflags.=" /debug";
 	$mlflags.=' /debug';
 	}
@@ -47,7 +47,7 @@ $shlibp=($shlib)?".dll":".lib";
 $lfile='/out:';
 
 $shlib_ex_obj="";
-$app_ex_obj="";
+#$app_ex_obj="setargv.obj";
 $app_ex_obj="";
 
 $bn_asm_obj='';
@@ -97,19 +97,14 @@ sub do_lib_rule
 
 sub do_link_rule
 	{
-	local($target,$files,$dep_libs,$libs,$sha1file,$openssl)=@_;
+	local($target,$files,$dep_libs,$libs)=@_;
 	local($ret,$_);
 	
 	$file =~ s/\//$o/g if $o ne '/';
 	$n=&bname($targer);
 	$ret.="$target: $files $dep_libs\n";
 	$ret.="  \$(LINK) \$(LFLAGS) $efile$target @<<\n";
-	$ret.="  \$(APP_EX_OBJ) $files $libs\n<<\n";
-	if (defined $sha1file)
-		{
-		$ret.="  $openssl sha1 -hmac etaonrishdlcupfm -binary $target > $sha1file";
-		}
-	$ret.="\n";
+	$ret.="  \$(APP_EX_OBJ) $files $libs\n<<\n\n";
 	return($ret);
 	}
 

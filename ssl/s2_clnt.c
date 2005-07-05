@@ -584,7 +584,7 @@ static int client_hello(SSL *s)
 		s2n(SSL2_VERSION,p);			/* version */
 		n=j=0;
 
-		n=ssl_cipher_list_to_bytes(s,SSL_get_ciphers(s),d);
+		n=ssl_cipher_list_to_bytes(s,SSL_get_ciphers(s),d,0);
 		d+=n;
 
 		if (n == 0)
@@ -612,7 +612,7 @@ static int client_hello(SSL *s)
 		s->s2->challenge_length=SSL2_CHALLENGE_LENGTH;
 		s2n(SSL2_CHALLENGE_LENGTH,p);		/* challenge length */
 		/*challenge id data*/
-		if(RAND_pseudo_bytes(s->s2->challenge,SSL2_CHALLENGE_LENGTH) <= 0)
+		if (RAND_pseudo_bytes(s->s2->challenge,SSL2_CHALLENGE_LENGTH) <= 0)
 			return -1;
 		memcpy(d,s->s2->challenge,SSL2_CHALLENGE_LENGTH);
 		d+=SSL2_CHALLENGE_LENGTH;
@@ -662,7 +662,7 @@ static int client_master_key(SSL *s)
 			return -1;
 			}
 		if (i > 0)
-			if(RAND_pseudo_bytes(sess->key_arg,i) <= 0)
+			if (RAND_pseudo_bytes(sess->key_arg,i) <= 0)
 				return -1;
 
 		/* make a master key */
@@ -670,7 +670,7 @@ static int client_master_key(SSL *s)
 		sess->master_key_length=i;
 		if (i > 0)
 			{
-			if (i > sizeof sess->master_key)
+			if (i > (int)sizeof(sess->master_key))
 				{
 				ssl2_return_error(s, SSL2_PE_UNDEFINED_ERROR);
 				SSLerr(SSL_F_CLIENT_MASTER_KEY, ERR_R_INTERNAL_ERROR);
@@ -690,7 +690,7 @@ static int client_master_key(SSL *s)
 		else
 			enc=i;
 
-		if (i < enc)
+		if ((int)i < enc)
 			{
 			ssl2_return_error(s,SSL2_PE_UNDEFINED_ERROR);
 			SSLerr(SSL_F_CLIENT_MASTER_KEY,SSL_R_CIPHER_TABLE_SRC_ERROR);
@@ -719,7 +719,7 @@ static int client_master_key(SSL *s)
 		d+=enc;
 		karg=sess->key_arg_length;	
 		s2n(karg,p); /* key arg size */
-		if (karg > sizeof sess->key_arg)
+		if (karg > (int)sizeof(sess->key_arg))
 			{
 			ssl2_return_error(s,SSL2_PE_UNDEFINED_ERROR);
 			SSLerr(SSL_F_CLIENT_MASTER_KEY, ERR_R_INTERNAL_ERROR);
@@ -1037,7 +1037,7 @@ static int get_server_finished(SSL *s)
 	}
 
 /* loads in the certificate from the server */
-int ssl2_set_certificate(SSL *s, int type, int len, unsigned char *data)
+int ssl2_set_certificate(SSL *s, int type, int len, const unsigned char *data)
 	{
 	STACK_OF(X509) *sk=NULL;
 	EVP_PKEY *pkey=NULL;
