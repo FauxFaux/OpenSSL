@@ -45,7 +45,8 @@ if(defined $ENV{OPENSSL}) {
 }
 
 $SSLEAY_CONFIG=$ENV{"SSLEAY_CONFIG"};
-$DAYS="-days 365";
+$DAYS="-days 365";	# 1 year
+$CADAYS="-days 1095";	# 3 years
 $REQ="$openssl req $SSLEAY_CONFIG";
 $CA="$openssl ca $SSLEAY_CONFIG";
 $VERIFY="$openssl verify";
@@ -54,6 +55,7 @@ $PKCS12="$openssl pkcs12";
 
 $CATOP="./demoCA";
 $CAKEY="cakey.pem";
+$CAREQ="careq.pem";
 $CACERT="cacert.pem";
 
 $DIRMODE = 0777;
@@ -106,14 +108,14 @@ foreach (@ARGV) {
 		    $RET=$?;
 		} else {
 		    print "Making CA certificate ...\n";
-		    system ("$REQ -new -x509 -keyout " .
-			"${CATOP}/private/$CAKEY -out ${CATOP}/$CACERT $DAYS");
+		    system ("$REQ -new -keyout " .
+			"${CATOP}/private/$CAKEY -out ${CATOP}/$CAREQ");
+		    system ("$CA -create_serial " .
+			"-out ${CATOP}/$CACERT $CADAYS -batch " . 
+			"-keyfile ${CATOP}/private/$CAKEY -selfsign " .
+			"-infiles ${CATOP}/$CAREQ ");
 		    $RET=$?;
 		}
-	    }
-	    if (! -f "${CATOP}/serial" ) {
-		system ("$X509 -in ${CATOP}/$CACERT -noout "
-			. "-next_serial -out ${CATOP}/serial");
 	    }
 	} elsif (/^-pkcs12$/) {
 	    my $cname = $ARGV[1];
