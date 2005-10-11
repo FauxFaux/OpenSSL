@@ -498,8 +498,8 @@ static int get_client_master_key(SSL *s)
 			i=ek;
 		else
 			i=EVP_CIPHER_key_length(c);
-		if (RAND_pseudo_bytes(p,i) <= 0)
-			return 0;
+		if(RAND_pseudo_bytes(p,i) <= 0)
+		    return 0;
 		}
 #else
 	if (i < 0)
@@ -805,8 +805,8 @@ static int server_hello(SSL *s)
 		/* make and send conn_id */
 		s2n(SSL2_CONNECTION_ID_LENGTH,p);	/* add conn_id length */
 		s->s2->conn_id_length=SSL2_CONNECTION_ID_LENGTH;
-		if (RAND_pseudo_bytes(s->s2->conn_id,(int)s->s2->conn_id_length) <= 0)
-			return -1;
+		if(RAND_pseudo_bytes(s->s2->conn_id,(int)s->s2->conn_id_length) <= 0)
+		    return -1;
 		memcpy(d,s->s2->conn_id,SSL2_CONNECTION_ID_LENGTH);
 		d+=SSL2_CONNECTION_ID_LENGTH;
 
@@ -938,7 +938,6 @@ static int server_finish(SSL *s)
 /* send the request and check the response */
 static int request_certificate(SSL *s)
 	{
-	const unsigned char *cp;
 	unsigned char *p,*p2,*buf2;
 	unsigned char *ccd;
 	int i,j,ctype,ret= -1;
@@ -952,7 +951,7 @@ static int request_certificate(SSL *s)
 		p=(unsigned char *)s->init_buf->data;
 		*(p++)=SSL2_MT_REQUEST_CERTIFICATE;
 		*(p++)=SSL2_AT_MD5_WITH_RSA_ENCRYPTION;
-		if (RAND_pseudo_bytes(ccd,SSL2_MIN_CERT_CHALLENGE_LENGTH) <= 0)
+		if(RAND_pseudo_bytes(ccd,SSL2_MIN_CERT_CHALLENGE_LENGTH) <= 0)
 			return -1;
 		memcpy(p,ccd,SSL2_MIN_CERT_CHALLENGE_LENGTH);
 
@@ -1056,8 +1055,7 @@ static int request_certificate(SSL *s)
 		s->msg_callback(0, s->version, 0, p, len, s, s->msg_callback_arg); /* CLIENT-CERTIFICATE */
 	p += 6;
 
-	cp = p;
-	x509=(X509 *)d2i_X509(NULL,&cp,(long)s->s2->tmp.clen);
+	x509=(X509 *)d2i_X509(NULL,&p,(long)s->s2->tmp.clen);
 	if (x509 == NULL)
 		{
 		SSLerr(SSL_F_REQUEST_CERTIFICATE,ERR_R_X509_LIB);
@@ -1097,7 +1095,7 @@ static int request_certificate(SSL *s)
 
 		pkey=X509_get_pubkey(x509);
 		if (pkey == NULL) goto end;
-		i=EVP_VerifyFinal(&ctx,cp,s->s2->tmp.rlen,pkey);
+		i=EVP_VerifyFinal(&ctx,p,s->s2->tmp.rlen,pkey);
 		EVP_PKEY_free(pkey);
 		EVP_MD_CTX_cleanup(&ctx);
 

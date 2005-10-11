@@ -115,11 +115,6 @@
 #include "bn_lcl.h"
 #include <openssl/rand.h>
 
-/* NB: these functions have been "upgraded", the deprecated versions (which are
- * compatibility wrappers using these functions) are in bn_depr.c.
- * - Geoff
- */
-
 /* The quick sieve algorithm approach to weeding out primes is
  * Philip Zimmermann's, as implemented in PGP.  I have had a read of
  * his comments and implemented my own version.
@@ -134,69 +129,51 @@ static int probable_prime_dh(BIGNUM *rnd, int bits,
 static int probable_prime_dh_safe(BIGNUM *rnd, int bits,
 	const BIGNUM *add, const BIGNUM *rem, BN_CTX *ctx);
 
-int BN_GENCB_call(BN_GENCB *cb, int a, int b)
+BIGNUM *BN_generate_prime(BIGNUM *ret, int bits, int safe,
+	const BIGNUM *add, const BIGNUM *rem,
+	void (*callback)(int,int,void *), void *cb_arg)
 	{
-	/* No callback means continue */
-	if(!cb) return 1;
-	switch(cb->ver)
-		{
-	case 1:
-		/* Deprecated-style callbacks */
-		if(!cb->cb.cb_1)
-			return 1;
-		cb->cb.cb_1(a, b, cb->arg);
-		return 1;
-	case 2:
-		/* New-style callbacks */
-		return cb->cb.cb_2(a, b, cb);
-	default:
-		break;
-		}
-	/* Unrecognised callback type */
-	return 0;
-	}
-
-int BN_generate_prime_ex(BIGNUM *ret, int bits, int safe,
-	const BIGNUM *add, const BIGNUM *rem, BN_GENCB *cb)
-	{
-	BIGNUM *t;
+	BIGNUM *rnd=NULL;
+	BIGNUM t;
 	int found=0;
 	int i,j,c1=0;
 	BN_CTX *ctx;
 	int checks = BN_prime_checks_for_size(bits);
 
+	BN_init(&t);
 	ctx=BN_CTX_new();
 	if (ctx == NULL) goto err;
-	BN_CTX_start(ctx);
-	t = BN_CTX_get(ctx);
-	if(!t) goto err;
+	if (ret == NULL)
+		{
+		if ((rnd=BN_new()) == NULL) goto err;
+		}
+	else
+		rnd=ret;
 loop: 
 	/* make a random number and set the top and bottom bits */
 	if (add == NULL)
 		{
-		if (!probable_prime(ret,bits)) goto err;
+		if (!probable_prime(rnd,bits)) goto err;
 		}
 	else
 		{
 		if (safe)
 			{
-			if (!probable_prime_dh_safe(ret,bits,add,rem,ctx))
+			if (!probable_prime_dh_safe(rnd,bits,add,rem,ctx))
 				 goto err;
 			}
 		else
 			{
-			if (!probable_prime_dh(ret,bits,add,rem,ctx))
+			if (!probable_prime_dh(rnd,bits,add,rem,ctx))
 				goto err;
 			}
 		}
-	/* if (BN_mod_word(ret,(BN_ULONG)3) == 1) goto loop; */
-	if(!BN_GENCB_call(cb, 0, c1++))
-		/* aborted */
-		goto err;
+	/* if (BN_mod_word(rnd,(BN_ULONG)3) == 1) goto loop; */
+	if (callback != NULL) callback(0,c1++,cb_arg);
 
 	if (!safe)
 		{
-		i=BN_is_prime_fasttest_ex(ret,checks,ctx,0,cb);
+		i=BN_is_prime_fasttest(rnd,checks,callback,ctx,cb_arg,0);
 		if (i == -1) goto err;
 		if (i == 0) goto loop;
 		}
@@ -206,42 +183,41 @@ loop:
 		 * check that (p-1)/2 is prime.
 		 * Since a prime is odd, We just
 		 * need to divide by 2 */
-		if (!BN_rshift1(t,ret)) goto err;
+		if (!BN_rshift1(&t,rnd)) goto err;
 
 		for (i=0; i<checks; i++)
 			{
-			j=BN_is_prime_fasttest_ex(ret,1,ctx,0,cb);
+			j=BN_is_prime_fasttest(rnd,1,callback,ctx,cb_arg,0);
 			if (j == -1) goto err;
 			if (j == 0) goto loop;
 
-			j=BN_is_prime_fasttest_ex(t,1,ctx,0,cb);
+			j=BN_is_prime_fasttest(&t,1,callback,ctx,cb_arg,0);
 			if (j == -1) goto err;
 			if (j == 0) goto loop;
 
-			if(!BN_GENCB_call(cb, 2, c1-1))
-				goto err;
+			if (callback != NULL) callback(2,c1-1,cb_arg);
 			/* We have a safe prime test pass */
 			}
 		}
 	/* we have a prime :-) */
 	found = 1;
 err:
-	if (ctx != NULL)
-		{
-		BN_CTX_end(ctx);
-		BN_CTX_free(ctx);
-		}
-	bn_check_top(ret);
-	return found;
+	if (!found && (ret == NULL) && (rnd != NULL)) BN_free(rnd);
+	BN_free(&t);
+	if (ctx != NULL) BN_CTX_free(ctx);
+	return(found ? rnd : NULL);
 	}
 
-int BN_is_prime_ex(const BIGNUM *a, int checks, BN_CTX *ctx_passed, BN_GENCB *cb)
+int BN_is_prime(const BIGNUM *a, int checks, void (*callback)(int,int,void *),
+	BN_CTX *ctx_passed, void *cb_arg)
 	{
-	return BN_is_prime_fasttest_ex(a, checks, ctx_passed, 0, cb);
+	return BN_is_prime_fasttest(a, checks, callback, ctx_passed, cb_arg, 0);
 	}
 
-int BN_is_prime_fasttest_ex(const BIGNUM *a, int checks, BN_CTX *ctx_passed,
-		int do_trial_division, BN_GENCB *cb)
+int BN_is_prime_fasttest(const BIGNUM *a, int checks,
+		void (*callback)(int,int,void *),
+		BN_CTX *ctx_passed, void *cb_arg,
+		int do_trial_division)
 	{
 	int i, j, ret = -1;
 	int k;
@@ -264,8 +240,7 @@ int BN_is_prime_fasttest_ex(const BIGNUM *a, int checks, BN_CTX *ctx_passed,
 		for (i = 1; i < NUMPRIMES; i++)
 			if (BN_mod_word(a, primes[i]) == 0) 
 				return 0;
-		if(!BN_GENCB_call(cb, 1, -1))
-			goto err;
+		if (callback != NULL) callback(1, -1, cb_arg);
 		}
 
 	if (ctx_passed != NULL)
@@ -331,8 +306,7 @@ int BN_is_prime_fasttest_ex(const BIGNUM *a, int checks, BN_CTX *ctx_passed,
 			ret=0;
 			goto err;
 			}
-		if(!BN_GENCB_call(cb, 1, i))
-			goto err;
+		if (callback != NULL) callback(1,i,cb_arg);
 		}
 	ret=1;
 err:
@@ -369,7 +343,6 @@ static int witness(BIGNUM *w, const BIGNUM *a, const BIGNUM *a1,
 		}
 	/* If we get here, 'w' is the (a-1)/2-th power of the original 'w',
 	 * and it is neither -1 nor +1 -- so 'a' cannot be prime */
-	bn_check_top(w);
 	return 1;
 	}
 
@@ -401,7 +374,6 @@ again:
 			}
 		}
 	if (!BN_add_word(rnd,delta)) return(0);
-	bn_check_top(rnd);
 	return(1);
 	}
 
@@ -439,7 +411,6 @@ static int probable_prime_dh(BIGNUM *rnd, int bits,
 	ret=1;
 err:
 	BN_CTX_end(ctx);
-	bn_check_top(rnd);
 	return(ret);
 	}
 
@@ -491,6 +462,5 @@ static int probable_prime_dh_safe(BIGNUM *p, int bits, const BIGNUM *padd,
 	ret=1;
 err:
 	BN_CTX_end(ctx);
-	bn_check_top(p);
 	return(ret);
 	}

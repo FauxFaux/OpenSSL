@@ -56,12 +56,6 @@
  * [including the GNU Public Licence.]
  */
 
-/* Until the key-gen callbacks are modified to use newer prototypes, we allow
- * deprecated functions for openssl-internal code */
-#ifdef OPENSSL_NO_DEPRECATED
-#undef OPENSSL_NO_DEPRECATED
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -79,6 +73,7 @@
 #include <openssl/x509v3.h>
 #include <openssl/objects.h>
 #include <openssl/pem.h>
+#include "../crypto/cryptlib.h"
 
 #define SECTION		"req"
 
@@ -118,10 +113,9 @@
  *		  require.  This format is wrong
  */
 
-static int make_REQ(X509_REQ *req,EVP_PKEY *pkey,char *dn,int mutlirdn,
-		int attribs,unsigned long chtype);
-static int build_subject(X509_REQ *req, char *subj, unsigned long chtype,
-		int multirdn);
+static int make_REQ(X509_REQ *req,EVP_PKEY *pkey,char *dn,int attribs,
+		unsigned long chtype);
+static int build_subject(X509_REQ *req, char *subj, unsigned long chtype);
 static int prompt_info(X509_REQ *req,
 		STACK_OF(CONF_VALUE) *dn_sk, char *dn_sect,
 		STACK_OF(CONF_VALUE) *attr_sk, char *attr_sect, int attribs,
@@ -129,16 +123,16 @@ static int prompt_info(X509_REQ *req,
 static int auto_info(X509_REQ *req, STACK_OF(CONF_VALUE) *sk,
 				STACK_OF(CONF_VALUE) *attr, int attribs,
 				unsigned long chtype);
-static int add_attribute_object(X509_REQ *req, char *text, const char *def,
-				char *value, int nid, int n_min,
+static int add_attribute_object(X509_REQ *req, char *text,
+				char *def, char *value, int nid, int n_min,
 				int n_max, unsigned long chtype);
-static int add_DN_object(X509_NAME *n, char *text, const char *def, char *value,
-	int nid,int n_min,int n_max, unsigned long chtype, int mval);
+static int add_DN_object(X509_NAME *n, char *text, char *def, char *value,
+	int nid,int n_min,int n_max, unsigned long chtype);
 #ifndef OPENSSL_NO_RSA
-static int MS_CALLBACK req_cb(int p, int n, BN_GENCB *cb);
+static void MS_CALLBACK req_cb(int p,int n,void *arg);
 #endif
 static int req_check_len(int len,int n_min,int n_max);
-static int check_end(const char *str, const char *end);
+static int check_end(char *str, char *end);
 #ifndef MONOLITH
 static char *default_config_file=NULL;
 #endif
@@ -148,7 +142,6 @@ static int batch=0;
 #define TYPE_RSA	1
 #define TYPE_DSA	2
 #define TYPE_DH		3
-#define TYPE_EC		4
 
 int MAIN(int, char **);
 
@@ -157,9 +150,6 @@ int MAIN(int argc, char **argv)
 	ENGINE *e = NULL;
 #ifndef OPENSSL_NO_DSA
 	DSA *dsa_params=NULL;
-#endif
-#ifndef OPENSSL_NO_ECDSA
-	EC_KEY *ec_params = NULL;
 #endif
 	unsigned long nmflag = 0, reqflag = 0;
 	int ex=1,x509=0,days=30;
@@ -185,8 +175,7 @@ int MAIN(int argc, char **argv)
 	char *passin = NULL, *passout = NULL;
 	char *p;
 	char *subj = NULL;
-	int multirdn = 0;
-	const EVP_MD *md_alg=NULL,*digest=EVP_sha1();
+	const EVP_MD *md_alg=NULL,*digest;
 	unsigned long chtype = MBSTRING_ASC;
 #ifndef MONOLITH
 	char *to_free;
@@ -207,6 +196,13 @@ int MAIN(int argc, char **argv)
 	outfile=NULL;
 	informat=FORMAT_PEM;
 	outformat=FORMAT_PEM;
+
+#ifdef  OPENSSL_FIPS
+	if (FIPS_mode())
+		digest = EVP_sha1();
+	else
+#endif
+		digest = EVP_md5();
 
 	prog=argv[0];
 	argc--;
@@ -333,63 +329,10 @@ int MAIN(int argc, char **argv)
 						}
 					}
 				BIO_free(in);
-				in=NULL;
 				newkey=BN_num_bits(dsa_params->p);
+				in=NULL;
 				}
 			else 
-#endif
-#ifndef OPENSSL_NO_ECDSA
-				if (strncmp("ec:",p,3) == 0)
-				{
-				X509 *xtmp=NULL;
-				EVP_PKEY *dtmp;
-				EC_GROUP *group;
-
-				pkey_type=TYPE_EC;
-				p+=3;
-				if ((in=BIO_new_file(p,"r")) == NULL)
-					{
-					perror(p);
-					goto end;
-					}
-				if ((ec_params = EC_KEY_new()) == NULL)
-					goto end;
-				group = PEM_read_bio_ECPKParameters(in, NULL, NULL, NULL);
-				if (group == NULL)
-					{
-					EC_KEY_free(ec_params);
-					ERR_clear_error();
-					(void)BIO_reset(in);
-					if ((xtmp=PEM_read_bio_X509(in,NULL,NULL,NULL)) == NULL)
-						{	
-						BIO_printf(bio_err,"unable to load EC parameters from file\n");
-						goto end;
-						}
-
-					if ((dtmp=X509_get_pubkey(xtmp))==NULL)
-						goto end;
-					if (dtmp->type == EVP_PKEY_EC)
-						ec_params = EC_KEY_dup(dtmp->pkey.ec);
-					EVP_PKEY_free(dtmp);
-					X509_free(xtmp);
-					if (ec_params == NULL)
-						{
-						BIO_printf(bio_err,"Certificate does not contain EC parameters\n");
-						goto end;
-						}
-					}
-				else
-					{
-					if (EC_KEY_set_group(ec_params, group) == 0)
-						goto end;
-					EC_GROUP_free(group);
-					}
-
-				BIO_free(in);
-				in=NULL;
-				newkey = EC_GROUP_get_degree(EC_KEY_get0_group(ec_params));
-				}
-			else
 #endif
 #ifndef OPENSSL_NO_DH
 				if (strncmp("dh:",p,4) == 0)
@@ -399,9 +342,7 @@ int MAIN(int argc, char **argv)
 				}
 			else
 #endif
-				{
-				goto bad;
-				}
+				pkey_type=TYPE_RSA;
 
 			newreq=1;
 			}
@@ -446,8 +387,6 @@ int MAIN(int argc, char **argv)
 			if (--argc < 1) goto bad;
 			subj= *(++argv);
 			}
-		else if (strcmp(*argv,"-multivalue-rdn") == 0)
-			multirdn=1;
 		else if (strcmp(*argv,"-days") == 0)
 			{
 			if (--argc < 1) goto bad;
@@ -513,13 +452,9 @@ bad:
 		BIO_printf(bio_err,"                the random number generator\n");
 		BIO_printf(bio_err," -newkey rsa:bits generate a new RSA key of 'bits' in size\n");
 		BIO_printf(bio_err," -newkey dsa:file generate a new DSA key, parameters taken from CA in 'file'\n");
-#ifndef OPENSSL_NO_ECDSA
-		BIO_printf(bio_err," -newkey ec:file generate a new EC key, parameters taken from CA in 'file'\n");
-#endif
 		BIO_printf(bio_err," -[digest]      Digest to sign with (md5, sha1, md2, mdc2, md4)\n");
 		BIO_printf(bio_err," -config file   request template file.\n");
 		BIO_printf(bio_err," -subj arg      set or modify request subject\n");
-		BIO_printf(bio_err," -multivalue-rdn enable support for multivalued RDNs\n");
 		BIO_printf(bio_err," -new           new request.\n");
 		BIO_printf(bio_err," -batch         do not ask anything during request generation\n");
 		BIO_printf(bio_err," -x509          output a x509 structure instead of a cert. req.\n");
@@ -712,8 +647,7 @@ bad:
 			   message */
 			goto end;
 			}
-		if (EVP_PKEY_type(pkey->type) == EVP_PKEY_DSA || 
-			EVP_PKEY_type(pkey->type) == EVP_PKEY_EC)
+		if (EVP_PKEY_type(pkey->type) == EVP_PKEY_DSA)
 			{
 			char *randfile = NCONF_get_string(req_conf,SECTION,"RANDFILE");
 			if (randfile == NULL)
@@ -724,7 +658,6 @@ bad:
 
 	if (newreq && (pkey == NULL))
 		{
-		BN_GENCB cb;
 		char *randfile = NCONF_get_string(req_conf,SECTION,"RANDFILE");
 		if (randfile == NULL)
 			ERR_clear_error();
@@ -738,33 +671,24 @@ bad:
 				newkey=DEFAULT_KEY_LENGTH;
 			}
 
-		if (newkey < MIN_KEY_LENGTH && (pkey_type == TYPE_RSA || pkey_type == TYPE_DSA))
+		if (newkey < MIN_KEY_LENGTH)
 			{
 			BIO_printf(bio_err,"private key length is too short,\n");
-			BIO_printf(bio_err,"it needs to be at least %d bits, not %ld\n",MIN_KEY_LENGTH,newkey);
+			BIO_printf(bio_err,"it needs to be at least %d bits, not %d\n",MIN_KEY_LENGTH,newkey);
 			goto end;
 			}
-		BIO_printf(bio_err,"Generating a %ld bit %s private key\n",
-			newkey,(pkey_type == TYPE_RSA)?"RSA":
-			(pkey_type == TYPE_DSA)?"DSA":"EC");
+		BIO_printf(bio_err,"Generating a %d bit %s private key\n",
+			newkey,(pkey_type == TYPE_RSA)?"RSA":"DSA");
 
 		if ((pkey=EVP_PKEY_new()) == NULL) goto end;
 
 #ifndef OPENSSL_NO_RSA
-		BN_GENCB_set(&cb, req_cb, bio_err);
 		if (pkey_type == TYPE_RSA)
 			{
-			RSA *rsa = RSA_new();
-			BIGNUM *bn = BN_new();
-			if(!bn || !rsa || !BN_set_word(bn, 0x10001) ||
-					!RSA_generate_key_ex(rsa, newkey, bn, &cb) ||
-					!EVP_PKEY_assign_RSA(pkey, rsa))
-				{
-				if(bn) BN_free(bn);
-				if(rsa) RSA_free(rsa);
+			if (!EVP_PKEY_assign_RSA(pkey,
+				RSA_generate_key(newkey,0x10001,
+					req_cb,bio_err)))
 				goto end;
-				}
-			BN_free(bn);
 			}
 		else
 #endif
@@ -774,15 +698,6 @@ bad:
 			if (!DSA_generate_key(dsa_params)) goto end;
 			if (!EVP_PKEY_assign_DSA(pkey,dsa_params)) goto end;
 			dsa_params=NULL;
-			}
-#endif
-#ifndef OPENSSL_NO_ECDSA
-			if (pkey_type == TYPE_EC)
-			{
-			if (!EC_KEY_generate_key(ec_params)) goto end;
-			if (!EVP_PKEY_assign_EC_KEY(pkey, ec_params)) 
-				goto end;
-			ec_params = NULL;
 			}
 #endif
 
@@ -891,10 +806,6 @@ loop:
 		if (pkey->type == EVP_PKEY_DSA)
 			digest=EVP_dss1();
 #endif
-#ifndef OPENSSL_NO_ECDSA
-		if (pkey->type == EVP_PKEY_EC)
-			digest=EVP_ecdsa();
-#endif
 		if (req == NULL)
 			{
 			req=X509_REQ_new();
@@ -903,7 +814,7 @@ loop:
 				goto end;
 				}
 
-			i=make_REQ(req,pkey,subj,multirdn,!x509, chtype);
+			i=make_REQ(req,pkey,subj,!x509, chtype);
 			subj=NULL; /* done processing '-subj' option */
 			if ((kludge > 0) && !sk_X509_ATTRIBUTE_num(req->req_info->attributes))
 				{
@@ -998,7 +909,7 @@ loop:
 			print_name(bio_err, "old subject=", X509_REQ_get_subject_name(req), nmflag);
 			}
 
-		if (build_subject(req, subj, chtype, multirdn) == 0)
+		if (build_subject(req, subj, chtype) == 0)
 			{
 			BIO_printf(bio_err, "ERROR: cannot modify subject\n");
 			ex=1;
@@ -1182,15 +1093,12 @@ end:
 #ifndef OPENSSL_NO_DSA
 	if (dsa_params != NULL) DSA_free(dsa_params);
 #endif
-#ifndef OPENSSL_NO_ECDSA
-	if (ec_params != NULL) EC_KEY_free(ec_params);
-#endif
 	apps_shutdown();
 	OPENSSL_EXIT(ex);
 	}
 
-static int make_REQ(X509_REQ *req, EVP_PKEY *pkey, char *subj, int multirdn,
-			int attribs, unsigned long chtype)
+static int make_REQ(X509_REQ *req, EVP_PKEY *pkey, char *subj, int attribs,
+			unsigned long chtype)
 	{
 	int ret=0,i;
 	char no_prompt = 0;
@@ -1240,7 +1148,7 @@ static int make_REQ(X509_REQ *req, EVP_PKEY *pkey, char *subj, int multirdn,
 	else 
 		{
 		if (subj)
-			i = build_subject(req, subj, chtype, multirdn);
+			i = build_subject(req, subj, chtype);
 		else
 			i = prompt_info(req, dn_sk, dn_sect, attr_sk, attr_sect, attribs, chtype);
 		}
@@ -1257,11 +1165,11 @@ err:
  * subject is expected to be in the format /type0=value0/type1=value1/type2=...
  * where characters may be escaped by \
  */
-static int build_subject(X509_REQ *req, char *subject, unsigned long chtype, int multirdn)
+static int build_subject(X509_REQ *req, char *subject, unsigned long chtype)
 	{
 	X509_NAME *n;
 
-	if (!(n = parse_name(subject, chtype, multirdn)))
+	if (!(n = do_subject(subject, chtype)))
 		return 0;
 
 	if (!X509_REQ_set_subject_name(req, n))
@@ -1282,10 +1190,9 @@ static int prompt_info(X509_REQ *req,
 	int i;
 	char *p,*q;
 	char buf[100];
-	int nid, mval;
+	int nid;
 	long n_min,n_max;
-	char *type, *value;
-	const char *def;
+	char *type,*def,*value;
 	CONF_VALUE *v;
 	X509_NAME *subj;
 	subj = X509_REQ_get_subject_name(req);
@@ -1326,17 +1233,10 @@ start:		for (;;)
 					if(*p) type = p;
 					break;
 				}
-			if (*type == '+')
-				{
-				mval = -1;
-				type++;
-				}
-			else
-				mval = 0;
 			/* If OBJ not recognised ignore it */
 			if ((nid=OBJ_txt2nid(type)) == NID_undef) goto start;
 			if (BIO_snprintf(buf,sizeof buf,"%s_default",v->name)
-				>= (int)sizeof(buf))
+				>= sizeof buf)
 			   {
 			   BIO_printf(bio_err,"Name '%s' too long\n",v->name);
 			   return 0;
@@ -1370,7 +1270,7 @@ start:		for (;;)
 				}
 
 			if (!add_DN_object(subj,v->value,def,value,nid,
-				n_min,n_max, chtype, mval))
+				n_min,n_max, chtype))
 				return 0;
 			}
 		if (X509_NAME_entry_count(subj) == 0)
@@ -1401,7 +1301,7 @@ start2:			for (;;)
 					goto start2;
 
 				if (BIO_snprintf(buf,sizeof buf,"%s_default",type)
-					>= (int)sizeof(buf))
+					>= sizeof buf)
 				   {
 				   BIO_printf(bio_err,"Name '%s' too long\n",v->name);
 				   return 0;
@@ -1460,7 +1360,6 @@ static int auto_info(X509_REQ *req, STACK_OF(CONF_VALUE) *dn_sk,
 
 	for (i = 0; i < sk_CONF_VALUE_num(dn_sk); i++)
 		{
-		int mval;
 		v=sk_CONF_VALUE_value(dn_sk,i);
 		p=q=NULL;
 		type=v->name;
@@ -1477,19 +1376,8 @@ static int auto_info(X509_REQ *req, STACK_OF(CONF_VALUE) *dn_sk,
 				if(*p) type = p;
 				break;
 			}
-#ifndef CHARSET_EBCDIC
-		if (*p == '+')
-#else
-		if (*p == os_toascii['+'])
-#endif
-			{
-			p++;
-			mval = -1;
-			}
-		else
-			mval = 0;
 		if (!X509_NAME_add_entry_by_txt(subj,type, chtype,
-				(unsigned char *) v->value,-1,-1,mval)) return 0;
+				(unsigned char *) v->value,-1,-1,0)) return 0;
 
 		}
 
@@ -1511,8 +1399,8 @@ static int auto_info(X509_REQ *req, STACK_OF(CONF_VALUE) *dn_sk,
 	}
 
 
-static int add_DN_object(X509_NAME *n, char *text, const char *def, char *value,
-	     int nid, int n_min, int n_max, unsigned long chtype, int mval)
+static int add_DN_object(X509_NAME *n, char *text, char *def, char *value,
+	     int nid, int n_min, int n_max, unsigned long chtype)
 	{
 	int i,ret=0;
 	MS_STATIC char buf[1024];
@@ -1561,14 +1449,14 @@ start:
 #endif
 	if(!req_check_len(i, n_min, n_max)) goto start;
 	if (!X509_NAME_add_entry_by_NID(n,nid, chtype,
-				(unsigned char *) buf, -1,-1,mval)) goto err;
+				(unsigned char *) buf, -1,-1,0)) goto err;
 	ret=1;
 err:
 	return(ret);
 	}
 
-static int add_attribute_object(X509_REQ *req, char *text, const char *def,
-				char *value, int nid, int n_min,
+static int add_attribute_object(X509_REQ *req, char *text,
+				char *def, char *value, int nid, int n_min,
 				int n_max, unsigned long chtype)
 	{
 	int i;
@@ -1632,7 +1520,7 @@ err:
 	}
 
 #ifndef OPENSSL_NO_RSA
-static int MS_CALLBACK req_cb(int p, int n, BN_GENCB *cb)
+static void MS_CALLBACK req_cb(int p, int n, void *arg)
 	{
 	char c='*';
 
@@ -1640,12 +1528,11 @@ static int MS_CALLBACK req_cb(int p, int n, BN_GENCB *cb)
 	if (p == 1) c='+';
 	if (p == 2) c='*';
 	if (p == 3) c='\n';
-	BIO_write(cb->arg,&c,1);
-	(void)BIO_flush(cb->arg);
+	BIO_write((BIO *)arg,&c,1);
+	(void)BIO_flush((BIO *)arg);
 #ifdef LINT
 	p=n;
 #endif
-	return 1;
 	}
 #endif
 
@@ -1665,10 +1552,10 @@ static int req_check_len(int len, int n_min, int n_max)
 	}
 
 /* Check if the end of a string matches 'end' */
-static int check_end(const char *str, const char *end)
+static int check_end(char *str, char *end)
 {
 	int elen, slen;	
-	const char *tmp;
+	char *tmp;
 	elen = strlen(end);
 	slen = strlen(str);
 	if(elen > slen) return 1;

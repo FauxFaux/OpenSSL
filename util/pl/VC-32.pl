@@ -11,27 +11,9 @@ $rm='del';
 
 # C compiler stuff
 $cc='cl';
-if ($FLAVOR =~ /WIN64/)
-    {
-    # Note that we currently don't have /WX on Win64! There is a lot of
-    # warnings, but only of two types:
-    #
-    # C4344: conversion from '__int64' to 'int/long', possible loss of data
-    # C4267: conversion from 'size_t' to 'int/long', possible loss of data
-    #
-    # Amount of latter type is minimized by aliasing strlen to function of
-    # own desing and limiting its return value to 2GB-1 (see e_os.h). As
-    # per 0.9.8 release remaining warnings were explicitly examines and
-    # considered safe to ignore.
-    # 
-    $cflags=' /MD /W3 /Ox /Gs0 /GF /Gy /nologo -DWIN32_LEAN_AND_MEAN -DL_ENDIAN -DDSO_WIN32 -DOPENSSL_SYSNAME_WIN32 -DOPENSSL_SYSNAME_WINNT -DUNICODE -D_UNICODE';
-    $lflags="/nologo /subsystem:console /opt:ref";
-    }
-else
-    {
-    $cflags=' /MD /W3 /WX /G5 /Ox /O2 /Ob2 /Gs0 /GF /Gy /nologo -DOPENSSL_SYSNAME_WIN32 -DWIN32_LEAN_AND_MEAN -DL_ENDIAN -DDSO_WIN32';
-    $lflags="/nologo /subsystem:console /machine:I386 /opt:ref";
-    }
+$cflags=' /MD /W3 /WX /G5 /Ox /O2 /Ob2 /Gs0 /GF /Gy /nologo -DOPENSSL_SYSNAME_WIN32 -DWIN32_LEAN_AND_MEAN -DL_ENDIAN -DDSO_WIN32';
+$cflags.=' -D_CRT_SECURE_NO_DEPRECATE';	# shut up VC8
+$lflags="/nologo /subsystem:console /machine:I386 /opt:ref";
 $mlflags='';
 
 $out_def="out32";
@@ -51,13 +33,11 @@ $ofile="/Fo";
 
 # EXE linking stuff
 $link="link";
-$rsc="rc";
 $efile="/out:";
 $exep='.exe';
 if ($no_sock)
 	{ $ex_libs=""; }
 else	{ $ex_libs="wsock32.lib user32.lib gdi32.lib"; }
-$ex_libs="$ex_libs bufferoverflowu.lib" if ($FLAVOR =~ /WIN64/);
 
 # static library stuff
 $mklib='lib';
@@ -85,7 +65,7 @@ $des_enc_src='';
 $bf_enc_obj='';
 $bf_enc_src='';
 
-if (!$no_asm)
+if (!$no_asm && !$fips)
 	{
 	$bn_asm_obj='crypto\bn\asm\bn_win32.obj';
 	$bn_asm_src='crypto\bn\asm\bn_win32.asm';
@@ -115,30 +95,6 @@ if ($shlib)
 	$lib_cflag=" -D_WINDLL";
 	$out_def="out32dll";
 	$tmp_def="tmp32dll";
-	#
-	# Engage Applink...
-	#
-	$app_ex_obj.=" \$(OBJ_D)\\applink.obj /implib:\$(TMP_D)\\junk.lib";
-	$cflags.=" -DOPENSSL_USE_APPLINK -I.";
-	# I'm open for better suggestions than overriding $banner...
-	$banner=<<'___';
-	@echo Building OpenSSL
-
-$(OBJ_D)\applink.obj:	ms\applink.c
-	$(CC) /Fo$(OBJ_D)\applink.obj $(APP_CFLAGS) -c ms\applink.c
-$(OBJ_D)\uplink.obj:	ms\uplink.c ms\applink.c
-	$(CC) /Fo$(OBJ_D)\uplink.obj $(SHLIB_CFLAGS) -c ms\uplink.c
-$(INCO_D)\applink.c:	ms\applink.c
-	$(CP) ms\applink.c $(INCO_D)\applink.c
-
-EXHEADER= $(EXHEADER) $(INCO_D)\applink.c
-
-LIBS_DEP=$(LIBS_DEP) $(OBJ_D)\applink.obj
-CRYPTOOBJ=$(OBJ_D)\uplink.obj $(CRYPTOOBJ)
-___
-	$banner.=<<'___' if ($FLAVOR =~ /WIN64/);
-CRYPTOOBJ=ms\uptable.obj $(CRYPTOOBJ)
-___
 	}
 
 $cflags.=" /Fd$out_def";
@@ -163,7 +119,6 @@ sub do_lib_rule
 		{
 		local($ex)=($target =~ /O_SSL/)?' $(L_CRYPTO)':'';
 		$ex.=' wsock32.lib gdi32.lib advapi32.lib user32.lib';
-		$ex.=' bufferoverflowu.lib' if ($FLAVOR =~ /WIN64/);
 		$ret.="\t\$(LINK) \$(MLFLAGS) $efile$target /def:ms/${Name}.def @<<\n  \$(SHLIB_EX_OBJ) $objs $ex\n<<\n";
 		}
 	$ret.="\n";
@@ -172,14 +127,19 @@ sub do_lib_rule
 
 sub do_link_rule
 	{
-	local($target,$files,$dep_libs,$libs)=@_;
+	local($target,$files,$dep_libs,$libs,$sha1file,$openssl)=@_;
 	local($ret,$_);
 	
 	$file =~ s/\//$o/g if $o ne '/';
 	$n=&bname($targer);
 	$ret.="$target: $files $dep_libs\n";
 	$ret.="  \$(LINK) \$(LFLAGS) $efile$target @<<\n";
-	$ret.="  \$(APP_EX_OBJ) $files $libs\n<<\n\n";
+	$ret.="  \$(APP_EX_OBJ) $files $libs\n<<\n";
+	if (defined $sha1file)
+		{
+		$ret.="  $openssl sha1 -hmac etaonrishdlcupfm -binary $target > $sha1file";
+		}
+	$ret.="\n";
 	return($ret);
 	}
 

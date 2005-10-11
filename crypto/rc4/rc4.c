@@ -60,7 +60,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <openssl/rc4.h>
-#include <openssl/evp.h>
 
 char *usage[]={
 "usage: rc4 args\n",
@@ -163,7 +162,7 @@ bad:
 		keystr=buf;
 		}
 
-	EVP_Digest((unsigned char *)keystr,strlen(keystr),md,NULL,EVP_md5(),NULL);
+	EVP_Digest((unsigned char *)keystr,(unsigned long)strlen(keystr),md,NULL,EVP_md5());
 	OPENSSL_cleanse(keystr,strlen(keystr));
 	RC4_set_key(&key,MD5_DIGEST_LENGTH,md);
 	

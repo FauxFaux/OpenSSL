@@ -59,6 +59,7 @@
 #include "ssl_locl.h"
 #ifndef OPENSSL_NO_SSL2
 #include <stdio.h>
+#include <openssl/rsa.h>
 #include <openssl/objects.h>
 #include <openssl/evp.h>
 #include <openssl/md5.h>
@@ -224,10 +225,6 @@ static SSL_METHOD SSLv2_data= {
 	ssl2_shutdown,
 	ssl_ok,	/* NULL - renegotiate */
 	ssl_ok,	/* NULL - check renegotiate */
-	NULL, /* NULL - ssl_get_message */
-	NULL, /* NULL - ssl_get_record */
-	NULL, /* NULL - ssl_write_bytes */
-	NULL, /* NULL - dispatch_alert */
 	ssl2_ctrl,	/* local */
 	ssl2_ctx_ctrl,	/* local */
 	ssl2_get_cipher_by_char,
@@ -238,7 +235,7 @@ static SSL_METHOD SSLv2_data= {
 	ssl_bad_method,
 	ssl2_default_timeout,
 	&ssl3_undef_enc_method,
-	ssl_undefined_void_function,
+	ssl_undefined_function,
 	ssl2_callback_ctrl,	/* local */
 	ssl2_ctx_callback_ctrl,	/* local */
 	};
@@ -352,7 +349,7 @@ long ssl2_ctrl(SSL *s, int cmd, long larg, void *parg)
 	return(ret);
 	}
 
-long ssl2_callback_ctrl(SSL *s, int cmd, void (*fp)(void))
+long ssl2_callback_ctrl(SSL *s, int cmd, void (*fp)())
 	{
 	return(0);
 	}
@@ -362,7 +359,7 @@ long ssl2_ctx_ctrl(SSL_CTX *ctx, int cmd, long larg, void *parg)
 	return(0);
 	}
 
-long ssl2_ctx_callback_ctrl(SSL_CTX *ctx, int cmd, void (*fp)(void))
+long ssl2_ctx_callback_ctrl(SSL_CTX *ctx, int cmd, void (*fp)())
 	{
 	return(0);
 	}
@@ -375,7 +372,7 @@ SSL_CIPHER *ssl2_get_cipher_by_char(const unsigned char *p)
 	static SSL_CIPHER *sorted[SSL2_NUM_CIPHERS];
 	SSL_CIPHER c,*cp= &c,**cpp;
 	unsigned long id;
-	unsigned int i;
+	int i;
 
 	if (init)
 		{
@@ -441,8 +438,7 @@ int ssl2_generate_key_material(SSL *s)
 	EVP_MD_CTX_init(&ctx);
 	km=s->s2->key_material;
 
- 	if (s->session->master_key_length < 0 ||
-			s->session->master_key_length > (int)sizeof(s->session->master_key))
+ 	if (s->session->master_key_length < 0 || s->session->master_key_length > sizeof s->session->master_key)
  		{
  		SSLerr(SSL_F_SSL2_GENERATE_KEY_MATERIAL, ERR_R_INTERNAL_ERROR);
  		return 0;
@@ -450,8 +446,7 @@ int ssl2_generate_key_material(SSL *s)
 
 	for (i=0; i<s->s2->key_material_length; i += EVP_MD_size(md5))
 		{
-		if (((km - s->s2->key_material) + EVP_MD_size(md5)) >
-				(int)sizeof(s->s2->key_material))
+		if (((km - s->s2->key_material) + EVP_MD_size(md5)) > sizeof s->s2->key_material)
 			{
 			/* EVP_DigestFinal_ex() below would write beyond buffer */
 			SSLerr(SSL_F_SSL2_GENERATE_KEY_MATERIAL, ERR_R_INTERNAL_ERROR);
@@ -462,7 +457,7 @@ int ssl2_generate_key_material(SSL *s)
 
 		OPENSSL_assert(s->session->master_key_length >= 0
 		    && s->session->master_key_length
-		    < (int)sizeof(s->session->master_key));
+		    < sizeof s->session->master_key);
 		EVP_DigestUpdate(&ctx,s->session->master_key,s->session->master_key_length);
 		EVP_DigestUpdate(&ctx,&c,1);
 		c++;
@@ -501,7 +496,7 @@ void ssl2_write_error(SSL *s)
 
 	error=s->error; /* number of bytes left to write */
 	s->error=0;
-	OPENSSL_assert(error >= 0 && error <= (int)sizeof(buf));
+	OPENSSL_assert(error >= 0 && error <= sizeof buf);
 	i=ssl2_write(s,&(buf[3-error]),error);
 
 /*	if (i == error) s->rwstate=state; */

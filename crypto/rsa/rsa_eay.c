@@ -115,7 +115,7 @@
 #include <openssl/rsa.h>
 #include <openssl/rand.h>
 
-#ifndef RSA_NULL
+#if !defined(RSA_NULL) && !defined(OPENSSL_FIPS)
 
 static int RSA_eay_public_encrypt(int flen, const unsigned char *from,
 		unsigned char *to, RSA *rsa,int padding);
@@ -125,7 +125,7 @@ static int RSA_eay_public_decrypt(int flen, const unsigned char *from,
 		unsigned char *to, RSA *rsa,int padding);
 static int RSA_eay_private_decrypt(int flen, const unsigned char *from,
 		unsigned char *to, RSA *rsa,int padding);
-static int RSA_eay_mod_exp(BIGNUM *r0, const BIGNUM *i, RSA *rsa, BN_CTX *ctx);
+static int RSA_eay_mod_exp(BIGNUM *r0, const BIGNUM *i, RSA *rsa);
 static int RSA_eay_init(RSA *rsa);
 static int RSA_eay_finish(RSA *rsa);
 static RSA_METHOD rsa_pkcs1_eay_meth={
@@ -141,8 +141,7 @@ static RSA_METHOD rsa_pkcs1_eay_meth={
 	0, /* flags */
 	NULL,
 	0, /* rsa_sign */
-	0, /* rsa_verify */
-	NULL /* rsa_keygen */
+	0  /* rsa_verify */
 	};
 
 const RSA_METHOD *RSA_PKCS1_SSLeay(void)
@@ -150,31 +149,19 @@ const RSA_METHOD *RSA_PKCS1_SSLeay(void)
 	return(&rsa_pkcs1_eay_meth);
 	}
 
-/* Usage example;
- *    MONT_HELPER(rsa, bn_ctx, p, rsa->flags & RSA_FLAG_CACHE_PRIVATE, goto err);
- */
-#define MONT_HELPER(rsa, ctx, m, pre_cond, err_instr) \
-	if((pre_cond) && ((rsa)->_method_mod_##m == NULL) && \
-			!BN_MONT_CTX_set_locked(&((rsa)->_method_mod_##m), \
-				CRYPTO_LOCK_RSA, \
-				(rsa)->m, (ctx))) \
-		err_instr
-
 static int RSA_eay_public_encrypt(int flen, const unsigned char *from,
 	     unsigned char *to, RSA *rsa, int padding)
 	{
-	BIGNUM *f,*ret;
+	BIGNUM f,ret;
 	int i,j,k,num=0,r= -1;
 	unsigned char *buf=NULL;
 	BN_CTX *ctx=NULL;
 
+	BN_init(&f);
+	BN_init(&ret);
 	if ((ctx=BN_CTX_new()) == NULL) goto err;
-	BN_CTX_start(ctx);
-	f = BN_CTX_get(ctx);
-	ret = BN_CTX_get(ctx);
 	num=BN_num_bytes(rsa->n);
-	buf = OPENSSL_malloc(num);
-	if (!f || !ret || !buf)
+	if ((buf=(unsigned char *)OPENSSL_malloc(num)) == NULL)
 		{
 		RSAerr(RSA_F_RSA_EAY_PUBLIC_ENCRYPT,ERR_R_MALLOC_FAILURE);
 		goto err;
@@ -202,34 +189,37 @@ static int RSA_eay_public_encrypt(int flen, const unsigned char *from,
 		}
 	if (i <= 0) goto err;
 
-	if (BN_bin2bn(buf,num,f) == NULL) goto err;
+	if (BN_bin2bn(buf,num,&f) == NULL) goto err;
 	
-	if (BN_ucmp(f, rsa->n) >= 0)
+	if (BN_ucmp(&f, rsa->n) >= 0)
 		{	
 		/* usually the padding functions would catch this */
 		RSAerr(RSA_F_RSA_EAY_PUBLIC_ENCRYPT,RSA_R_DATA_TOO_LARGE_FOR_MODULUS);
 		goto err;
 		}
 
-	MONT_HELPER(rsa, ctx, n, rsa->flags & RSA_FLAG_CACHE_PUBLIC, goto err);
+	if (rsa->flags & RSA_FLAG_CACHE_PUBLIC)
+		{
+		if (!BN_MONT_CTX_set_locked(&rsa->_method_mod_n,
+					CRYPTO_LOCK_RSA, rsa->n, ctx))
+			goto err;
+		}
 
-	if (!rsa->meth->bn_mod_exp(ret,f,rsa->e,rsa->n,ctx,
+	if (!rsa->meth->bn_mod_exp(&ret,&f,rsa->e,rsa->n,ctx,
 		rsa->_method_mod_n)) goto err;
 
 	/* put in leading 0 bytes if the number is less than the
 	 * length of the modulus */
-	j=BN_num_bytes(ret);
-	i=BN_bn2bin(ret,&(to[num-j]));
+	j=BN_num_bytes(&ret);
+	i=BN_bn2bin(&ret,&(to[num-j]));
 	for (k=0; k<(num-i); k++)
 		to[k]=0;
 
 	r=num;
 err:
-	if (ctx != NULL)
-		{
-		BN_CTX_end(ctx);
-		BN_CTX_free(ctx);
-		}
+	if (ctx != NULL) BN_CTX_free(ctx);
+	BN_clear_free(&f);
+	BN_clear_free(&ret);
 	if (buf != NULL) 
 		{
 		OPENSSL_cleanse(buf,num);
@@ -238,92 +228,76 @@ err:
 	return(r);
 	}
 
-static BN_BLINDING *rsa_get_blinding(RSA *rsa, BIGNUM **r, int *local, BN_CTX *ctx)
-{
-	BN_BLINDING *ret;
-
-	if (rsa->blinding == NULL)
-		{
-		if (rsa->blinding == NULL)
-			{
-			CRYPTO_w_lock(CRYPTO_LOCK_RSA);
-			if (rsa->blinding == NULL)
-				rsa->blinding = RSA_setup_blinding(rsa, ctx);
-			CRYPTO_w_unlock(CRYPTO_LOCK_RSA);
-			}
-		}
-
-	ret = rsa->blinding;
-	if (ret == NULL)
-		return NULL;
-
-	if (BN_BLINDING_get_thread_id(ret) != CRYPTO_thread_id())
-		{
-		*local = 0;
-		if (rsa->mt_blinding == NULL)
-			{
-			CRYPTO_w_lock(CRYPTO_LOCK_RSA);
-			if (rsa->mt_blinding == NULL)
-				rsa->mt_blinding = RSA_setup_blinding(rsa, ctx);
-			CRYPTO_w_unlock(CRYPTO_LOCK_RSA);
-			}
-		ret = rsa->mt_blinding;
-		}
-	else
-		*local = 1;
-
+static int rsa_eay_blinding(RSA *rsa, BN_CTX *ctx)
+	{
+	int ret = 1;
+	CRYPTO_w_lock(CRYPTO_LOCK_RSA);
+	/* Check again inside the lock - the macro's check is racey */
+	if(rsa->blinding == NULL)
+		ret = RSA_blinding_on(rsa, ctx);
+	CRYPTO_w_unlock(CRYPTO_LOCK_RSA);
 	return ret;
-}
+	}
 
-static int rsa_blinding_convert(BN_BLINDING *b, int local, BIGNUM *f,
-	BIGNUM *r, BN_CTX *ctx)
-{
-	if (local)
-		return BN_BLINDING_convert_ex(f, NULL, b, ctx);
+#define BLINDING_HELPER(rsa, ctx, err_instr) \
+	do { \
+		if((!((rsa)->flags & RSA_FLAG_NO_BLINDING)) && \
+		    ((rsa)->blinding == NULL) && \
+		    !rsa_eay_blinding(rsa, ctx)) \
+		    err_instr \
+	} while(0)
+
+static BN_BLINDING *setup_blinding(RSA *rsa, BN_CTX *ctx)
+	{
+	BIGNUM *A, *Ai;
+	BN_BLINDING *ret = NULL;
+
+	/* added in OpenSSL 0.9.6j and 0.9.7b */
+
+	/* NB: similar code appears in RSA_blinding_on (rsa_lib.c);
+	 * this should be placed in a new function of its own, but for reasons
+	 * of binary compatibility can't */
+
+	BN_CTX_start(ctx);
+	A = BN_CTX_get(ctx);
+	if ((RAND_status() == 0) && rsa->d != NULL && rsa->d->d != NULL)
+		{
+		/* if PRNG is not properly seeded, resort to secret exponent as unpredictable seed */
+		RAND_add(rsa->d->d, rsa->d->dmax * sizeof rsa->d->d[0], 0);
+		if (!BN_pseudo_rand_range(A,rsa->n)) goto err;
+		}
 	else
 		{
-		int ret;
-		CRYPTO_w_lock(CRYPTO_LOCK_RSA_BLINDING);
-		ret = BN_BLINDING_convert_ex(f, r, b, ctx);
-		CRYPTO_w_unlock(CRYPTO_LOCK_RSA_BLINDING);
-		return ret;
+		if (!BN_rand_range(A,rsa->n)) goto err;
 		}
-}
+	if ((Ai=BN_mod_inverse(NULL,A,rsa->n,ctx)) == NULL) goto err;
 
-static int rsa_blinding_invert(BN_BLINDING *b, int local, BIGNUM *f,
-	BIGNUM *r, BN_CTX *ctx)
-{
-	if (local)
-		return BN_BLINDING_invert_ex(f, NULL, b, ctx);
-	else
-		{
-		int ret;
-		CRYPTO_r_lock(CRYPTO_LOCK_RSA_BLINDING);
-		ret = BN_BLINDING_invert_ex(f, r, b, ctx);
-		CRYPTO_r_unlock(CRYPTO_LOCK_RSA_BLINDING);
-		return ret;
-		}
-}
+	if (!rsa->meth->bn_mod_exp(A,A,rsa->e,rsa->n,ctx,rsa->_method_mod_n))
+		goto err;
+	ret = BN_BLINDING_new(A,Ai,rsa->n);
+	BN_free(Ai);
+err:
+	BN_CTX_end(ctx);
+	return ret;
+	}
 
 /* signing */
 static int RSA_eay_private_encrypt(int flen, const unsigned char *from,
 	     unsigned char *to, RSA *rsa, int padding)
 	{
-	BIGNUM *f, *ret, *br, *res;
+	BIGNUM f,ret, *res;
 	int i,j,k,num=0,r= -1;
 	unsigned char *buf=NULL;
 	BN_CTX *ctx=NULL;
 	int local_blinding = 0;
 	BN_BLINDING *blinding = NULL;
 
+	BN_init(&f);
+	BN_init(&ret);
+
 	if ((ctx=BN_CTX_new()) == NULL) goto err;
-	BN_CTX_start(ctx);
-	f   = BN_CTX_get(ctx);
-	br  = BN_CTX_get(ctx);
-	ret = BN_CTX_get(ctx);
-	num = BN_num_bytes(rsa->n);
-	buf = OPENSSL_malloc(num);
-	if(!f || !ret || !buf)
+	num=BN_num_bytes(rsa->n);
+	if ((buf=(unsigned char *)OPENSSL_malloc(num)) == NULL)
 		{
 		RSAerr(RSA_F_RSA_EAY_PRIVATE_ENCRYPT,ERR_R_MALLOC_FAILURE);
 		goto err;
@@ -333,9 +307,6 @@ static int RSA_eay_private_encrypt(int flen, const unsigned char *from,
 		{
 	case RSA_PKCS1_PADDING:
 		i=RSA_padding_add_PKCS1_type_1(buf,num,from,flen);
-		break;
-	case RSA_X931_PADDING:
-		i=RSA_padding_add_X931(buf,num,from,flen);
 		break;
 	case RSA_NO_PADDING:
 		i=RSA_padding_add_none(buf,num,from,flen);
@@ -347,18 +318,26 @@ static int RSA_eay_private_encrypt(int flen, const unsigned char *from,
 		}
 	if (i <= 0) goto err;
 
-	if (BN_bin2bn(buf,num,f) == NULL) goto err;
+	if (BN_bin2bn(buf,num,&f) == NULL) goto err;
 	
-	if (BN_ucmp(f, rsa->n) >= 0)
+	if (BN_ucmp(&f, rsa->n) >= 0)
 		{	
 		/* usually the padding functions would catch this */
 		RSAerr(RSA_F_RSA_EAY_PRIVATE_ENCRYPT,RSA_R_DATA_TOO_LARGE_FOR_MODULUS);
 		goto err;
 		}
 
+	BLINDING_HELPER(rsa, ctx, goto err;);
+	blinding = rsa->blinding;
+	
+	/* Now unless blinding is disabled, 'blinding' is non-NULL.
+	 * But the BN_BLINDING object may be owned by some other thread
+	 * (we don't want to keep it constant and we don't want to use
+	 * lots of locking to avoid race conditions, so only a single
+	 * thread can use it; other threads have to use local blinding
+	 * factors) */
 	if (!(rsa->flags & RSA_FLAG_NO_BLINDING))
 		{
-		blinding = rsa_get_blinding(rsa, &br, &local_blinding, ctx);
 		if (blinding == NULL)
 			{
 			RSAerr(RSA_F_RSA_EAY_PRIVATE_ENCRYPT, ERR_R_INTERNAL_ERROR);
@@ -367,8 +346,20 @@ static int RSA_eay_private_encrypt(int flen, const unsigned char *from,
 		}
 	
 	if (blinding != NULL)
-		if (!rsa_blinding_convert(blinding, local_blinding, f, br, ctx))
-			goto err;
+		{
+		if (blinding->thread_id != CRYPTO_thread_id())
+			{
+			/* we need a local one-time blinding factor */
+
+			blinding = setup_blinding(rsa, ctx);
+			if (blinding == NULL)
+				goto err;
+			local_blinding = 1;
+			}
+		}
+
+	if (blinding)
+		if (!BN_BLINDING_convert(&f, blinding, ctx)) goto err;
 
 	if ( (rsa->flags & RSA_FLAG_EXT_PKEY) ||
 		((rsa->p != NULL) &&
@@ -377,7 +368,7 @@ static int RSA_eay_private_encrypt(int flen, const unsigned char *from,
 		(rsa->dmq1 != NULL) &&
 		(rsa->iqmp != NULL)) )
 		{ 
-		if (!rsa->meth->rsa_mod_exp(ret, f, rsa, ctx)) goto err;
+		if (!rsa->meth->rsa_mod_exp(&ret,&f,rsa)) goto err;
 		}
 	else
 		{
@@ -392,27 +383,22 @@ static int RSA_eay_private_encrypt(int flen, const unsigned char *from,
 			}
 		else
 			d = rsa->d;
-
-		MONT_HELPER(rsa, ctx, n, rsa->flags & RSA_FLAG_CACHE_PUBLIC, goto err);
-
-		if (!rsa->meth->bn_mod_exp(ret,f,d,rsa->n,ctx,
-				rsa->_method_mod_n)) goto err;
+		if (!rsa->meth->bn_mod_exp(&ret,&f,d,rsa->n,ctx,NULL)) goto err;
 		}
 
 	if (blinding)
-		if (!rsa_blinding_invert(blinding, local_blinding, ret, br, ctx))
-			goto err;
+		if (!BN_BLINDING_invert(&ret, blinding, ctx)) goto err;
 
 	if (padding == RSA_X931_PADDING)
 		{
-		BN_sub(f, rsa->n, ret);
-		if (BN_cmp(ret, f))
-			res = f;
+		BN_sub(&f, rsa->n, &ret);
+		if (BN_cmp(&ret, &f))
+			res = &f;
 		else
-			res = ret;
+			res = &ret;
 		}
 	else
-		res = ret;
+		res = &ret;
 
 	/* put in leading 0 bytes if the number is less than the
 	 * length of the modulus */
@@ -423,11 +409,11 @@ static int RSA_eay_private_encrypt(int flen, const unsigned char *from,
 
 	r=num;
 err:
-	if (ctx != NULL)
-		{
-		BN_CTX_end(ctx);
-		BN_CTX_free(ctx);
-		}
+	if (ctx != NULL) BN_CTX_free(ctx);
+	BN_clear_free(&ret);
+	BN_clear_free(&f);
+	if (local_blinding)
+		BN_BLINDING_free(blinding);
 	if (buf != NULL)
 		{
 		OPENSSL_cleanse(buf,num);
@@ -439,7 +425,7 @@ err:
 static int RSA_eay_private_decrypt(int flen, const unsigned char *from,
 	     unsigned char *to, RSA *rsa, int padding)
 	{
-	BIGNUM *f, *ret, *br;
+	BIGNUM f,ret;
 	int j,num=0,r= -1;
 	unsigned char *p;
 	unsigned char *buf=NULL;
@@ -447,14 +433,14 @@ static int RSA_eay_private_decrypt(int flen, const unsigned char *from,
 	int local_blinding = 0;
 	BN_BLINDING *blinding = NULL;
 
-	if((ctx = BN_CTX_new()) == NULL) goto err;
-	BN_CTX_start(ctx);
-	f   = BN_CTX_get(ctx);
-	br  = BN_CTX_get(ctx);
-	ret = BN_CTX_get(ctx);
-	num = BN_num_bytes(rsa->n);
-	buf = OPENSSL_malloc(num);
-	if(!f || !ret || !buf)
+	BN_init(&f);
+	BN_init(&ret);
+	ctx=BN_CTX_new();
+	if (ctx == NULL) goto err;
+
+	num=BN_num_bytes(rsa->n);
+
+	if ((buf=(unsigned char *)OPENSSL_malloc(num)) == NULL)
 		{
 		RSAerr(RSA_F_RSA_EAY_PRIVATE_DECRYPT,ERR_R_MALLOC_FAILURE);
 		goto err;
@@ -469,17 +455,25 @@ static int RSA_eay_private_decrypt(int flen, const unsigned char *from,
 		}
 
 	/* make data into a big number */
-	if (BN_bin2bn(from,(int)flen,f) == NULL) goto err;
+	if (BN_bin2bn(from,(int)flen,&f) == NULL) goto err;
 
-	if (BN_ucmp(f, rsa->n) >= 0)
+	if (BN_ucmp(&f, rsa->n) >= 0)
 		{
 		RSAerr(RSA_F_RSA_EAY_PRIVATE_DECRYPT,RSA_R_DATA_TOO_LARGE_FOR_MODULUS);
 		goto err;
 		}
 
+	BLINDING_HELPER(rsa, ctx, goto err;);
+	blinding = rsa->blinding;
+	
+	/* Now unless blinding is disabled, 'blinding' is non-NULL.
+	 * But the BN_BLINDING object may be owned by some other thread
+	 * (we don't want to keep it constant and we don't want to use
+	 * lots of locking to avoid race conditions, so only a single
+	 * thread can use it; other threads have to use local blinding
+	 * factors) */
 	if (!(rsa->flags & RSA_FLAG_NO_BLINDING))
 		{
-		blinding = rsa_get_blinding(rsa, &br, &local_blinding, ctx);
 		if (blinding == NULL)
 			{
 			RSAerr(RSA_F_RSA_EAY_PRIVATE_DECRYPT, ERR_R_INTERNAL_ERROR);
@@ -488,8 +482,20 @@ static int RSA_eay_private_decrypt(int flen, const unsigned char *from,
 		}
 	
 	if (blinding != NULL)
-		if (!rsa_blinding_convert(blinding, local_blinding, f, br, ctx))
-			goto err;
+		{
+		if (blinding->thread_id != CRYPTO_thread_id())
+			{
+			/* we need a local one-time blinding factor */
+
+			blinding = setup_blinding(rsa, ctx);
+			if (blinding == NULL)
+				goto err;
+			local_blinding = 1;
+			}
+		}
+
+	if (blinding)
+		if (!BN_BLINDING_convert(&f, blinding, ctx)) goto err;
 
 	/* do the decrypt */
 	if ( (rsa->flags & RSA_FLAG_EXT_PKEY) ||
@@ -499,7 +505,7 @@ static int RSA_eay_private_decrypt(int flen, const unsigned char *from,
 		(rsa->dmq1 != NULL) &&
 		(rsa->iqmp != NULL)) )
 		{
-		if (!rsa->meth->rsa_mod_exp(ret, f, rsa, ctx)) goto err;
+		if (!rsa->meth->rsa_mod_exp(&ret,&f,rsa)) goto err;
 		}
 	else
 		{
@@ -513,19 +519,15 @@ static int RSA_eay_private_decrypt(int flen, const unsigned char *from,
 			}
 		else
 			d = rsa->d;
-
-		MONT_HELPER(rsa, ctx, n, rsa->flags & RSA_FLAG_CACHE_PUBLIC, goto err);
-		if (!rsa->meth->bn_mod_exp(ret,f,d,rsa->n,ctx,
-				rsa->_method_mod_n))
-		  goto err;
+		if (!rsa->meth->bn_mod_exp(&ret,&f,d,rsa->n,ctx,NULL))
+			goto err;
 		}
 
 	if (blinding)
-		if (!rsa_blinding_invert(blinding, local_blinding, ret, br, ctx))
-			goto err;
+		if (!BN_BLINDING_invert(&ret, blinding, ctx)) goto err;
 
 	p=buf;
-	j=BN_bn2bin(ret,p); /* j is only used with no-padding mode */
+	j=BN_bn2bin(&ret,p); /* j is only used with no-padding mode */
 
 	switch (padding)
 		{
@@ -551,11 +553,11 @@ static int RSA_eay_private_decrypt(int flen, const unsigned char *from,
 		RSAerr(RSA_F_RSA_EAY_PRIVATE_DECRYPT,RSA_R_PADDING_CHECK_FAILED);
 
 err:
-	if (ctx != NULL)
-		{
-		BN_CTX_end(ctx);
-		BN_CTX_free(ctx);
-		}
+	if (ctx != NULL) BN_CTX_free(ctx);
+	BN_clear_free(&f);
+	BN_clear_free(&ret);
+	if (local_blinding)
+		BN_BLINDING_free(blinding);
 	if (buf != NULL)
 		{
 		OPENSSL_cleanse(buf,num);
@@ -568,19 +570,20 @@ err:
 static int RSA_eay_public_decrypt(int flen, const unsigned char *from,
 	     unsigned char *to, RSA *rsa, int padding)
 	{
-	BIGNUM *f,*ret;
+	BIGNUM f,ret;
 	int i,num=0,r= -1;
 	unsigned char *p;
 	unsigned char *buf=NULL;
 	BN_CTX *ctx=NULL;
 
-	if((ctx = BN_CTX_new()) == NULL) goto err;
-	BN_CTX_start(ctx);
-	f = BN_CTX_get(ctx);
-	ret = BN_CTX_get(ctx);
+	BN_init(&f);
+	BN_init(&ret);
+	ctx=BN_CTX_new();
+	if (ctx == NULL) goto err;
+
 	num=BN_num_bytes(rsa->n);
-	buf = OPENSSL_malloc(num);
-	if(!f || !ret || !buf)
+	buf=(unsigned char *)OPENSSL_malloc(num);
+	if (buf == NULL)
 		{
 		RSAerr(RSA_F_RSA_EAY_PUBLIC_DECRYPT,ERR_R_MALLOC_FAILURE);
 		goto err;
@@ -594,32 +597,36 @@ static int RSA_eay_public_decrypt(int flen, const unsigned char *from,
 		goto err;
 		}
 
-	if (BN_bin2bn(from,flen,f) == NULL) goto err;
+	if (BN_bin2bn(from,flen,&f) == NULL) goto err;
 
-	if (BN_ucmp(f, rsa->n) >= 0)
+	if (BN_ucmp(&f, rsa->n) >= 0)
 		{
 		RSAerr(RSA_F_RSA_EAY_PUBLIC_DECRYPT,RSA_R_DATA_TOO_LARGE_FOR_MODULUS);
 		goto err;
 		}
 
-	MONT_HELPER(rsa, ctx, n, rsa->flags & RSA_FLAG_CACHE_PUBLIC, goto err);
+	/* do the decrypt */
 
-	if (!rsa->meth->bn_mod_exp(ret,f,rsa->e,rsa->n,ctx,
+	if (rsa->flags & RSA_FLAG_CACHE_PUBLIC)
+		{
+		if (!BN_MONT_CTX_set_locked(&rsa->_method_mod_n,
+					CRYPTO_LOCK_RSA, rsa->n, ctx))
+			goto err;
+		}
+
+	if (!rsa->meth->bn_mod_exp(&ret,&f,rsa->e,rsa->n,ctx,
 		rsa->_method_mod_n)) goto err;
 
-	if ((padding == RSA_X931_PADDING) && ((ret->d[0] & 0xf) != 12))
-		BN_sub(ret, rsa->n, ret);
+	if ((padding == RSA_X931_PADDING) && ((ret.d[0] & 0xf) != 12))
+		BN_sub(&ret, rsa->n, &ret);
 
 	p=buf;
-	i=BN_bn2bin(ret,p);
+	i=BN_bn2bin(&ret,p);
 
 	switch (padding)
 		{
 	case RSA_PKCS1_PADDING:
 		r=RSA_padding_check_PKCS1_type_1(to,num,buf,i,num);
-		break;
-	case RSA_X931_PADDING:
-		r=RSA_padding_check_X931(to,num,buf,i,num);
 		break;
 	case RSA_NO_PADDING:
 		r=RSA_padding_check_none(to,num,buf,i,num);
@@ -632,11 +639,9 @@ static int RSA_eay_public_decrypt(int flen, const unsigned char *from,
 		RSAerr(RSA_F_RSA_EAY_PUBLIC_DECRYPT,RSA_R_PADDING_CHECK_FAILED);
 
 err:
-	if (ctx != NULL)
-		{
-		BN_CTX_end(ctx);
-		BN_CTX_free(ctx);
-		}
+	if (ctx != NULL) BN_CTX_free(ctx);
+	BN_clear_free(&f);
+	BN_clear_free(&ret);
 	if (buf != NULL)
 		{
 		OPENSSL_cleanse(buf,num);
@@ -645,23 +650,30 @@ err:
 	return(r);
 	}
 
-static int RSA_eay_mod_exp(BIGNUM *r0, const BIGNUM *I, RSA *rsa, BN_CTX *ctx)
+static int RSA_eay_mod_exp(BIGNUM *r0, const BIGNUM *I, RSA *rsa)
 	{
-	BIGNUM *r1,*m1,*vrfy;
+	BIGNUM r1,m1,vrfy;
 	BIGNUM local_dmp1, local_dmq1;
 	BIGNUM *dmp1, *dmq1;
 	int ret=0;
+	BN_CTX *ctx;
 
-	BN_CTX_start(ctx);
-	r1 = BN_CTX_get(ctx);
-	m1 = BN_CTX_get(ctx);
-	vrfy = BN_CTX_get(ctx);
+	BN_init(&m1);
+	BN_init(&r1);
+	BN_init(&vrfy);
+	if ((ctx=BN_CTX_new()) == NULL) goto err;
 
-	MONT_HELPER(rsa, ctx, p, rsa->flags & RSA_FLAG_CACHE_PRIVATE, goto err);
-	MONT_HELPER(rsa, ctx, q, rsa->flags & RSA_FLAG_CACHE_PRIVATE, goto err);
-	MONT_HELPER(rsa, ctx, n, rsa->flags & RSA_FLAG_CACHE_PUBLIC, goto err);
+	if (rsa->flags & RSA_FLAG_CACHE_PRIVATE)
+		{
+		if (!BN_MONT_CTX_set_locked(&rsa->_method_mod_p,
+					CRYPTO_LOCK_RSA, rsa->p, ctx))
+			goto err;
+		if (!BN_MONT_CTX_set_locked(&rsa->_method_mod_q,
+					CRYPTO_LOCK_RSA, rsa->q, ctx))
+			goto err;
+		}
 
-	if (!BN_mod(r1,I,rsa->q,ctx)) goto err;
+	if (!BN_mod(&r1,I,rsa->q,ctx)) goto err;
 	if (!(rsa->flags & RSA_FLAG_NO_EXP_CONSTTIME))
 		{
 		dmq1 = &local_dmq1;
@@ -669,10 +681,10 @@ static int RSA_eay_mod_exp(BIGNUM *r0, const BIGNUM *I, RSA *rsa, BN_CTX *ctx)
 		}
 	else
 		dmq1 = rsa->dmq1;
-	if (!rsa->meth->bn_mod_exp(m1,r1,dmq1,rsa->q,ctx,
+	if (!rsa->meth->bn_mod_exp(&m1,&r1,dmq1,rsa->q,ctx,
 		rsa->_method_mod_q)) goto err;
 
-	if (!BN_mod(r1,I,rsa->p,ctx)) goto err;
+	if (!BN_mod(&r1,I,rsa->p,ctx)) goto err;
 	if (!(rsa->flags & RSA_FLAG_NO_EXP_CONSTTIME))
 		{
 		dmp1 = &local_dmp1;
@@ -680,17 +692,17 @@ static int RSA_eay_mod_exp(BIGNUM *r0, const BIGNUM *I, RSA *rsa, BN_CTX *ctx)
 		}
 	else
 		dmp1 = rsa->dmp1;
-	if (!rsa->meth->bn_mod_exp(r0,r1,dmp1,rsa->p,ctx,
+	if (!rsa->meth->bn_mod_exp(r0,&r1,dmp1,rsa->p,ctx,
 		rsa->_method_mod_p)) goto err;
 
-	if (!BN_sub(r0,r0,m1)) goto err;
+	if (!BN_sub(r0,r0,&m1)) goto err;
 	/* This will help stop the size of r0 increasing, which does
 	 * affect the multiply if it optimised for a power of 2 size */
-	if (BN_is_negative(r0))
+	if (r0->neg)
 		if (!BN_add(r0,r0,rsa->p)) goto err;
 
-	if (!BN_mul(r1,r0,rsa->iqmp,ctx)) goto err;
-	if (!BN_mod(r0,r1,rsa->p,ctx)) goto err;
+	if (!BN_mul(&r1,r0,rsa->iqmp,ctx)) goto err;
+	if (!BN_mod(r0,&r1,rsa->p,ctx)) goto err;
 	/* If p < q it is occasionally possible for the correction of
          * adding 'p' if r0 is negative above to leave the result still
 	 * negative. This can break the private key operations: the following
@@ -698,23 +710,23 @@ static int RSA_eay_mod_exp(BIGNUM *r0, const BIGNUM *I, RSA *rsa, BN_CTX *ctx)
 	 * This will *never* happen with OpenSSL generated keys because
          * they ensure p > q [steve]
          */
-	if (BN_is_negative(r0))
+	if (r0->neg)
 		if (!BN_add(r0,r0,rsa->p)) goto err;
-	if (!BN_mul(r1,r0,rsa->q,ctx)) goto err;
-	if (!BN_add(r0,r1,m1)) goto err;
+	if (!BN_mul(&r1,r0,rsa->q,ctx)) goto err;
+	if (!BN_add(r0,&r1,&m1)) goto err;
 
 	if (rsa->e && rsa->n)
 		{
-		if (!rsa->meth->bn_mod_exp(vrfy,r0,rsa->e,rsa->n,ctx,rsa->_method_mod_n)) goto err;
+		if (!rsa->meth->bn_mod_exp(&vrfy,r0,rsa->e,rsa->n,ctx,NULL)) goto err;
 		/* If 'I' was greater than (or equal to) rsa->n, the operation
 		 * will be equivalent to using 'I mod n'. However, the result of
 		 * the verify will *always* be less than 'n' so we don't check
 		 * for absolute equality, just congruency. */
-		if (!BN_sub(vrfy, vrfy, I)) goto err;
-		if (!BN_mod(vrfy, vrfy, rsa->n, ctx)) goto err;
-		if (BN_is_negative(vrfy))
-			if (!BN_add(vrfy, vrfy, rsa->n)) goto err;
-		if (!BN_is_zero(vrfy))
+		if (!BN_sub(&vrfy, &vrfy, I)) goto err;
+		if (!BN_mod(&vrfy, &vrfy, rsa->n, ctx)) goto err;
+		if (vrfy.neg)
+			if (!BN_add(&vrfy, &vrfy, rsa->n)) goto err;
+		if (!BN_is_zero(&vrfy))
 			{
 			/* 'I' and 'vrfy' aren't congruent mod n. Don't leak
 			 * miscalculated CRT output, just do a raw (slower)
@@ -730,13 +742,15 @@ static int RSA_eay_mod_exp(BIGNUM *r0, const BIGNUM *I, RSA *rsa, BN_CTX *ctx)
 				}
 			else
 				d = rsa->d;
-			if (!rsa->meth->bn_mod_exp(r0,I,d,rsa->n,ctx,
-						   rsa->_method_mod_n)) goto err;
+			if (!rsa->meth->bn_mod_exp(r0,I,d,rsa->n,ctx,NULL)) goto err;
 			}
 		}
 	ret=1;
 err:
-	BN_CTX_end(ctx);
+	BN_clear_free(&m1);
+	BN_clear_free(&r1);
+	BN_clear_free(&vrfy);
+	BN_CTX_free(ctx);
 	return(ret);
 	}
 

@@ -60,6 +60,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <openssl/des.h>
+#include <openssl/fips.h>
+#include <openssl/err.h>
 #include <openssl/mdc2.h>
 
 #undef c2l
@@ -74,8 +76,8 @@
 			*((c)++)=(unsigned char)(((l)>>16L)&0xff), \
 			*((c)++)=(unsigned char)(((l)>>24L)&0xff))
 
-static void mdc2_body(MDC2_CTX *c, const unsigned char *in, size_t len);
-int MDC2_Init(MDC2_CTX *c)
+static void mdc2_body(MDC2_CTX *c, const unsigned char *in, unsigned int len);
+FIPS_NON_FIPS_MD_Init(MDC2)
 	{
 	c->num=0;
 	c->pad_type=1;
@@ -84,9 +86,9 @@ int MDC2_Init(MDC2_CTX *c)
 	return 1;
 	}
 
-int MDC2_Update(MDC2_CTX *c, const unsigned char *in, size_t len)
+int MDC2_Update(MDC2_CTX *c, const unsigned char *in, unsigned long len)
 	{
-	size_t i,j;
+	int i,j;
 
 	i=c->num;
 	if (i != 0)
@@ -94,7 +96,7 @@ int MDC2_Update(MDC2_CTX *c, const unsigned char *in, size_t len)
 		if (i+len < MDC2_BLOCK)
 			{
 			/* partial block */
-			memcpy(&(c->data[i]),in,len);
+			memcpy(&(c->data[i]),in,(int)len);
 			c->num+=(int)len;
 			return 1;
 			}
@@ -109,25 +111,25 @@ int MDC2_Update(MDC2_CTX *c, const unsigned char *in, size_t len)
 			mdc2_body(c,&(c->data[0]),MDC2_BLOCK);
 			}
 		}
-	i=len&~((size_t)MDC2_BLOCK-1);
+	i=(int)(len&(unsigned long)~(MDC2_BLOCK-1));
 	if (i > 0) mdc2_body(c,in,i);
-	j=len-i;
+	j=(int)len-i;
 	if (j > 0)
 		{
 		memcpy(&(c->data[0]),&(in[i]),j);
-		c->num=(int)j;
+		c->num=j;
 		}
 	return 1;
 	}
 
-static void mdc2_body(MDC2_CTX *c, const unsigned char *in, size_t len)
+static void mdc2_body(MDC2_CTX *c, const unsigned char *in, unsigned int len)
 	{
 	register DES_LONG tin0,tin1;
 	register DES_LONG ttin0,ttin1;
 	DES_LONG d[2],dd[2];
 	DES_key_schedule k;
 	unsigned char *p;
-	size_t i;
+	unsigned int i;
 
 	for (i=0; i<len; i+=8)
 		{
@@ -160,8 +162,7 @@ static void mdc2_body(MDC2_CTX *c, const unsigned char *in, size_t len)
 
 int MDC2_Final(unsigned char *md, MDC2_CTX *c)
 	{
-	unsigned int i;
-	int j;
+	int i,j;
 
 	i=c->num;
 	j=c->pad_type;

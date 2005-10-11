@@ -139,15 +139,16 @@ static int ssl3_generate_key_block(SSL *s, unsigned char *km, int num)
 	EVP_MD_CTX s1;
 	unsigned char buf[16],smd[SHA_DIGEST_LENGTH];
 	unsigned char c='A';
-	unsigned int i,j,k;
+	int i,j,k;
 
 #ifdef CHARSET_EBCDIC
 	c = os_toascii[c]; /*'A' in ASCII */
 #endif
 	k=0;
 	EVP_MD_CTX_init(&m5);
+	EVP_MD_CTX_set_flags(&m5, EVP_MD_CTX_FLAG_NON_FIPS_ALLOW);
 	EVP_MD_CTX_init(&s1);
-	for (i=0; (int)i<num; i+=MD5_DIGEST_LENGTH)
+	for (i=0; i<num; i+=MD5_DIGEST_LENGTH)
 		{
 		k++;
 		if (k > sizeof buf)
@@ -172,7 +173,7 @@ static int ssl3_generate_key_block(SSL *s, unsigned char *km, int num)
 		EVP_DigestUpdate(&m5,s->session->master_key,
 			s->session->master_key_length);
 		EVP_DigestUpdate(&m5,smd,SHA_DIGEST_LENGTH);
-		if ((int)(i+MD5_DIGEST_LENGTH) > num)
+		if ((i+MD5_DIGEST_LENGTH) > num)
 			{
 			EVP_DigestFinal_ex(&m5,smd,NULL);
 			memcpy(km,smd,(num-i));
@@ -277,7 +278,7 @@ int ssl3_change_cipher_state(SSL *s, int which)
 	i=EVP_MD_size(m);
 	cl=EVP_CIPHER_key_length(c);
 	j=is_exp ? (cl < SSL_C_EXPORT_KEYLENGTH(s->s3->tmp.new_cipher) ?
-		 cl : SSL_C_EXPORT_KEYLENGTH(s->s3->tmp.new_cipher)) : cl;
+		    cl : SSL_C_EXPORT_KEYLENGTH(s->s3->tmp.new_cipher)) : cl;
 	/* Was j=(is_exp)?5:EVP_CIPHER_key_length(c); */
 	k=EVP_CIPHER_iv_length(c);
 	if (	(which == SSL3_CHANGE_CIPHER_CLIENT_WRITE) ||
@@ -501,6 +502,8 @@ int ssl3_enc(SSL *s, int send)
 
 void ssl3_init_finished_mac(SSL *s)
 	{
+	EVP_MD_CTX_set_flags(&(s->s3->finish_dgst1),
+		EVP_MD_CTX_FLAG_NON_FIPS_ALLOW);
 	EVP_DigestInit_ex(&(s->s3->finish_dgst1),s->ctx->md5, NULL);
 	EVP_DigestInit_ex(&(s->s3->finish_dgst2),s->ctx->sha1, NULL);
 	}
@@ -569,7 +572,7 @@ int ssl3_mac(SSL *ssl, unsigned char *md, int send)
 	const EVP_MD *hash;
 	unsigned char *p,rec_char;
 	unsigned int md_size;
-	int npad;
+	int npad,i;
 
 	if (send)
 		{
@@ -612,19 +615,13 @@ int ssl3_mac(SSL *ssl, unsigned char *md, int send)
 
 	EVP_MD_CTX_cleanup(&md_ctx);
 
-	ssl3_record_sequence_update(seq);
-	return(md_size);
-	}
-
-void ssl3_record_sequence_update(unsigned char *seq)
-	{
-	int i;
-
 	for (i=7; i>=0; i--)
 		{
 		++seq[i];
 		if (seq[i] != 0) break; 
 		}
+
+	return(md_size);
 	}
 
 int ssl3_generate_master_secret(SSL *s, unsigned char *out, unsigned char *p,
@@ -647,6 +644,7 @@ int ssl3_generate_master_secret(SSL *s, unsigned char *out, unsigned char *p,
 	unsigned int n;
 
 	EVP_MD_CTX_init(&ctx);
+	EVP_MD_CTX_set_flags(&ctx, EVP_MD_CTX_FLAG_NON_FIPS_ALLOW);
 	for (i=0; i<3; i++)
 		{
 		EVP_DigestInit_ex(&ctx,s->ctx->sha1, NULL);

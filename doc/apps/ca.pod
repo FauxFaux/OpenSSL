@@ -30,7 +30,6 @@ B<openssl> B<ca>
 [B<-key arg>]
 [B<-passin arg>]
 [B<-cert file>]
-[B<-selfsign>]
 [B<-in file>]
 [B<-out file>]
 [B<-notext>]
@@ -113,20 +112,6 @@ the private key to sign requests with.
 the password used to encrypt the private key. Since on some
 systems the command line arguments are visible (e.g. Unix with
 the 'ps' utility) this option should be used with caution.
-
-=item B<-selfsign>
-
-indicates the issued certificates are to be signed with the key
-the certificate requests were signed with (given with B<-keyfile>).
-Cerificate requests signed with a different key are ignored.  If
-B<-spkac>, B<-ss_cert> or B<-gencrl> are given, B<-selfsign> is
-ignored.
-
-A consequence of using B<-selfsign> is that the self-signed
-certificate appears among the entries in the certificate database
-(see the configuration option B<database>), and uses the same
-serial number counter as all other certificates sign with the
-self-signed certificate.
 
 =item B<-passin arg>
 
@@ -374,26 +359,10 @@ the same as the B<-md> option. The message digest to use. Mandatory.
 the text database file to use. Mandatory. This file must be present
 though initially it will be empty.
 
-=item B<unique_subject>
-
-if the value B<yes> is given, the valid certificate entries in the
-database must have unique subjects.  if the value B<no> is given,
-several valid certificate entries may have the exact same subject.
-The default value is B<yes>, to be compatible with older (pre 0.9.8)
-versions of OpenSSL.  However, to make CA certificate roll-over easier,
-it's recommended to use the value B<no>, especially if combined with
-the B<-selfsign> command line option.
-
 =item B<serial>
 
 a text file containing the next serial number to use in hex. Mandatory.
 This file must be present and contain a valid serial number.
-
-=item B<crlnumber>
-
-a text file containing the next CRL number to use in hex. The crl number
-will be inserted in the CRLs only if this file exists. If this file is
-present, it must contain a valid CRL number.
 
 =item B<x509_extensions>
 
@@ -585,7 +554,8 @@ if corrupted it can be difficult to fix. It is theoretically possible
 to rebuild the index file from all the issued certificates and a current
 CRL: however there is no option to do this.
 
-V2 CRL features like delta CRLs are not currently supported.
+V2 CRL features like delta CRL support and CRL numbers are not currently
+supported.
 
 Although several requests can be input and handled at once it is only
 possible to include one SPKAC or self signed certificate.
@@ -595,6 +565,12 @@ possible to include one SPKAC or self signed certificate.
 The use of an in memory text database can cause problems when large
 numbers of certificates are present because, as the name implies
 the database has to be kept in memory.
+
+It is not possible to certify two certificates with the same DN: this
+is a side effect of how the text database is indexed and it cannot easily
+be fixed without introducing other problems. Some S/MIME clients can use
+two certificates with the same DN for separate signing and encryption
+keys.
 
 The B<ca> command really needs rewriting or the required functionality
 exposed at either a command or interface level so a more friendly utility

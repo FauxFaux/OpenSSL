@@ -119,6 +119,20 @@ extern "C" {
 #endif
 
 
+/* Used for temp variables */
+#define BN_CTX_NUM	32
+#define BN_CTX_NUM_POS	12
+struct bignum_ctx
+	{
+	int tos;
+	BIGNUM bn[BN_CTX_NUM];
+	int flags;
+	int depth;
+	int pos[BN_CTX_NUM_POS];
+	int too_many;
+	} /* BN_CTX */;
+
+
 /*
  * BN_window_bits_for_exponent_size -- macro for sliding window mod_exp functions
  *
@@ -279,17 +293,44 @@ extern "C" {
 #define Lw(t)    (((BN_ULONG)(t))&BN_MASK2)
 #define Hw(t)    (((BN_ULONG)((t)>>BN_BITS2))&BN_MASK2)
 
-#ifdef BN_DEBUG_RAND
-#define bn_clear_top2max(a) \
-	{ \
-	int      ind = (a)->dmax - (a)->top; \
-	BN_ULONG *ftl = &(a)->d[(a)->top-1]; \
-	for (; ind != 0; ind--) \
-		*(++ftl) = 0x0; \
-	}
+/* This is used for internal error checking and is not normally used */
+#ifdef BN_DEBUG
+# include <assert.h>
+# define bn_check_top(a) assert ((a)->top >= 0 && (a)->top <= (a)->dmax);
 #else
-#define bn_clear_top2max(a)
+# define bn_check_top(a)
 #endif
+
+/* This macro is to add extra stuff for development checking */
+#ifdef BN_DEBUG
+#define	bn_set_max(r) ((r)->max=(r)->top,BN_set_flags((r),BN_FLG_STATIC_DATA))
+#else
+#define	bn_set_max(r)
+#endif
+
+/* These macros are used to 'take' a section of a bignum for read only use */
+#define bn_set_low(r,a,n) \
+	{ \
+	(r)->top=((a)->top > (n))?(n):(a)->top; \
+	(r)->d=(a)->d; \
+	(r)->neg=(a)->neg; \
+	(r)->flags|=BN_FLG_STATIC_DATA; \
+	bn_set_max(r); \
+	}
+
+#define bn_set_high(r,a,n) \
+	{ \
+	if ((a)->top > (n)) \
+		{ \
+		(r)->top=(a)->top-n; \
+		(r)->d= &((a)->d[n]); \
+		} \
+	else \
+		(r)->top=0; \
+	(r)->neg=(a)->neg; \
+	(r)->flags|=BN_FLG_STATIC_DATA; \
+	bn_set_max(r); \
+	}
 
 #ifdef BN_LLONG
 #define mul_add(r,a,w,c) { \
@@ -431,20 +472,18 @@ void bn_sqr_comba4(BN_ULONG *r,const BN_ULONG *a);
 int bn_cmp_words(const BN_ULONG *a,const BN_ULONG *b,int n);
 int bn_cmp_part_words(const BN_ULONG *a, const BN_ULONG *b,
 	int cl, int dl);
-void bn_mul_recursive(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b,int n2,
-	int dna,int dnb,BN_ULONG *t);
-void bn_mul_part_recursive(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b,
-	int n,int tna,int tnb,BN_ULONG *t);
-void bn_sqr_recursive(BN_ULONG *r,const BN_ULONG *a, int n2, BN_ULONG *t);
-void bn_mul_low_normal(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b, int n);
+#ifdef BN_RECURSION
+void bn_mul_recursive(BN_ULONG *r, BN_ULONG *a, BN_ULONG *b, int n2,
+	BN_ULONG *t);
+void bn_mul_part_recursive(BN_ULONG *r, BN_ULONG *a, BN_ULONG *b, int tn,
+	int n, BN_ULONG *t);
 void bn_mul_low_recursive(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b,int n2,
 	BN_ULONG *t);
 void bn_mul_high(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b,BN_ULONG *l,int n2,
 	BN_ULONG *t);
-BN_ULONG bn_add_part_words(BN_ULONG *r, const BN_ULONG *a, const BN_ULONG *b,
-	int cl, int dl);
-BN_ULONG bn_sub_part_words(BN_ULONG *r, const BN_ULONG *a, const BN_ULONG *b,
-	int cl, int dl);
+void bn_sqr_recursive(BN_ULONG *r,const BN_ULONG *a, int n2, BN_ULONG *t);
+#endif
+void bn_mul_low_normal(BN_ULONG *r,BN_ULONG *a,BN_ULONG *b, int n);
 
 #ifdef  __cplusplus
 }

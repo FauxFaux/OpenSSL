@@ -56,21 +56,25 @@
  * [including the GNU Public Licence.]
  */
 
+#ifndef OPENSSL_NO_SHA
 #include <stdio.h>
 #include "cryptlib.h"
-
-#ifndef OPENSSL_NO_SHA
-
 #include <openssl/evp.h>
 #include <openssl/objects.h>
 #include <openssl/x509.h>
-#include <openssl/rsa.h>
 
 static int init(EVP_MD_CTX *ctx)
 	{ return SHA1_Init(ctx->md_data); }
 
-static int update(EVP_MD_CTX *ctx,const void *data,size_t count)
+static int update(EVP_MD_CTX *ctx,const void *data,unsigned long count)
+#ifndef OPENSSL_FIPS
 	{ return SHA1_Update(ctx->md_data,data,count); }
+#else
+	{
+	OPENSSL_assert(sizeof(count)<=sizeof(size_t));
+	return SHA1_Update(ctx->md_data,data,count);
+	}
+#endif
 
 static int final(EVP_MD_CTX *ctx,unsigned char *md)
 	{ return SHA1_Final(md,ctx->md_data); }
@@ -80,7 +84,7 @@ static const EVP_MD sha1_md=
 	NID_sha1,
 	NID_sha1WithRSAEncryption,
 	SHA_DIGEST_LENGTH,
-	0,
+	EVP_MD_FLAG_FIPS,
 	init,
 	update,
 	final,
@@ -97,6 +101,7 @@ const EVP_MD *EVP_sha1(void)
 	}
 #endif
 
+#ifdef OPENSSL_FIPS
 #ifndef OPENSSL_NO_SHA256
 static int init224(EVP_MD_CTX *ctx)
 	{ return SHA224_Init(ctx->md_data); }
@@ -107,8 +112,11 @@ static int init256(EVP_MD_CTX *ctx)
  * SHA256 functions even in SHA224 context. This is what happens
  * there anyway, so we can spare few CPU cycles:-)
  */
-static int update256(EVP_MD_CTX *ctx,const void *data,size_t count)
-	{ return SHA256_Update(ctx->md_data,data,count); }
+static int update256(EVP_MD_CTX *ctx,const void *data,unsigned long count)
+	{
+	OPENSSL_assert(sizeof(count)<=sizeof(size_t));
+	return SHA256_Update(ctx->md_data,data,count);
+	}
 static int final256(EVP_MD_CTX *ctx,unsigned char *md)
 	{ return SHA256_Final(md,ctx->md_data); }
 
@@ -117,7 +125,7 @@ static const EVP_MD sha224_md=
 	NID_sha224,
 	NID_sha224WithRSAEncryption,
 	SHA224_DIGEST_LENGTH,
-	0,
+	EVP_MD_FLAG_FIPS,
 	init224,
 	update256,
 	final256,
@@ -136,7 +144,7 @@ static const EVP_MD sha256_md=
 	NID_sha256,
 	NID_sha256WithRSAEncryption,
 	SHA256_DIGEST_LENGTH,
-	0,
+	EVP_MD_FLAG_FIPS,
 	init256,
 	update256,
 	final256,
@@ -149,7 +157,7 @@ static const EVP_MD sha256_md=
 
 const EVP_MD *EVP_sha256(void)
 	{ return(&sha256_md); }
-#endif	/* ifndef OPENSSL_NO_SHA256 */
+#endif /* ifndef OPENSSL_NO_SHA256 */
 
 #ifndef OPENSSL_NO_SHA512
 static int init384(EVP_MD_CTX *ctx)
@@ -157,8 +165,11 @@ static int init384(EVP_MD_CTX *ctx)
 static int init512(EVP_MD_CTX *ctx)
 	{ return SHA512_Init(ctx->md_data); }
 /* See comment in SHA224/256 section */
-static int update512(EVP_MD_CTX *ctx,const void *data,size_t count)
-	{ return SHA512_Update(ctx->md_data,data,count); }
+static int update512(EVP_MD_CTX *ctx,const void *data,unsigned long count)
+	{
+	OPENSSL_assert(sizeof(count)<=sizeof(size_t));
+	return SHA512_Update(ctx->md_data,data,count);
+	}
 static int final512(EVP_MD_CTX *ctx,unsigned char *md)
 	{ return SHA512_Final(md,ctx->md_data); }
 
@@ -167,7 +178,7 @@ static const EVP_MD sha384_md=
 	NID_sha384,
 	NID_sha384WithRSAEncryption,
 	SHA384_DIGEST_LENGTH,
-	0,
+	EVP_MD_FLAG_FIPS,
 	init384,
 	update512,
 	final512,
@@ -186,7 +197,7 @@ static const EVP_MD sha512_md=
 	NID_sha512,
 	NID_sha512WithRSAEncryption,
 	SHA512_DIGEST_LENGTH,
-	0,
+	EVP_MD_FLAG_FIPS,
 	init512,
 	update512,
 	final512,
@@ -199,4 +210,5 @@ static const EVP_MD sha512_md=
 
 const EVP_MD *EVP_sha512(void)
 	{ return(&sha512_md); }
-#endif	/* ifndef OPENSSL_NO_SHA512 */
+#endif /* ifndef OPENSSL_NO_SHA512 */
+#endif /* ifdef OPENSSL_FIPS */

@@ -81,7 +81,7 @@ int SSL_SESSION_print_fp(FILE *fp, const SSL_SESSION *x)
 int SSL_SESSION_print(BIO *bp, const SSL_SESSION *x)
 	{
 	unsigned int i;
-	const char *s;
+	char *s;
 
 	if (x == NULL) goto err;
 	if (BIO_puts(bp,"SSL-Session:\n") <= 0) goto err;

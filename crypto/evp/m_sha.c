@@ -56,20 +56,21 @@
  * [including the GNU Public Licence.]
  */
 
+#if !defined(OPENSSL_NO_SHA) && !defined(OPENSSL_NO_SHA0)
 #include <stdio.h>
 #include "cryptlib.h"
-
-#if !defined(OPENSSL_NO_SHA) && !defined(OPENSSL_NO_SHA0)
-
+/* Including sha.h prior evp.h masks FIPS SHA declarations, but that's
+ * exactly what we want to achieve here... */
+#include <openssl/sha.h>
 #include <openssl/evp.h>
+#include "evp_locl.h"
 #include <openssl/objects.h>
 #include <openssl/x509.h>
-#include <openssl/rsa.h>
 
 static int init(EVP_MD_CTX *ctx)
 	{ return SHA_Init(ctx->md_data); }
 
-static int update(EVP_MD_CTX *ctx,const void *data,size_t count)
+static int update(EVP_MD_CTX *ctx,const void *data,unsigned long count)
 	{ return SHA_Update(ctx->md_data,data,count); }
 
 static int final(EVP_MD_CTX *ctx,unsigned char *md)

@@ -69,7 +69,6 @@ BN_ULONG BN_mod_word(const BIGNUM *a, BN_ULONG w)
 #endif
 	int i;
 
-	bn_check_top(a);
 	w&=BN_MASK2;
 	for (i=a->top-1; i>=0; i--)
 		{
@@ -86,24 +85,12 @@ BN_ULONG BN_mod_word(const BIGNUM *a, BN_ULONG w)
 
 BN_ULONG BN_div_word(BIGNUM *a, BN_ULONG w)
 	{
-	BN_ULONG ret = 0;
-	int i, j;
+	BN_ULONG ret;
+	int i;
 
-	bn_check_top(a);
-	w &= BN_MASK2;
-
-	if (!w)
-		/* actually this an error (division by zero) */
-		return 0;
-	if (a->top == 0)
-		return 0;
-
-	/* normalize input (so bn_div_words doesn't complain) */
-	j = BN_BITS2 - BN_num_bits_word(w);
-	w <<= j;
-	if (!BN_lshift(a, a, j))
-		return 0;
-
+	if (a->top == 0) return(0);
+	ret=0;
+	w&=BN_MASK2;
 	for (i=a->top-1; i>=0; i--)
 		{
 		BN_ULONG l,d;
@@ -115,8 +102,6 @@ BN_ULONG BN_div_word(BIGNUM *a, BN_ULONG w)
 		}
 	if ((a->top > 0) && (a->d[a->top-1] == 0))
 		a->top--;
-	ret >>= j;
-	bn_check_top(a);
 	return(ret);
 	}
 
@@ -125,14 +110,6 @@ int BN_add_word(BIGNUM *a, BN_ULONG w)
 	BN_ULONG l;
 	int i;
 
-	bn_check_top(a);
-	w &= BN_MASK2;
-
-	/* degenerate case: w is zero */
-	if (!w) return 1;
-	/* degenerate case: a is zero */
-	if(BN_is_zero(a)) return BN_set_word(a, w);
-	/* handle 'a' when negative */
 	if (a->neg)
 		{
 		a->neg=0;
@@ -141,17 +118,15 @@ int BN_add_word(BIGNUM *a, BN_ULONG w)
 			a->neg=!(a->neg);
 		return(i);
 		}
-	/* Only expand (and risk failing) if it's possibly necessary */
-	if (((BN_ULONG)(a->d[a->top - 1] + 1) == 0) &&
-			(bn_wexpand(a,a->top+1) == NULL))
-		return(0);
+	w&=BN_MASK2;
+	if (bn_wexpand(a,a->top+1) == NULL) return(0);
 	i=0;
 	for (;;)
 		{
 		if (i >= a->top)
 			l=w;
 		else
-			l=(a->d[i]+w)&BN_MASK2;
+			l=(a->d[i]+(BN_ULONG)w)&BN_MASK2;
 		a->d[i]=l;
 		if (w > l)
 			w=1;
@@ -161,7 +136,6 @@ int BN_add_word(BIGNUM *a, BN_ULONG w)
 		}
 	if (i >= a->top)
 		a->top++;
-	bn_check_top(a);
 	return(1);
 	}
 
@@ -169,15 +143,7 @@ int BN_sub_word(BIGNUM *a, BN_ULONG w)
 	{
 	int i;
 
-	bn_check_top(a);
-	w &= BN_MASK2;
-
-	/* degenerate case: w is zero */
-	if (!w) return 1;
-	/* degenerate case: a is zero */
-	if(BN_is_zero(a)) return BN_set_word(a,w);
-	/* handle 'a' when negative */
-	if (a->neg)
+	if (BN_is_zero(a) || a->neg)
 		{
 		a->neg=0;
 		i=BN_add_word(a,w);
@@ -185,6 +151,7 @@ int BN_sub_word(BIGNUM *a, BN_ULONG w)
 		return(i);
 		}
 
+	w&=BN_MASK2;
 	if ((a->top == 1) && (a->d[0] < w))
 		{
 		a->d[0]=w-a->d[0];
@@ -208,7 +175,6 @@ int BN_sub_word(BIGNUM *a, BN_ULONG w)
 		}
 	if ((a->d[i] == 0) && (i == (a->top-1)))
 		a->top--;
-	bn_check_top(a);
 	return(1);
 	}
 
@@ -216,7 +182,6 @@ int BN_mul_word(BIGNUM *a, BN_ULONG w)
 	{
 	BN_ULONG ll;
 
-	bn_check_top(a);
 	w&=BN_MASK2;
 	if (a->top)
 		{
@@ -232,7 +197,6 @@ int BN_mul_word(BIGNUM *a, BN_ULONG w)
 				}
 			}
 		}
-	bn_check_top(a);
 	return(1);
 	}
 

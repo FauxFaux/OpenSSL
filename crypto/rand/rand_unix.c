@@ -108,7 +108,6 @@
  * Hudson (tjh@cryptsoft.com).
  *
  */
-#include <stdio.h>
 
 #define USE_SOCKETS
 #include "e_os.h"
@@ -116,7 +115,7 @@
 #include <openssl/rand.h>
 #include "rand_lcl.h"
 
-#if !(defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_WIN32) || defined(OPENSSL_SYS_VMS) || defined(OPENSSL_SYS_OS2) || defined(OPENSSL_SYS_VXWORKS) || defined(OPENSSL_SYS_NETWARE)) 
+#if !(defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_WIN32) || defined(OPENSSL_SYS_VMS) || defined(OPENSSL_SYS_OS2) || defined(OPENSSL_SYS_VXWORKS))
 
 #include <sys/types.h>
 #include <sys/time.h>
@@ -250,19 +249,19 @@ int RAND_poll(void)
 #if defined(DEVRANDOM) || defined(DEVRANDOM_EGD)
 	if (n > 0)
 		{
-		RAND_add(tmpbuf,sizeof tmpbuf,(double)n);
+		RAND_add(tmpbuf,sizeof tmpbuf,n);
 		OPENSSL_cleanse(tmpbuf,n);
 		}
 #endif
 
 	/* put in some default random data, we need more than just this */
 	l=curr_pid;
-	RAND_add(&l,sizeof(l),0.0);
+	RAND_add(&l,sizeof(l),0);
 	l=getuid();
-	RAND_add(&l,sizeof(l),0.0);
+	RAND_add(&l,sizeof(l),0);
 
 	l=time(NULL);
-	RAND_add(&l,sizeof(l),0.0);
+	RAND_add(&l,sizeof(l),0);
 
 #if defined(DEVRANDOM) || defined(DEVRANDOM_EGD)
 	return 1;

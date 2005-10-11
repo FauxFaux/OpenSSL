@@ -56,8 +56,6 @@
 #undef PROG
 #define PROG prime_main
 
-int MAIN(int, char **);
-
 int MAIN(int argc, char **argv)
     {
     int hex=0;

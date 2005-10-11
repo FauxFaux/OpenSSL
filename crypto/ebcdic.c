@@ -1,14 +1,6 @@
 /* crypto/ebcdic.c */
 
-#ifndef CHARSET_EBCDIC
-
-#include <openssl/e_os2.h>
-#if defined(PEDANTIC) || defined(__DECC) || defined(OPENSSL_SYS_MACOSX)
-static void *dummy=&dummy;
-#endif
-
-#else /*CHARSET_EBCDIC*/
-
+#ifdef CHARSET_EBCDIC
 #include "ebcdic.h"
 /*      Initial Port for  Apache-1.3     by <Martin.Kraemer@Mch.SNI.De>
  *      Adapted for       OpenSSL-0.9.4  by <Martin.Kraemer@Mch.SNI.De>
@@ -218,4 +210,9 @@ ascii2ebcdic(void *dest, const void *srce, size_t count)
     return dest;
 }
 
+#else /*CHARSET_EBCDIC*/
+#include <openssl/e_os2.h>
+#if defined(PEDANTIC) || defined(__DECC) || defined(OPENSSL_SYS_MACOSX)
+static void *dummy=&dummy;
+#endif
 #endif

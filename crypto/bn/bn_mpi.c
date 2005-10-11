@@ -124,7 +124,6 @@ BIGNUM *BN_mpi2bn(const unsigned char *d, int n, BIGNUM *a)
 		{
 		BN_clear_bit(a,BN_num_bits(a)-1);
 		}
-	bn_check_top(a);
 	return(a);
 	}
 
