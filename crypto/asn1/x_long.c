@@ -59,7 +59,6 @@
 #include <stdio.h>
 #include "cryptlib.h"
 #include <openssl/asn1t.h>
-#include <openssl/bn.h>
 
 /* Custom primitive type for long handling. This converts between an ASN1_INTEGER
  * and a long directly.
@@ -70,7 +69,7 @@ static int long_new(ASN1_VALUE **pval, const ASN1_ITEM *it);
 static void long_free(ASN1_VALUE **pval, const ASN1_ITEM *it);
 
 static int long_i2c(ASN1_VALUE **pval, unsigned char *cont, int *putype, const ASN1_ITEM *it);
-static int long_c2i(ASN1_VALUE **pval, const unsigned char *cont, int len, int utype, char *free_cont, const ASN1_ITEM *it);
+static int long_c2i(ASN1_VALUE **pval, unsigned char *cont, int len, int utype, char *free_cont, const ASN1_ITEM *it);
 
 static ASN1_PRIMITIVE_FUNCS long_pf = {
 	NULL, 0,
@@ -137,14 +136,13 @@ static int long_i2c(ASN1_VALUE **pval, unsigned char *cont, int *putype, const A
 	return clen + pad;
 }
 
-static int long_c2i(ASN1_VALUE **pval, const unsigned char *cont, int len,
-		    int utype, char *free_cont, const ASN1_ITEM *it)
+static int long_c2i(ASN1_VALUE **pval, unsigned char *cont, int len, int utype, char *free_cont, const ASN1_ITEM *it)
 {
 	int neg, i;
 	long ltmp;
 	unsigned long utmp = 0;
 	char *cp = (char *)pval;
-	if(len > (int)sizeof(long)) {
+	if(len > sizeof(long)) {
 		ASN1err(ASN1_F_LONG_C2I, ASN1_R_INTEGER_TOO_LARGE_FOR_LONG);
 		return 0;
 	}

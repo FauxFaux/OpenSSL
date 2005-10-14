@@ -72,15 +72,14 @@
 #undef PROG
 #define PROG	engine_main
 
-static const char *engine_usage[]={
+static char *engine_usage[]={
 "usage: engine opts [engine ...]\n",
 " -v[v[v[v]]] - verbose mode, for each engine, list its 'control commands'\n",
 "               -vv will additionally display each command's description\n",
 "               -vvv will also add the input flags for each command\n",
 "               -vvvv will also show internal input flags\n",
 " -c          - for each engine, also list the capabilities\n",
-" -t[t]       - for each engine, check that they are really available\n",
-"               -tt will display error trace for unavailable engines\n",
+" -t          - for each engine, check that they are really available\n",
 " -pre <cmd>  - runs command 'cmd' against the ENGINE before any attempts\n",
 "               to load it (if -t is used)\n",
 " -post <cmd> - runs command 'cmd' against the ENGINE after loading it\n",
@@ -344,8 +343,8 @@ int MAIN(int, char **);
 int MAIN(int argc, char **argv)
 	{
 	int ret=1,i;
-	const char **pp;
-	int verbose=0, list_cap=0, test_avail=0, test_avail_noise = 0;
+	char **pp;
+	int verbose=0, list_cap=0, test_avail=0;
 	ENGINE *e;
 	STACK *engines = sk_new_null();
 	STACK *pre_cmds = sk_new_null();
@@ -383,14 +382,8 @@ int MAIN(int argc, char **argv)
 			}
 		else if (strcmp(*argv,"-c") == 0)
 			list_cap=1;
-		else if (strncmp(*argv,"-t",2) == 0)
-			{
+		else if (strcmp(*argv,"-t") == 0)
 			test_avail=1;
-			if(strspn(*argv + 1, "t") < strlen(*argv + 1))
-				goto skip_arg_loop;
-			if((test_avail_noise = strlen(*argv + 1) - 1) > 1)
-				goto skip_arg_loop;
-			}
 		else if (strcmp(*argv,"-pre") == 0)
 			{
 			argc--; argv++;
@@ -509,8 +502,7 @@ skip_digests:
 				else
 					{
 					BIO_printf(bio_out, "[ unavailable ]\n");
-					if(test_avail_noise)
-						ERR_print_errors_fp(stdout);
+					ERR_print_errors_fp(stdout);
 					ERR_clear_error();
 					}
 				}
@@ -524,7 +516,6 @@ skip_digests:
 
 	ret=0;
 end:
-
 	ERR_print_errors(bio_err);
 	sk_pop_free(engines, identity);
 	sk_pop_free(pre_cmds, identity);

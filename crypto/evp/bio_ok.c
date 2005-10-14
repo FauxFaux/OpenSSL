@@ -119,7 +119,6 @@
 
 #include <stdio.h>
 #include <errno.h>
-#include <assert.h>
 #include "cryptlib.h"
 #include <openssl/buffer.h>
 #include <openssl/bio.h>
@@ -142,12 +141,22 @@ static void block_in(BIO* b);
 #define IOBS		(OK_BLOCK_SIZE+ OK_BLOCK_BLOCK+ 3*EVP_MAX_MD_SIZE)
 #define WELLKNOWN "The quick brown fox jumped over the lazy dog's back."
 
+#ifndef L_ENDIAN
+#define swapem(x) \
+	((unsigned long int)((((unsigned long int)(x) & 0x000000ffU) << 24) | \
+			     (((unsigned long int)(x) & 0x0000ff00U) <<  8) | \
+			     (((unsigned long int)(x) & 0x00ff0000U) >>  8) | \
+			     (((unsigned long int)(x) & 0xff000000U) >> 24)))
+#else
+#define swapem(x) (x)
+#endif
+
 typedef struct ok_struct
 	{
-	size_t buf_len;
-	size_t buf_off;
-	size_t buf_len_save;
-	size_t buf_off_save;
+	int buf_len;
+	int buf_off;
+	int buf_len_save;
+	int buf_off_save;
 	int cont;		/* <= 0 when finished */
 	int finished;
 	EVP_MD_CTX md;
@@ -286,8 +295,6 @@ static int ok_write(BIO *b, const char *in, int inl)
 	int ret=0,n,i;
 	BIO_OK_CTX *ctx;
 
-	if (inl <= 0) return inl;
-
 	ctx=(BIO_OK_CTX *)b->ptr;
 	ret=inl;
 
@@ -323,7 +330,7 @@ static int ok_write(BIO *b, const char *in, int inl)
 		if ((in == NULL) || (inl <= 0)) return(0);
 
 		n= (inl+ ctx->buf_len > OK_BLOCK_SIZE+ OK_BLOCK_BLOCK) ? 
-			(int)(OK_BLOCK_SIZE+OK_BLOCK_BLOCK-ctx->buf_len) : inl;
+				OK_BLOCK_SIZE+ OK_BLOCK_BLOCK- ctx->buf_len : inl;
 
 		memcpy((unsigned char *)(&(ctx->buf[ctx->buf_len])),(unsigned char *)in,n);
 		ctx->buf_len+= n;
@@ -441,18 +448,16 @@ static long ok_callback_ctrl(BIO *b, int cmd, bio_info_cb *fp)
 	return(ret);
 	}
 
-static void longswap(void *_ptr, size_t len)
-{	const union { long one; char little; } is_endian = {1};
+static void longswap(void *_ptr, int len)
+{
+#ifndef L_ENDIAN
+	int i;
+	char *ptr=_ptr;
 
-	if (is_endian.little) {
-		size_t i;
-		unsigned char *p=_ptr,c;
-
-		for(i= 0;i < len;i+= 4) {
-			c=p[0],p[0]=p[3],p[3]=c;
-			c=p[1],p[1]=p[2],p[2]=c;
-		}
+	for(i= 0;i < len;i+= 4){
+		*((unsigned long *)&(ptr[i]))= swapem(*((unsigned long *)&(ptr[i])));
 	}
+#endif
 }
 
 static void sig_out(BIO* b)
@@ -491,7 +496,7 @@ static void sig_in(BIO* b)
 	ctx=b->ptr;
 	md=&ctx->md;
 
-	if((int)(ctx->buf_len-ctx->buf_off) < 2*md->digest->md_size) return;
+	if(ctx->buf_len- ctx->buf_off < 2* md->digest->md_size) return;
 
 	EVP_DigestInit_ex(md, md->digest, NULL);
 	memcpy(md->md_data, &(ctx->buf[ctx->buf_off]), md->digest->md_size);
@@ -528,10 +533,9 @@ static void block_out(BIO* b)
 	md=&ctx->md;
 
 	tl= ctx->buf_len- OK_BLOCK_BLOCK;
-	ctx->buf[0]=(unsigned char)(tl>>24);
-	ctx->buf[1]=(unsigned char)(tl>>16);
-	ctx->buf[2]=(unsigned char)(tl>>8);
-	ctx->buf[3]=(unsigned char)(tl);
+	tl= swapem(tl);
+	memcpy(ctx->buf, &tl, OK_BLOCK_BLOCK);
+	tl= swapem(tl);
 	EVP_DigestUpdate(md, (unsigned char*) &(ctx->buf[OK_BLOCK_BLOCK]), tl);
 	EVP_DigestFinal_ex(md, &(ctx->buf[ctx->buf_len]), NULL);
 	ctx->buf_len+= md->digest->md_size;
@@ -542,18 +546,14 @@ static void block_in(BIO* b)
 	{
 	BIO_OK_CTX *ctx;
 	EVP_MD_CTX *md;
-	unsigned long tl= 0;
+	long tl= 0;
 	unsigned char tmp[EVP_MAX_MD_SIZE];
 
 	ctx=b->ptr;
 	md=&ctx->md;
 
-	assert(sizeof(tl)>=OK_BLOCK_BLOCK);	/* always true */
-	tl =ctx->buf[0]; tl<<=8;
-	tl|=ctx->buf[1]; tl<<=8;
-	tl|=ctx->buf[2]; tl<<=8;
-	tl|=ctx->buf[3];
-
+	memcpy(&tl, ctx->buf, OK_BLOCK_BLOCK);
+	tl= swapem(tl);
 	if (ctx->buf_len < tl+ OK_BLOCK_BLOCK+ md->digest->md_size) return;
  
 	EVP_DigestUpdate(md, (unsigned char*) &(ctx->buf[OK_BLOCK_BLOCK]), tl);

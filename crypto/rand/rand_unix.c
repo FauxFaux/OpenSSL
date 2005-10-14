@@ -108,7 +108,6 @@
  * Hudson (tjh@cryptsoft.com).
  *
  */
-#include <stdio.h>
 
 #define USE_SOCKETS
 #include "e_os.h"
@@ -116,7 +115,7 @@
 #include <openssl/rand.h>
 #include "rand_lcl.h"
 
-#if !(defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_WIN32) || defined(OPENSSL_SYS_VMS) || defined(OPENSSL_SYS_OS2) || defined(OPENSSL_SYS_VXWORKS) || defined(OPENSSL_SYS_NETWARE)) 
+#if !(defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_WIN32) || defined(OPENSSL_SYS_VMS) || defined(OPENSSL_SYS_OS2) || defined(OPENSSL_SYS_VXWORKS))
 
 #include <sys/types.h>
 #include <sys/time.h>
@@ -155,8 +154,7 @@ int RAND_poll(void)
 #ifdef DEVRANDOM
 	static const char *randomfiles[] = { DEVRANDOM };
 	struct stat randomstats[sizeof(randomfiles)/sizeof(randomfiles[0])];
-	int fd;
-	size_t i;
+	int fd,i;
 #endif
 #ifdef DEVRANDOM_EGD
 	static const char *egdsockets[] = { DEVRANDOM_EGD, NULL };
@@ -186,8 +184,7 @@ int RAND_poll(void)
 			{
 			struct timeval t = { 0, 10*1000 }; /* Spend 10ms on
 							      each file. */
-			int r;
-			size_t j;
+			int r,j;
 			fd_set fset;
 			struct stat *st=&randomstats[i];
 
@@ -252,19 +249,19 @@ int RAND_poll(void)
 #if defined(DEVRANDOM) || defined(DEVRANDOM_EGD)
 	if (n > 0)
 		{
-		RAND_add(tmpbuf,sizeof tmpbuf,(double)n);
+		RAND_add(tmpbuf,sizeof tmpbuf,n);
 		OPENSSL_cleanse(tmpbuf,n);
 		}
 #endif
 
 	/* put in some default random data, we need more than just this */
 	l=curr_pid;
-	RAND_add(&l,sizeof(l),0.0);
+	RAND_add(&l,sizeof(l),0);
 	l=getuid();
-	RAND_add(&l,sizeof(l),0.0);
+	RAND_add(&l,sizeof(l),0);
 
 	l=time(NULL);
-	RAND_add(&l,sizeof(l),0.0);
+	RAND_add(&l,sizeof(l),0);
 
 #if defined(DEVRANDOM) || defined(DEVRANDOM_EGD)
 	return 1;

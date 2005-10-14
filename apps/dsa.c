@@ -56,7 +56,6 @@
  * [including the GNU Public Licence.]
  */
 
-#include <openssl/opensslconf.h>	/* for OPENSSL_NO_DSA */
 #ifndef OPENSSL_NO_DSA
 #include <stdio.h>
 #include <stdlib.h>
@@ -69,7 +68,6 @@
 #include <openssl/evp.h>
 #include <openssl/x509.h>
 #include <openssl/pem.h>
-#include <openssl/bn.h>
 
 #undef PROG
 #define PROG	dsa_main
