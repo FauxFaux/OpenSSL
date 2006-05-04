@@ -70,7 +70,7 @@
 
 #define _XOPEN_SOURCE 500 /* glibc2 needs this to declare strptime() */
 #include <time.h>
-#if 0 /* Experimental */
+#if 0 /* experimental */
 #undef _XOPEN_SOURCE /* To avoid clashes with anything else... */
 #endif
 #include <string.h>
@@ -1132,7 +1132,7 @@ kssl_cget_tkt(	/* UPDATE */	KSSL_CTX *kssl_ctx,
 	if (authenp)
                 {
 		krb5_data	krb5in_data;
-		unsigned char	*p;
+		const unsigned char	*p;
 		long		arlen;
 		KRB5_APREQBODY	*ap_req;
 
@@ -1301,7 +1301,7 @@ kssl_sget_tkt(	/* UPDATE */	KSSL_CTX		*kssl_ctx,
 	static krb5_auth_context	krb5auth_context = NULL;
 	krb5_ticket 			*krb5ticket = NULL;
 	KRB5_TKTBODY 			*asn1ticket = NULL;
-	unsigned char			*p;
+	const unsigned char		*p;
 	krb5_keytab 			krb5keytab = NULL;
 	krb5_keytab_entry		kt_entry;
 	krb5_principal			krb5server;
@@ -1986,7 +1986,8 @@ krb5_error_code  kssl_check_authent(
 	EVP_CIPHER_CTX		ciph_ctx;
 	const EVP_CIPHER	*enc = NULL;
 	unsigned char		iv[EVP_MAX_IV_LENGTH];
-	unsigned char		*p, *unenc_authent;
+	const unsigned char	*p;
+	unsigned char		*unenc_authent;
 	int 			outl, unencbufsize;
 	struct tm		tm_time, *tm_l, *tm_g;
 	time_t			now, tl, tg, tr, tz_offset;
