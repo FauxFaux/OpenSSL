@@ -4,7 +4,7 @@
 ## Makefile for OpenSSL
 ##
 
-VERSION=0.9.7i
+VERSION=0.9.7j
 MAJOR=0
 MINOR=9.7
 SHLIB_VERSION_NUMBER=0.9.7
@@ -174,11 +174,29 @@ RMD160_ASM_OBJ=
 KRB5_INCLUDES=
 LIBKRB5=
 
+# Zlib stuff
+ZLIB_INCLUDE=
+LIBZLIB=
+
+# This is the location of fipscanister.o and friends.
+# The FIPS module build will place it $(INSTALLTOP)/lib
+# but since $(INSTALLTOP) can only take the default value
+# when the module is built it will be in /usr/local/ssl/lib
+# $(INSTALLTOP) for this build make be different so hard
+# code the path.
+
+FIPSLIBDIR=/usr/local/ssl/lib
+
+# Shared library base address. Currently only used on Windows.
+#
+
+BASEADDR=0xFB00000
+
 # When we're prepared to use shared libraries in the programs we link here
 # we might set SHLIB_MARK to '$(SHARED_LIBS)'.
 SHLIB_MARK=
 
-DIRS=   crypto fips ssl $(SHLIB_MARK) sigs apps test tools
+DIRS=   crypto fips-1.0 ssl $(SHLIB_MARK) apps test tools
 SHLIBDIRS= crypto ssl
 
 # dirs in crypto to build
@@ -208,7 +226,6 @@ ONEDIRS=out tmp
 EDIRS=  times doc bugs util include certs ms shlib mt demos perl sf dep VMS
 WDIRS=  windows
 LIBS=   libcrypto.a libssl.a
-SIGS=	libcrypto.a.sha1
 SHARED_CRYPTO=libcrypto$(SHLIB_EXT)
 SHARED_SSL=libssl$(SHLIB_EXT)
 SHARED_LIBS=
@@ -228,19 +245,12 @@ HEADER=         e_os.h
 
 all: Makefile sub_all openssl.pc
 
-sigs:	$(SIGS)
-libcrypto.a.sha1: libcrypto.a
-	@if egrep 'define OPENSSL_FIPS' $(TOP)/include/openssl/opensslconf.h > /dev/null; then \
-		$(RANLIB) libcrypto.a; \
-		fips/sha/fips_standalone_sha1 libcrypto.a > libcrypto.a.sha1; \
-	fi
-
 sub_all:
 	@for i in $(DIRS); \
 	do \
 	if [ -d "$$i" ]; then \
 		(cd $$i && echo "making all in $$i..." && \
-		$(MAKE) CC='${CC}' PLATFORM='${PLATFORM}' CFLAG='${CFLAG}' AS='${AS}' ASFLAG='${ASFLAG}' SDIRS='$(SDIRS)' FDIRS='$(FDIRS)' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' FIPS_DES_ENC='${FIPS_DES_ENC}' FIPS_AES_ENC='${FIPS_AES_ENC}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' FIPS_SHA1_ASM_OBJ='${FIPS_SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' AR='${AR}' PROCESSOR='${PROCESSOR}' PERL='${PERL}' RANLIB='${RANLIB}' KRB5_INCLUDES='${KRB5_INCLUDES}' LIBKRB5='${LIBKRB5}' EXE_EXT='${EXE_EXT}' SHARED_LIBS='${SHARED_LIBS}' SHLIB_EXT='${SHLIB_EXT}' SHLIB_TARGET='${SHLIB_TARGET}' all ) || exit 1; \
+		$(MAKE) CC='${CC}' PLATFORM='${PLATFORM}' CFLAG='${CFLAG}' AS='${AS}' ASFLAG='${ASFLAG}' SDIRS='$(SDIRS)' FDIRS='$(FDIRS)' INSTALLTOP='${INSTALLTOP}' PEX_LIBS='${PEX_LIBS}' EX_LIBS='${EX_LIBS}' BN_ASM='${BN_ASM}' DES_ENC='${DES_ENC}' FIPS_DES_ENC='${FIPS_DES_ENC}' FIPS_AES_ENC='${FIPS_AES_ENC}' BF_ENC='${BF_ENC}' CAST_ENC='${CAST_ENC}' RC4_ENC='${RC4_ENC}' RC5_ENC='${RC5_ENC}' SHA1_ASM_OBJ='${SHA1_ASM_OBJ}' FIPS_SHA1_ASM_OBJ='${FIPS_SHA1_ASM_OBJ}' MD5_ASM_OBJ='${MD5_ASM_OBJ}' RMD160_ASM_OBJ='${RMD160_ASM_OBJ}' AR='${AR}' PROCESSOR='${PROCESSOR}' PERL='${PERL}' RANLIB='${RANLIB}' KRB5_INCLUDES='${KRB5_INCLUDES}' LIBKRB5='${LIBKRB5}' EXE_EXT='${EXE_EXT}' SHARED_LIBS='${SHARED_LIBS}' SHLIB_EXT='${SHLIB_EXT}' SHLIB_TARGET='${SHLIB_TARGET}' FIPSLIBDIR='${FIPSLIBDIR}' all ) || exit 1; \
 	else \
 		$(MAKE) $$i; \
 	fi; \
@@ -260,9 +270,6 @@ sub_target:
 libcrypto$(SHLIB_EXT): libcrypto.a
 	@if [ "$(SHLIB_TARGET)" != "" ]; then \
 		$(MAKE) SHLIBDIRS=crypto build-shared; \
-        	if egrep 'define OPENSSL_FIPS' $(TOP)/include/openssl/opensslconf.h > /dev/null; then \
-                    fips/sha/fips_standalone_sha1 -binary $@ > $@.$${HMAC_EXT:-sha1}; \
-		fi; \
 	else \
 		echo "There's no support for shared libraries on this platform" >&2; \
 	fi
@@ -310,7 +317,7 @@ do_gnu-shared:
 	if [ "${SHLIBDIRS}" = "ssl" -a -n "$(LIBKRB5)" ]; then \
 		libs="$(LIBKRB5) $$libs"; \
 	fi; \
-	( set -x; ${CC} ${SHARED_LDFLAGS} \
+	( set -x; $${FIPSLD:-${CC}} ${SHARED_LDFLAGS} \
 		-shared -o lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} \
 		-Wl,-soname=lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} \
 		-Wl,-Bsymbolic \
@@ -327,7 +334,7 @@ do_darwin-shared:
 	if [ "${SHLIBDIRS}" = "ssl" -a -n "$(LIBKRB5)" ]; then \
 		libs="$(LIBKRB5) $$libs"; \
 	fi; \
-	( set -x; ${CC} ${SHARED_LDFLAGS} \
+	( set -x; $${FIPSLD:-${CC}} ${SHARED_LDFLAGS} \
 		--verbose -dynamiclib -o lib$$i${SHLIB_EXT} \
 		lib$$i.a $$libs -all_load -current_version ${SHLIB_MAJOR}.${SHLIB_MINOR} \
 		-compatibility_version ${SHLIB_MAJOR}.`echo ${SHLIB_MINOR} | cut -d. -f1` \
@@ -346,13 +353,14 @@ do_cygwin-shared:
 	[ -f apps/$$shlib ] && rm apps/$$shlib; \
 	[ -f test/$$shlib ] && rm test/$$shlib; \
 	base=;  [ $$i = "crypto" ] && base=-Wl,--image-base,0x63000000; \
-	( set -x; ${CC} ${SHARED_LDFLAGS} \
+	( set -x; $${FIPSLD:-${CC}} ${SHARED_LDFLAGS} \
 		-shared $$base -o $$shlib \
 		-Wl,-Bsymbolic \
 		-Wl,--whole-archive lib$$i.a \
 		-Wl,--out-implib,lib$$i.dll.a \
 		-Wl,--no-whole-archive $$libs ${EX_LIBS} ) || exit 1; \
 	cp -p $$shlib apps/; cp -p $$shlib test/; \
+	touch -c lib$$i.dll.a; \
 	libs="-l$$i $$libs"; \
 	done
 
@@ -365,7 +373,7 @@ do_alpha-osf1-shared:
 		if [ "${SHLIBDIRS}" = "ssl" -a -n "$(LIBKRB5)" ]; then \
 			libs="$(LIBKRB5) $$libs"; \
 		fi; \
-		( set -x; ${CC} ${SHARED_LDFLAGS} \
+		( set -x; $${FIPSLD:-${CC}} ${SHARED_LDFLAGS} \
 			-shared -o lib$$i.so \
 			-set_version "${SHLIB_VERSION_HISTORY}${SHLIB_VERSION_NUMBER}" \
 			-all lib$$i.a -none $$libs ${EX_LIBS} ) || exit 1; \
@@ -384,7 +392,7 @@ do_tru64-shared:
 		if [ "${SHLIBDIRS}" = "ssl" -a -n "$(LIBKRB5)" ]; then \
 			libs="$(LIBKRB5) $$libs"; \
 		fi; \
-		( set -x; ${CC} ${SHARED_LDFLAGS} \
+		( set -x; $${FIPSLD:-${CC}} ${SHARED_LDFLAGS} \
 			-shared -msym -o lib$$i.so \
 			-set_version "${SHLIB_VERSION_HISTORY}${SHLIB_VERSION_NUMBER}" \
 			-all lib$$i.a -none $$libs ${EX_LIBS} ) || exit 1; \
@@ -403,7 +411,7 @@ do_tru64-shared-rpath:
 		if [ "${SHLIBDIRS}" = "ssl" -a -n "$(LIBKRB5)" ]; then \
 			libs="$(LIBKRB5) $$libs"; \
 		fi; \
-		( set -x; ${CC} ${SHARED_LDFLAGS} \
+		( set -x; $${FIPSLD:-${CC}} ${SHARED_LDFLAGS} \
 			-shared -msym -o lib$$i.so \
 			-rpath  ${INSTALLTOP}/lib \
 			-set_version "${SHLIB_VERSION_HISTORY}${SHLIB_VERSION_NUMBER}" \
@@ -425,7 +433,7 @@ do_solaris-shared:
 		( PATH=/usr/ccs/bin:$$PATH ; export PATH; \
 		  MINUSZ='-z '; \
 		  (${CC} -v 2>&1 | grep gcc) > /dev/null && MINUSZ='-Wl,-z,'; \
-		  set -x; ${CC} ${SHARED_LDFLAGS} \
+		  set -x; $${FIPSLD:-${CC}} ${SHARED_LDFLAGS} \
 			-o lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} \
 			-h lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} \
 			-Wl,-Bsymbolic \
@@ -450,7 +458,7 @@ do_svr3-shared:
 		  for obj in `ar t lib$$i.a` ; do \
 		    OBJS="$${OBJS} `grep /$$obj allobjs`" ; \
 		  done ; \
-		  set -x; ${CC} ${SHARED_LDFLAGS} \
+		  set -x; $${FIPSLD:-${CC}} ${SHARED_LDFLAGS} \
 			-G -o lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} \
 			-h lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} \
 			$${OBJS} $$libs ${EX_LIBS} ) || exit 1; \
@@ -476,7 +484,7 @@ do_svr5-shared:
 		    OBJS="$${OBJS} `grep /$$obj allobjs`" ; \
 		  done ; \
 		  set -x; LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH \
-			${CC} ${SHARED_LDFLAGS} \
+			$${FIPSLD:-${CC}} ${SHARED_LDFLAGS} \
 			$${SHARE_FLAG} -o lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} \
 			-h lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} \
 			$${OBJS} $$libs ${EX_LIBS} ) || exit 1; \
@@ -495,7 +503,7 @@ do_irix-shared:
 		fi; \
 		( WHOLELIB="-all lib$$i.a -none"; \
 		  (${CC} -v 2>&1 | grep gcc) > /dev/null && WHOLELIB="-Wl,-all,lib$$i.a,-none"; \
-		  set -x; ${CC} ${SHARED_LDFLAGS} \
+		  set -x; $${FIPSLD:-${CC}} ${SHARED_LDFLAGS} \
 			-shared -o lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} \
 			-Wl,-soname,lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} \
 			$${WHOLELIB} $$libs ${EX_LIBS}) || exit 1; \
@@ -518,7 +526,7 @@ do_hpux-shared:
 	[ -f $$shlib ] && rm -f $$shlib; \
 	ALLSYMSFLAGS='-Wl,-Fl'; \
 	expr $(PLATFORM) : 'hpux64' > /dev/null && ALLSYMSFLAGS='-Wl,+forceload'; \
-	( set -x; ${CC} ${SHARED_LDFLAGS} \
+	( set -x; $${FIPSLD:-${CC}} ${SHARED_LDFLAGS} \
 		-Wl,-B,symbolic,+vnocompatwarnings,-z,+h,$$shlib \
 		-o $$shlib $$ALLSYMSFLAGS,lib$$i.a -ldld ) || exit 1; \
 	chmod a=rx $$shlib; \
@@ -566,7 +574,7 @@ do_aix-shared:
 	  OBJECT_MODE=$${OBJECT_MODE:-32}; export OBJECT_MODE; \
 	  ld -r -o lib$$i.o $(ALLSYMSFLAG) lib$$i.a && \
 	  ( nm -Pg lib$$i.o | grep ' [BD] ' | cut -f1 -d' ' > lib$$i.exp; \
-	    $(SHAREDCMD) $(SHAREDFLAGS) \
+	    $${FIPSLD:-${CC}} $(SHAREDFLAGS) \
 		-o lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} lib$$i.o \
 		$$libs ${EX_LIBS} ) ) \
 	|| exit 1; \
@@ -582,7 +590,7 @@ do_reliantunix-shared:
 	( set -x; \
 	  ( Opwd=`pwd` ; mkdir $$tmpdir || exit 1; \
 	    cd $$tmpdir || exit 1 ; ar x $$Opwd/lib$$i.a ; \
-	    ${CC} -G -o lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} *.o \
+	    $${FIPSLD:-${CC}} -G -o lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} *.o \
 	  ) || exit 1; \
 	  cp $$tmpdir/lib$$i.so.${SHLIB_MAJOR}.${SHLIB_MINOR} . ; \
 	) || exit 1; \
@@ -818,16 +826,7 @@ install_sw:
 				if [ "$(PLATFORM)" != "Cygwin" ]; then \
 					cp $$i $(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$i.new; \
 					chmod 555 $(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$i.new; \
-					mv -f	$(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$i.new \
-						$(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$i; \
-					sig="$$i.$${HMAC_EXT:-sha1}"; \
-					if [ -f $$sig ]; then \
-						echo installing $$sig; \
-						cp $$sig $(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$sig.new; \
-						chmod 444 $(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$sig.new; \
-						mv -f	$(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$sig.new \
-							$(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$sig; \
-					fi; \
+					mv -f $(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$i.new $(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$i; \
 				else \
 					c=`echo $$i | sed 's/^lib\(.*\)\.dll/cyg\1-$(SHLIB_VERSION_NUMBER).dll/'`; \
 					cp $$c $(INSTALL_PREFIX)$(INSTALLTOP)/bin/$$c.new; \
@@ -850,15 +849,6 @@ install_sw:
 			sed -e '1,/^$$/d' doc/openssl-shared.txt; \
 		fi; \
 	fi
-	@for i in $(SIGS) ;\
-	do \
-		if [ -f "$$i" ]; then \
-		(       echo installing $$i; \
-			cp $$i $(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$i.new; \
-			chmod 644 $(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$i.new; \
-			mv -f $(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$i.new $(INSTALL_PREFIX)$(INSTALLTOP)/lib/$$i ); \
-		fi; \
-	done;
 	cp openssl.pc $(INSTALL_PREFIX)$(INSTALLTOP)/lib/pkgconfig
 	chmod 644 $(INSTALL_PREFIX)$(INSTALLTOP)/lib/pkgconfig/openssl.pc
 
