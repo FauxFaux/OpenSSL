@@ -56,8 +56,11 @@
  *
  */
 
+#include <openssl/crypto.h>
+#include "cryptlib.h"
 #include "eng_int.h"
-#include <openssl/rand.h>
+#include <openssl/rand.h> /* FIXME: This shouldn't be needed */
+#include <openssl/engine.h>
 
 /* The "new"/"free" stuff first */
 
@@ -89,7 +92,6 @@ void engine_set_all_null(ENGINE *e)
 	e->dsa_meth = NULL;
 	e->dh_meth = NULL;
 	e->rand_meth = NULL;
-	e->store_meth = NULL;
 	e->ciphers = NULL;
 	e->digests = NULL;
 	e->destroy = NULL;
@@ -108,7 +110,7 @@ int engine_free_util(ENGINE *e, int locked)
 
 	if(e == NULL)
 		{
-		ENGINEerr(ENGINE_F_ENGINE_FREE_UTIL,
+		ENGINEerr(ENGINE_F_ENGINE_FREE,
 			ERR_R_PASSED_NULL_PARAMETER);
 		return 0;
 		}
@@ -316,14 +318,4 @@ int ENGINE_get_flags(const ENGINE *e)
 const ENGINE_CMD_DEFN *ENGINE_get_cmd_defns(const ENGINE *e)
 	{
 	return e->cmd_defns;
-	}
-
-/* eng_lib.o is pretty much linked into anything that touches ENGINE already, so
- * put the "static_state" hack here. */
-
-static int internal_static_hack = 0;
-
-void *ENGINE_get_static_state(void)
-	{
-	return &internal_static_hack;
 	}

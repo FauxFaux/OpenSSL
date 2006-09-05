@@ -184,7 +184,7 @@ long CONF_get_number(LHASH *conf,const char *group,const char *name)
 	if (status == 0)
 		{
 		/* This function does not believe in errors... */
-		ERR_clear_error();
+		ERR_get_error();
 		}
 	return result;
 	}

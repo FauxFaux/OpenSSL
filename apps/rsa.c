@@ -56,7 +56,6 @@
  * [including the GNU Public Licence.]
  */
 
-#include <openssl/opensslconf.h>
 #ifndef OPENSSL_NO_RSA
 #include <stdio.h>
 #include <stdlib.h>
@@ -69,7 +68,6 @@
 #include <openssl/evp.h>
 #include <openssl/x509.h>
 #include <openssl/pem.h>
-#include <openssl/bn.h>
 
 #undef PROG
 #define PROG	rsa_main
@@ -309,7 +307,7 @@ bad:
 			BIO_printf(out,"RSA key ok\n");
 		else if (r == 0)
 			{
-			unsigned long err;
+			long err;
 
 			while ((err = ERR_peek_error()) != 0 &&
 				ERR_GET_LIB(err) == ERR_LIB_RSA &&

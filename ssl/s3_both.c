@@ -108,11 +108,6 @@
  * Hudson (tjh@cryptsoft.com).
  *
  */
-/* ====================================================================
- * Copyright 2002 Sun Microsystems, Inc. ALL RIGHTS RESERVED.
- * ECC cipher suite support in OpenSSL originally developed by 
- * SUN MICROSYSTEMS, INC., and contributed to the OpenSSL project.
- */
 
 #include <limits.h>
 #include <string.h>
@@ -197,7 +192,7 @@ int ssl3_get_finished(SSL *s, int a, int b)
 	 * change cipher spec message and is in s->s3->tmp.peer_finish_md
 	 */ 
 
-	n=s->method->ssl_get_message(s,
+	n=ssl3_get_message(s,
 		a,
 		b,
 		SSL3_MT_FINISHED,
@@ -391,8 +386,8 @@ long ssl3_get_message(SSL *s, int st1, int stn, int mt, long max, int *ok)
 			{
 			while (s->init_num < 4)
 				{
-				i=s->method->ssl_read_bytes(s,SSL3_RT_HANDSHAKE,
-					&p[s->init_num],4 - s->init_num, 0);
+				i=ssl3_read_bytes(s,SSL3_RT_HANDSHAKE,&p[s->init_num],
+					4 - s->init_num, 0);
 				if (i <= 0)
 					{
 					s->rwstate=SSL_READING;
@@ -472,7 +467,7 @@ long ssl3_get_message(SSL *s, int st1, int stn, int mt, long max, int *ok)
 	n = s->s3->tmp.message_size - s->init_num;
 	while (n > 0)
 		{
-		i=s->method->ssl_read_bytes(s,SSL3_RT_HANDSHAKE,&p[s->init_num],n,0);
+		i=ssl3_read_bytes(s,SSL3_RT_HANDSHAKE,&p[s->init_num],n,0);
 		if (i <= 0)
 			{
 			s->rwstate=SSL_READING;
@@ -497,7 +492,7 @@ err:
 int ssl_cert_type(X509 *x, EVP_PKEY *pkey)
 	{
 	EVP_PKEY *pk;
-	int ret= -1,i;
+	int ret= -1,i,j;
 
 	if (pkey == NULL)
 		pk=X509_get_pubkey(x);
@@ -509,17 +504,35 @@ int ssl_cert_type(X509 *x, EVP_PKEY *pkey)
 	if (i == EVP_PKEY_RSA)
 		{
 		ret=SSL_PKEY_RSA_ENC;
+		if (x != NULL)
+			{
+			j=X509_get_ext_count(x);
+			/* check to see if this is a signing only certificate */
+			/* EAY EAY EAY EAY */
+			}
 		}
 	else if (i == EVP_PKEY_DSA)
 		{
 		ret=SSL_PKEY_DSA_SIGN;
 		}
-#ifndef OPENSSL_NO_EC
-	else if (i == EVP_PKEY_EC)
+	else if (i == EVP_PKEY_DH)
 		{
-		ret = SSL_PKEY_ECC;
+		/* if we just have a key, we needs to be guess */
+
+		if (x == NULL)
+			ret=SSL_PKEY_DH_DSA;
+		else
+			{
+			j=X509_get_signature_type(x);
+			if (j == EVP_PKEY_RSA)
+				ret=SSL_PKEY_DH_RSA;
+			else if (j== EVP_PKEY_DSA)
+				ret=SSL_PKEY_DH_DSA;
+			else ret= -1;
+			}
 		}
-#endif
+	else
+		ret= -1;
 
 err:
 	if(!pkey) EVP_PKEY_free(pk);

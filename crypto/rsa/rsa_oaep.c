@@ -28,9 +28,6 @@
 #include <openssl/rand.h>
 #include <openssl/sha.h>
 
-int MGF1(unsigned char *mask, long len,
-	const unsigned char *seed, long seedlen);
-
 int RSA_padding_add_PKCS1_OAEP(unsigned char *to, int tlen,
 	const unsigned char *from, int flen,
 	const unsigned char *param, int plen)
@@ -76,11 +73,13 @@ int RSA_padding_add_PKCS1_OAEP(unsigned char *to, int tlen,
 	   20);
 #endif
 
-	MGF1(dbmask, emlen - SHA_DIGEST_LENGTH, seed, SHA_DIGEST_LENGTH);
+	PKCS1_MGF1(dbmask, emlen - SHA_DIGEST_LENGTH, seed, SHA_DIGEST_LENGTH,
+								EVP_sha1());
 	for (i = 0; i < emlen - SHA_DIGEST_LENGTH; i++)
 		db[i] ^= dbmask[i];
 
-	MGF1(seedmask, SHA_DIGEST_LENGTH, db, emlen - SHA_DIGEST_LENGTH);
+	PKCS1_MGF1(seedmask, SHA_DIGEST_LENGTH, db, emlen - SHA_DIGEST_LENGTH,
+								EVP_sha1());
 	for (i = 0; i < SHA_DIGEST_LENGTH; i++)
 		seed[i] ^= seedmask[i];
 
@@ -122,15 +121,15 @@ int RSA_padding_check_PKCS1_OAEP(unsigned char *to, int tlen,
 	db = OPENSSL_malloc(dblen);
 	if (db == NULL)
 		{
-		RSAerr(RSA_F_RSA_PADDING_CHECK_PKCS1_OAEP, ERR_R_MALLOC_FAILURE);
+		RSAerr(RSA_F_RSA_PADDING_ADD_PKCS1_OAEP, ERR_R_MALLOC_FAILURE);
 		return -1;
 		}
 
-	MGF1(seed, SHA_DIGEST_LENGTH, maskeddb, dblen);
+	PKCS1_MGF1(seed, SHA_DIGEST_LENGTH, maskeddb, dblen, EVP_sha1());
 	for (i = lzero; i < SHA_DIGEST_LENGTH; i++)
 		seed[i] ^= from[i - lzero];
   
-	MGF1(db, dblen, seed, SHA_DIGEST_LENGTH);
+	PKCS1_MGF1(db, dblen, seed, SHA_DIGEST_LENGTH, EVP_sha1());
 	for (i = 0; i < dblen; i++)
 		db[i] ^= maskeddb[i];
 

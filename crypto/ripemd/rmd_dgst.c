@@ -58,18 +58,19 @@
 
 #include <stdio.h>
 #include "rmd_locl.h"
+#include <openssl/fips.h>
 #include <openssl/opensslv.h>
 
 const char *RMD160_version="RIPE-MD160" OPENSSL_VERSION_PTEXT;
 
 #  ifdef RMD160_ASM
-     void ripemd160_block_x86(RIPEMD160_CTX *c, unsigned long *p,size_t num);
+     void ripemd160_block_x86(RIPEMD160_CTX *c, unsigned long *p,int num);
 #    define ripemd160_block ripemd160_block_x86
 #  else
-     void ripemd160_block(RIPEMD160_CTX *c, unsigned long *p,size_t num);
+     void ripemd160_block(RIPEMD160_CTX *c, unsigned long *p,int num);
 #  endif
 
-int RIPEMD160_Init(RIPEMD160_CTX *c)
+FIPS_NON_FIPS_MD_Init(RIPEMD160)
 	{
 	c->A=RIPEMD160_A;
 	c->B=RIPEMD160_B;
@@ -87,7 +88,7 @@ int RIPEMD160_Init(RIPEMD160_CTX *c)
 #undef X
 #endif
 #define X(i)	XX[i]
-void ripemd160_block_host_order (RIPEMD160_CTX *ctx, const void *p, size_t num)
+void ripemd160_block_host_order (RIPEMD160_CTX *ctx, const void *p, int num)
 	{
 	const RIPEMD160_LONG *XX=p;
 	register unsigned MD32_REG_T A,B,C,D,E;
@@ -287,7 +288,7 @@ void ripemd160_block_host_order (RIPEMD160_CTX *ctx, const void *p, size_t num)
 #ifdef X
 #undef X
 #endif
-void ripemd160_block_data_order (RIPEMD160_CTX *ctx, const void *p, size_t num)
+void ripemd160_block_data_order (RIPEMD160_CTX *ctx, const void *p, int num)
 	{
 	const unsigned char *data=p;
 	register unsigned MD32_REG_T A,B,C,D,E;

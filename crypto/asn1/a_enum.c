@@ -59,7 +59,6 @@
 #include <stdio.h>
 #include "cryptlib.h"
 #include <openssl/asn1.h>
-#include <openssl/bn.h>
 
 /* 
  * Code for ENUMERATED type: identical to INTEGER apart from a different tag.
@@ -68,13 +67,12 @@
 
 int ASN1_ENUMERATED_set(ASN1_ENUMERATED *a, long v)
 	{
-	int j,k;
-	unsigned int i;
+	int i,j,k;
 	unsigned char buf[sizeof(long)+1];
 	long d;
 
 	a->type=V_ASN1_ENUMERATED;
-	if (a->length < (int)(sizeof(long)+1))
+	if (a->length < (sizeof(long)+1))
 		{
 		if (a->data != NULL)
 			OPENSSL_free(a->data);
@@ -118,7 +116,7 @@ long ASN1_ENUMERATED_get(ASN1_ENUMERATED *a)
 	else if (i != V_ASN1_ENUMERATED)
 		return -1;
 	
-	if (a->length > (int)sizeof(long))
+	if (a->length > sizeof(long))
 		{
 		/* hmm... a bit ugly */
 		return(0xffffffffL);
@@ -149,7 +147,7 @@ ASN1_ENUMERATED *BN_to_ASN1_ENUMERATED(BIGNUM *bn, ASN1_ENUMERATED *ai)
 		ASN1err(ASN1_F_BN_TO_ASN1_ENUMERATED,ERR_R_NESTED_ASN1_ERROR);
 		goto err;
 		}
-	if(BN_is_negative(bn)) ret->type = V_ASN1_NEG_ENUMERATED;
+	if(bn->neg) ret->type = V_ASN1_NEG_ENUMERATED;
 	else ret->type=V_ASN1_ENUMERATED;
 	j=BN_num_bits(bn);
 	len=((j == 0)?0:((j/8)+1));
@@ -177,6 +175,6 @@ BIGNUM *ASN1_ENUMERATED_to_BN(ASN1_ENUMERATED *ai, BIGNUM *bn)
 
 	if ((ret=BN_bin2bn(ai->data,ai->length,bn)) == NULL)
 		ASN1err(ASN1_F_ASN1_ENUMERATED_TO_BN,ASN1_R_BN_LIB);
-	else if(ai->type == V_ASN1_NEG_ENUMERATED) BN_set_negative(ret,1);
+	else if(ai->type == V_ASN1_NEG_ENUMERATED) ret->neg = 1;
 	return(ret);
 	}

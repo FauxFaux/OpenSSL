@@ -56,7 +56,10 @@
  * [including the GNU Public Licence.]
  */
 
+#include <stdio.h>
+#include <string.h>
 #include "cryptlib.h"
+#include <openssl/crypto.h>
 
 #ifndef NO_WINDOWS_BRAINDEATH
 #include "buildinf.h"

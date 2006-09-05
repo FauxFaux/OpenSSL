@@ -53,7 +53,10 @@
  *
  */
 
+#include <openssl/crypto.h>
+#include "cryptlib.h"
 #include "eng_int.h"
+#include <openssl/engine.h>
 
 /* When querying a ENGINE-specific control command's 'description', this string
  * is used if the ENGINE_CMD_DEFN has cmd_desc set to NULL. */
@@ -100,8 +103,7 @@ static int int_ctrl_cmd_by_num(const ENGINE_CMD_DEFN *defn, unsigned int num)
 	return -1;
 	}
 
-static int int_ctrl_helper(ENGINE *e, int cmd, long i, void *p,
-			   void (*f)(void))
+static int int_ctrl_helper(ENGINE *e, int cmd, long i, void *p, void (*f)())
 	{
 	int idx;
 	char *s = (char *)p;
@@ -179,7 +181,7 @@ static int int_ctrl_helper(ENGINE *e, int cmd, long i, void *p,
 	return -1;
 	}
 
-int ENGINE_ctrl(ENGINE *e, int cmd, long i, void *p, void (*f)(void))
+int ENGINE_ctrl(ENGINE *e, int cmd, long i, void *p, void (*f)())
 	{
 	int ctrl_exists, ref_exists;
 	if(e == NULL)
@@ -249,13 +251,13 @@ int ENGINE_cmd_is_executable(ENGINE *e, int cmd)
 	}
 
 int ENGINE_ctrl_cmd(ENGINE *e, const char *cmd_name,
-        long i, void *p, void (*f)(void), int cmd_optional)
+        long i, void *p, void (*f)(), int cmd_optional)
         {
 	int num;
 
 	if((e == NULL) || (cmd_name == NULL))
 		{
-		ENGINEerr(ENGINE_F_ENGINE_CTRL_CMD,
+		ENGINEerr(ENGINE_F_ENGINE_CTRL_CMD_STRING,
 			ERR_R_PASSED_NULL_PARAMETER);
 		return 0;
 		}
