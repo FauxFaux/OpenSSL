@@ -1,6 +1,3 @@
-#ifdef __SUNPRO_C
-# include "../bn_asm.c"	/* kind of dirty hack for Sun Studio */
-#else
 /*
  * x86_64 BIGNUM accelerator version 0.1, December 2002.
  *
@@ -594,4 +591,3 @@ void bn_sqr_comba4(BN_ULONG *r, BN_ULONG *a)
 	r[6]=c1;
 	r[7]=c2;
 	}
-#endif

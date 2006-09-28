@@ -127,6 +127,7 @@ int MAIN(int argc, char **argv)
 	char *engine = NULL;
 #endif
 	const EVP_MD *dgst=NULL;
+	int non_fips_allow = 0;
 
 	apps_startup();
 
@@ -261,6 +262,8 @@ int MAIN(int argc, char **argv)
 			if (--argc < 1) goto bad;
 			md= *(++argv);
 			}
+		else if (strcmp(*argv,"-non-fips-allow") == 0)
+			non_fips_allow = 1;
 		else if	((argv[0][0] == '-') &&
 			((c=EVP_get_cipherbyname(&(argv[0][1]))) != NULL))
 			{
@@ -314,7 +317,10 @@ bad:
 
 	if (dgst == NULL)
 		{
-		dgst = EVP_md5();
+		if (in_FIPS_mode)
+			dgst = EVP_sha1();
+		else
+			dgst = EVP_md5();
 		}
 
 	if (bufsize != NULL)
@@ -340,7 +346,7 @@ bad:
 			}
 
 		/* It must be large enough for a base64 encoded line */
-		if (n < 80) n=80;
+		if (base64 && n < 80) n=80;
 
 		bsize=(int)n;
 		if (verbose) BIO_printf(bio_err,"bufsize=%d\n",bsize);
@@ -370,7 +376,11 @@ bad:
 		}
 
 	if (inf == NULL)
+	        {
+		if (bufsize != NULL)
+			setvbuf(stdin, (char *)NULL, _IONBF, 0);
 		BIO_set_fp(in,stdin,BIO_NOCLOSE);
+	        }
 	else
 		{
 		if (BIO_read_filename(in,inf) <= 0)
@@ -421,6 +431,8 @@ bad:
 	if (outf == NULL)
 		{
 		BIO_set_fp(out,stdout,BIO_NOCLOSE);
+		if (bufsize != NULL)
+			setvbuf(stdout, (char *)NULL, _IONBF, 0);
 #ifdef OPENSSL_SYS_VMS
 		{
 		BIO *tmpbio = BIO_new(BIO_f_linebuffer());
@@ -546,7 +558,19 @@ bad:
 		if (!EVP_CipherInit_ex(ctx, cipher, NULL, NULL, NULL, enc))
 			{
 			BIO_printf(bio_err, "Error setting cipher %s\n",
-				EVP_CIPHER_name(cipher));
+					EVP_CIPHER_name(cipher));
+			ERR_print_errors(bio_err);
+			goto end;
+			}
+
+		if (non_fips_allow)
+			EVP_CIPHER_CTX_set_flags(ctx,
+				EVP_CIPH_FLAG_NON_FIPS_ALLOW);
+
+		if (!EVP_CipherInit_ex(ctx, NULL, NULL, key, iv, enc))
+			{
+			BIO_printf(bio_err, "Error setting cipher %s\n",
+					EVP_CIPHER_name(cipher));
 			ERR_print_errors(bio_err);
 			goto end;
 			}
@@ -557,7 +581,7 @@ bad:
 		if (!EVP_CipherInit_ex(ctx, NULL, NULL, key, iv, enc))
 			{
 			BIO_printf(bio_err, "Error setting cipher %s\n",
-				EVP_CIPHER_name(cipher));
+					EVP_CIPHER_name(cipher));
 			ERR_print_errors(bio_err);
 			goto end;
 			}
@@ -573,7 +597,7 @@ bad:
 			if (!nosalt)
 				{
 				printf("salt=");
-				for (i=0; i<(int)sizeof(salt); i++)
+				for (i=0; i<sizeof salt; i++)
 					printf("%02X",salt[i]);
 				printf("\n");
 				}

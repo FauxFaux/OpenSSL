@@ -52,7 +52,6 @@
 
 #include "../e_os.h"
 
-#include <openssl/opensslconf.h>
 #include <openssl/evp.h>
 #ifndef OPENSSL_NO_ENGINE
 #include <openssl/engine.h>
@@ -137,7 +136,7 @@ static void test1(const EVP_CIPHER *c,const unsigned char *key,int kn,
 		  const unsigned char *iv,int in,
 		  const unsigned char *plaintext,int pn,
 		  const unsigned char *ciphertext,int cn,
-		  int encdec)
+		  int encdec,int multiplier)
     {
     EVP_CIPHER_CTX ctx;
     unsigned char out[4096];
@@ -168,7 +167,7 @@ static void test1(const EVP_CIPHER *c,const unsigned char *key,int kn,
 	    }
 	EVP_CIPHER_CTX_set_padding(&ctx,0);
 
-	if(!EVP_EncryptUpdate(&ctx,out,&outl,plaintext,pn))
+	if(!EVP_EncryptUpdate(&ctx,out,&outl,plaintext,pn*multiplier))
 	    {
 	    fprintf(stderr,"Encrypt failed\n");
 	    ERR_print_errors_fp(stderr);
@@ -181,7 +180,7 @@ static void test1(const EVP_CIPHER *c,const unsigned char *key,int kn,
 	    test1_exit(7);
 	    }
 
-	if(outl+outl2 != cn)
+	if(outl+outl2 != cn*multiplier)
 	    {
 	    fprintf(stderr,"Ciphertext length mismatch got %d expected %d\n",
 		    outl+outl2,cn);
@@ -207,7 +206,7 @@ static void test1(const EVP_CIPHER *c,const unsigned char *key,int kn,
 	    }
 	EVP_CIPHER_CTX_set_padding(&ctx,0);
 
-	if(!EVP_DecryptUpdate(&ctx,out,&outl,ciphertext,cn))
+	if(!EVP_DecryptUpdate(&ctx,out,&outl,ciphertext,cn*multiplier))
 	    {
 	    fprintf(stderr,"Decrypt failed\n");
 	    ERR_print_errors_fp(stderr);
@@ -220,7 +219,7 @@ static void test1(const EVP_CIPHER *c,const unsigned char *key,int kn,
 	    test1_exit(7);
 	    }
 
-	if(outl+outl2 != cn)
+	if(outl+outl2 != cn*multiplier)
 	    {
 	    fprintf(stderr,"Plaintext length mismatch got %d expected %d\n",
 		    outl+outl2,cn);
@@ -245,7 +244,7 @@ static int test_cipher(const char *cipher,const unsigned char *key,int kn,
 		       const unsigned char *iv,int in,
 		       const unsigned char *plaintext,int pn,
 		       const unsigned char *ciphertext,int cn,
-		       int encdec)
+		       int encdec,int multiplier)
     {
     const EVP_CIPHER *c;
 
@@ -253,7 +252,7 @@ static int test_cipher(const char *cipher,const unsigned char *key,int kn,
     if(!c)
 	return 0;
 
-    test1(c,key,kn,iv,in,plaintext,pn,ciphertext,cn,encdec);
+    test1(c,key,kn,iv,in,plaintext,pn,ciphertext,cn,encdec,multiplier);
 
     return 1;
     }
@@ -369,6 +368,7 @@ int main(int argc,char **argv)
 	unsigned char *iv,*key,*plaintext,*ciphertext;
 	int encdec;
 	int kn,in,pn,cn;
+	int multiplier=1;
 
 	if(!fgets((char *)line,sizeof line,f))
 	    break;
@@ -393,37 +393,17 @@ int main(int argc,char **argv)
 	pn=convert(plaintext);
 	cn=convert(ciphertext);
 
-	if(!test_cipher(cipher,key,kn,iv,in,plaintext,pn,ciphertext,cn,encdec)
+	if(strchr(cipher,'*'))
+	    {
+	    p=cipher;
+	    sstrsep(&p,"*");
+	    multiplier=atoi(sstrsep(&p,"*"));
+	    }
+
+	if(!test_cipher(cipher,key,kn,iv,in,plaintext,pn,ciphertext,cn,encdec,
+			multiplier)
 	   && !test_digest(cipher,plaintext,pn,ciphertext,cn))
 	    {
-#ifdef OPENSSL_NO_AES
-	    if (strstr(cipher, "AES") == cipher)
-		{
-		fprintf(stdout, "Cipher disabled, skipping %s\n", cipher); 
-		continue;
-		}
-#endif
-#ifdef OPENSSL_NO_DES
-	    if (strstr(cipher, "DES") == cipher)
-		{
-		fprintf(stdout, "Cipher disabled, skipping %s\n", cipher); 
-		continue;
-		}
-#endif
-#ifdef OPENSSL_NO_RC4
-	    if (strstr(cipher, "RC4") == cipher)
-		{
-		fprintf(stdout, "Cipher disabled, skipping %s\n", cipher); 
-		continue;
-		}
-#endif
-#ifdef OPENSSL_NO_CAMELLIA
-	    if (strstr(cipher, "CAMELLIA") == cipher)
-		{
-		fprintf(stdout, "Cipher disabled, skipping %s\n", cipher); 
-		continue;
-		}
-#endif
 	    fprintf(stderr,"Can't find %s\n",cipher);
 	    EXIT(3);
 	    }

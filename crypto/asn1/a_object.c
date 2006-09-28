@@ -57,7 +57,6 @@
  */
 
 #include <stdio.h>
-#include <limits.h>
 #include "cryptlib.h"
 #include <openssl/buffer.h>
 #include <openssl/asn1.h>
@@ -84,12 +83,10 @@ int i2d_ASN1_OBJECT(ASN1_OBJECT *a, unsigned char **pp)
 
 int a2d_ASN1_OBJECT(unsigned char *out, int olen, const char *buf, int num)
 	{
-	int i,first,len=0,c, use_bn;
-	char ftmp[24], *tmp = ftmp;
-	int tmpsize = sizeof ftmp;
+	int i,first,len=0,c;
+	char tmp[24];
 	const char *p;
 	unsigned long l;
-	BIGNUM *bl = NULL;
 
 	if (num == 0)
 		return(0);
@@ -101,7 +98,7 @@ int a2d_ASN1_OBJECT(unsigned char *out, int olen, const char *buf, int num)
 	num--;
 	if ((c >= '0') && (c <= '2'))
 		{
-		first= c-'0';
+		first=(c-'0')*40;
 		}
 	else
 		{
@@ -125,7 +122,6 @@ int a2d_ASN1_OBJECT(unsigned char *out, int olen, const char *buf, int num)
 			goto err;
 			}
 		l=0;
-		use_bn = 0;
 		for (;;)
 			{
 			if (num <= 0) break;
@@ -138,22 +134,7 @@ int a2d_ASN1_OBJECT(unsigned char *out, int olen, const char *buf, int num)
 				ASN1err(ASN1_F_A2D_ASN1_OBJECT,ASN1_R_INVALID_DIGIT);
 				goto err;
 				}
-			if (!use_bn && l > (ULONG_MAX / 10L))
-				{
-				use_bn = 1;
-				if (!bl)
-					bl = BN_new();
-				if (!bl || !BN_set_word(bl, l))
-					goto err;
-				}
-			if (use_bn)
-				{
-				if (!BN_mul_word(bl, 10L)
-					|| !BN_add_word(bl, c-'0'))
-					goto err;
-				}
-			else
-				l=l*10L+(long)(c-'0');
+			l=l*10L+(long)(c-'0');
 			}
 		if (len == 0)
 			{
@@ -162,42 +143,14 @@ int a2d_ASN1_OBJECT(unsigned char *out, int olen, const char *buf, int num)
 				ASN1err(ASN1_F_A2D_ASN1_OBJECT,ASN1_R_SECOND_NUMBER_TOO_LARGE);
 				goto err;
 				}
-			if (use_bn)
-				{
-				if (!BN_add_word(bl, first * 40))
-					goto err;
-				}
-			else
-				l+=(long)first*40;
+			l+=(long)first;
 			}
 		i=0;
-		if (use_bn)
+		for (;;)
 			{
-			int blsize;
-			blsize = BN_num_bits(bl);
-			blsize = (blsize + 6)/7;
-			if (blsize > tmpsize)
-				{
-				if (tmp != ftmp)
-					OPENSSL_free(tmp);
-				tmpsize = blsize + 32;
-				tmp = OPENSSL_malloc(tmpsize);
-				if (!tmp)
-					goto err;
-				}
-			while(blsize--)
-				tmp[i++] = (unsigned char)BN_div_word(bl, 0x80L);
-			}
-		else
-			{
-					
-			for (;;)
-				{
-				tmp[i++]=(unsigned char)l&0x7f;
-				l>>=7L;
-				if (l == 0L) break;
-				}
-
+			tmp[i++]=(unsigned char)l&0x7f;
+			l>>=7L;
+			if (l == 0L) break;
 			}
 		if (out != NULL)
 			{
@@ -213,16 +166,8 @@ int a2d_ASN1_OBJECT(unsigned char *out, int olen, const char *buf, int num)
 		else
 			len+=i;
 		}
-	if (tmp != ftmp)
-		OPENSSL_free(tmp);
-	if (bl)
-		BN_free(bl);
 	return(len);
 err:
-	if (tmp != ftmp)
-		OPENSSL_free(tmp);
-	if (bl)
-		BN_free(bl);
 	return(0);
 	}
 
@@ -233,31 +178,21 @@ int i2t_ASN1_OBJECT(char *buf, int buf_len, ASN1_OBJECT *a)
 
 int i2a_ASN1_OBJECT(BIO *bp, ASN1_OBJECT *a)
 	{
-	char buf[80], *p = buf;
+	char buf[80];
 	int i;
 
 	if ((a == NULL) || (a->data == NULL))
 		return(BIO_write(bp,"NULL",4));
 	i=i2t_ASN1_OBJECT(buf,sizeof buf,a);
-	if (i > (int)(sizeof(buf) - 1))
-		{
-		p = OPENSSL_malloc(i + 1);
-		if (!p)
-			return -1;
-		i2t_ASN1_OBJECT(p,i + 1,a);
-		}
-	if (i <= 0)
-		return BIO_write(bp, "<INVALID>", 9);
-	BIO_write(bp,p,i);
-	if (p != buf)
-		OPENSSL_free(p);
+	if (i > sizeof buf) i=sizeof buf;
+	BIO_write(bp,buf,i);
 	return(i);
 	}
 
-ASN1_OBJECT *d2i_ASN1_OBJECT(ASN1_OBJECT **a, const unsigned char **pp,
+ASN1_OBJECT *d2i_ASN1_OBJECT(ASN1_OBJECT **a, unsigned char **pp,
 	     long length)
 {
-	const unsigned char *p;
+	unsigned char *p;
 	long len;
 	int tag,xclass;
 	int inf,i;
@@ -284,11 +219,11 @@ err:
 		ASN1_OBJECT_free(ret);
 	return(NULL);
 }
-ASN1_OBJECT *c2i_ASN1_OBJECT(ASN1_OBJECT **a, const unsigned char **pp,
+ASN1_OBJECT *c2i_ASN1_OBJECT(ASN1_OBJECT **a, unsigned char **pp,
 	     long len)
 	{
 	ASN1_OBJECT *ret=NULL;
-	const unsigned char *p;
+	unsigned char *p;
 	int i;
 
 	/* only the ASN1_OBJECTs from the 'table' will have values
@@ -320,7 +255,7 @@ ASN1_OBJECT *c2i_ASN1_OBJECT(ASN1_OBJECT **a, const unsigned char **pp,
 	*pp=p;
 	return(ret);
 err:
-	ASN1err(ASN1_F_C2I_ASN1_OBJECT,i);
+	ASN1err(ASN1_F_D2I_ASN1_OBJECT,i);
 	if ((ret != NULL) && ((a == NULL) || (*a != ret)))
 		ASN1_OBJECT_free(ret);
 	return(NULL);

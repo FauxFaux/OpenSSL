@@ -322,8 +322,7 @@ sub cbc
 
 	&function_end_A($name);
 
-	&align(64);
-	&set_label("cbc_enc_jmp_table");
+	&set_label("cbc_enc_jmp_table",1);
 	&data_word("0");
 	&data_word(&label("ej1")."-".&label("PIC_point"));
 	&data_word(&label("ej2")."-".&label("PIC_point"));
@@ -342,7 +341,6 @@ sub cbc
 	#&data_word(&label("dj5")."-".&label("PIC_point"));
 	#&data_word(&label("dj6")."-".&label("PIC_point"));
 	#&data_word(&label("dj7")."-".&label("PIC_point"));
-	&align(64);
 
 	&function_end_B($name);
 	

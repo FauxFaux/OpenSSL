@@ -109,7 +109,6 @@
  *
  */
 
-#include <openssl/opensslconf.h>	/* for OPENSSL_NO_DH */
 #ifndef OPENSSL_NO_DH
 #include <stdio.h>
 #include <stdlib.h>
@@ -143,7 +142,7 @@
  * -C
  */
 
-static int MS_CALLBACK dh_cb(int p, int n, BN_GENCB *cb);
+static void MS_CALLBACK dh_cb(int p, int n, void *arg);
 
 int MAIN(int, char **);
 
@@ -295,8 +294,6 @@ bad:
 
 	if(num) {
 
-		BN_GENCB cb;
-		BN_GENCB_set(&cb, dh_cb, bio_err);
 		if (!app_RAND_load_file(NULL, bio_err, 1) && inrand == NULL)
 			{
 			BIO_printf(bio_err,"warning, not much extra random data, consider using the -rand option\n");
@@ -308,13 +305,12 @@ bad:
 #ifndef OPENSSL_NO_DSA
 		if (dsaparam)
 			{
-			DSA *dsa = DSA_new();
+			DSA *dsa;
 			
 			BIO_printf(bio_err,"Generating DSA parameters, %d bit long prime\n",num);
-			if(!dsa || !DSA_generate_parameters_ex(dsa, num,
-						NULL, 0, NULL, NULL, &cb))
+			dsa = DSA_generate_parameters(num, NULL, 0, NULL, NULL, dh_cb, bio_err);
+			if (dsa == NULL)
 				{
-				if(dsa) DSA_free(dsa);
 				ERR_print_errors(bio_err);
 				goto end;
 				}
@@ -330,12 +326,12 @@ bad:
 		else
 #endif
 			{
-			dh = DH_new();
 			BIO_printf(bio_err,"Generating DH parameters, %d bit long safe prime, generator %d\n",num,g);
 			BIO_printf(bio_err,"This is going to take a long time\n");
-			if(!dh || !DH_generate_parameters_ex(dh, num, g, &cb))
+			dh=DH_generate_parameters(num,g,dh_cb,bio_err);
+			
+			if (dh == NULL)
 				{
-				if(dh) DH_free(dh);
 				ERR_print_errors(bio_err);
 				goto end;
 				}
@@ -538,7 +534,7 @@ end:
 	}
 
 /* dh_cb is identical to dsa_cb in apps/dsaparam.c */
-static int MS_CALLBACK dh_cb(int p, int n, BN_GENCB *cb)
+static void MS_CALLBACK dh_cb(int p, int n, void *arg)
 	{
 	char c='*';
 
@@ -546,12 +542,11 @@ static int MS_CALLBACK dh_cb(int p, int n, BN_GENCB *cb)
 	if (p == 1) c='+';
 	if (p == 2) c='*';
 	if (p == 3) c='\n';
-	BIO_write(cb->arg,&c,1);
-	(void)BIO_flush(cb->arg);
+	BIO_write((BIO *)arg,&c,1);
+	(void)BIO_flush((BIO *)arg);
 #ifdef LINT
 	p=n;
 #endif
-	return 1;
 	}
 
 #endif
