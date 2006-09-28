@@ -8,6 +8,7 @@
 #include <openssl/crypto.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
+#include <openssl/bn.h>
 #ifdef OPENSSL_NO_RSA
 int main(int argc, char *argv[])
 {
@@ -313,6 +314,9 @@ int main(int argc, char *argv[])
 
     CRYPTO_mem_leaks_fp(stderr);
 
+#ifdef OPENSSL_SYS_NETWARE
+    if (err) printf("ERROR: %d\n", err);
+#endif
     return err;
     }
 #endif

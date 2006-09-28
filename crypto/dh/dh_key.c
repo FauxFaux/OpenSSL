@@ -62,8 +62,6 @@
 #include <openssl/rand.h>
 #include <openssl/dh.h>
 
-#ifndef OPENSSL_FIPS
-
 static int generate_key(DH *dh);
 static int compute_key(unsigned char *key, const BIGNUM *pub_key, DH *dh);
 static int dh_bn_mod_exp(const DH *dh, BIGNUM *r,
@@ -91,6 +89,7 @@ dh_bn_mod_exp,
 dh_init,
 dh_finish,
 0,
+NULL,
 NULL
 };
 
@@ -131,8 +130,7 @@ static int generate_key(DH *dh)
 
 	if (dh->flags & DH_FLAG_CACHE_MONT_P)
 		{
-		mont = BN_MONT_CTX_set_locked(
-				(BN_MONT_CTX **)&dh->method_mont_p,
+		mont = BN_MONT_CTX_set_locked(&dh->method_mont_p,
 				CRYPTO_LOCK_DH, dh->p, ctx);
 		if (!mont)
 			goto err;
@@ -165,7 +163,7 @@ static int generate_key(DH *dh)
 	ok=1;
 err:
 	if (ok != 1)
-		DHerr(DH_F_DH_GENERATE_KEY,ERR_R_BN_LIB);
+		DHerr(DH_F_GENERATE_KEY,ERR_R_BN_LIB);
 
 	if ((pub_key != NULL)  && (dh->pub_key == NULL))  BN_free(pub_key);
 	if ((priv_key != NULL) && (dh->priv_key == NULL)) BN_free(priv_key);
@@ -179,10 +177,11 @@ static int compute_key(unsigned char *key, const BIGNUM *pub_key, DH *dh)
 	BN_MONT_CTX *mont=NULL;
 	BIGNUM *tmp;
 	int ret= -1;
+        int check_result;
 
 	if (BN_num_bits(dh->p) > OPENSSL_DH_MAX_MODULUS_BITS)
 		{
-		DHerr(DH_F_DH_COMPUTE_KEY,DH_R_MODULUS_TOO_LARGE);
+		DHerr(DH_F_COMPUTE_KEY,DH_R_MODULUS_TOO_LARGE);
 		goto err;
 		}
 
@@ -193,14 +192,13 @@ static int compute_key(unsigned char *key, const BIGNUM *pub_key, DH *dh)
 	
 	if (dh->priv_key == NULL)
 		{
-		DHerr(DH_F_DH_COMPUTE_KEY,DH_R_NO_PRIVATE_VALUE);
+		DHerr(DH_F_COMPUTE_KEY,DH_R_NO_PRIVATE_VALUE);
 		goto err;
 		}
 
 	if (dh->flags & DH_FLAG_CACHE_MONT_P)
 		{
-		mont = BN_MONT_CTX_set_locked(
-				(BN_MONT_CTX **)&dh->method_mont_p,
+		mont = BN_MONT_CTX_set_locked(&dh->method_mont_p,
 				CRYPTO_LOCK_DH, dh->p, ctx);
 		if ((dh->flags & DH_FLAG_NO_EXP_CONSTTIME) == 0)
 			{
@@ -211,9 +209,15 @@ static int compute_key(unsigned char *key, const BIGNUM *pub_key, DH *dh)
 			goto err;
 		}
 
+        if (!DH_check_pub_key(dh, pub_key, &check_result) || check_result)
+		{
+		DHerr(DH_F_COMPUTE_KEY,DH_R_INVALID_PUBKEY);
+		goto err;
+		}
+
 	if (!dh->meth->bn_mod_exp(dh, tmp, pub_key, dh->priv_key,dh->p,ctx,mont))
 		{
-		DHerr(DH_F_DH_COMPUTE_KEY,ERR_R_BN_LIB);
+		DHerr(DH_F_COMPUTE_KEY,ERR_R_BN_LIB);
 		goto err;
 		}
 
@@ -254,8 +258,6 @@ static int dh_init(DH *dh)
 static int dh_finish(DH *dh)
 	{
 	if(dh->method_mont_p)
-		BN_MONT_CTX_free((BN_MONT_CTX *)dh->method_mont_p);
+		BN_MONT_CTX_free(dh->method_mont_p);
 	return(1);
 	}
-
-#endif
