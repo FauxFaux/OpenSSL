@@ -156,6 +156,14 @@ const char *X509_verify_cert_error_string(long n)
 		return("key usage does not include digital signature");
 	case X509_V_ERR_UNHANDLED_CRITICAL_CRL_EXTENSION:
 		return("unhandled critical CRL extension");
+	case X509_V_ERR_INVALID_EXTENSION:
+		return("invalid or inconsistent certificate extension");
+	case X509_V_ERR_INVALID_POLICY_EXTENSION:
+		return("invalid or inconsistent certificate policy extension");
+	case X509_V_ERR_NO_EXPLICIT_POLICY:
+		return("no explicit policy");
+	case X509_V_ERR_UNNESTED_RESOURCE:
+		return("RFC 3779 resource not subset of parent's resources");
 	default:
 		BIO_snprintf(buf,sizeof buf,"error number %ld",n);
 		return(buf);
