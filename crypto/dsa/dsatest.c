@@ -56,12 +56,6 @@
  * [including the GNU Public Licence.]
  */
 
-/* Until the key-gen callbacks are modified to use newer prototypes, we allow
- * deprecated functions for openssl-internal code */
-#ifdef OPENSSL_NO_DEPRECATED
-#undef OPENSSL_NO_DEPRECATED
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -74,7 +68,6 @@
 #include <openssl/rand.h>
 #include <openssl/bio.h>
 #include <openssl/err.h>
-#include <openssl/bn.h>
 
 #ifdef OPENSSL_NO_DSA
 int main(int argc, char *argv[])
@@ -91,7 +84,7 @@ int main(int argc, char *argv[])
 #define MS_CALLBACK
 #endif
 
-static int MS_CALLBACK dsa_cb(int p, int n, BN_GENCB *arg);
+static void MS_CALLBACK dsa_cb(int p, int n, void *arg);
 
 /* seed, out_p, out_q, out_g are taken from the updated Appendix 5 to
  * FIPS PUB 186 and also appear in Appendix 5 to FIPS PIB 186-1 */
@@ -136,7 +129,6 @@ static BIO *bio_err=NULL;
 
 int main(int argc, char **argv)
 	{
-	BN_GENCB cb;
 	DSA *dsa=NULL;
 	int counter,ret=0,i,j;
 	unsigned char buf[256];
@@ -156,10 +148,7 @@ int main(int argc, char **argv)
 
 	BIO_printf(bio_err,"test generation of DSA parameters\n");
 
-	BN_GENCB_set(&cb, dsa_cb, bio_err);
-	if(((dsa = DSA_new()) == NULL) || !DSA_generate_parameters_ex(dsa, 512,
-				seed, 20, &counter, &h, &cb))
-		goto end;
+	dsa=DSA_generate_parameters(512,seed,20,&counter,&h,dsa_cb,bio_err);
 
 	BIO_printf(bio_err,"seed\n");
 	for (i=0; i<20; i+=4)
@@ -167,7 +156,7 @@ int main(int argc, char **argv)
 		BIO_printf(bio_err,"%02X%02X%02X%02X ",
 			seed[i],seed[i+1],seed[i+2],seed[i+3]);
 		}
-	BIO_printf(bio_err,"\ncounter=%d h=%ld\n",counter,h);
+	BIO_printf(bio_err,"\ncounter=%d h=%d\n",counter,h);
 		
 	if (dsa == NULL) goto end;
 	DSA_print(bio_err,dsa,0);
@@ -231,14 +220,17 @@ end:
 		BIO_free(bio_err);
 		bio_err = NULL;
 		}
-#ifdef OPENSSL_SYS_NETWARE
-    if (!ret) printf("ERROR\n");
-#endif
 	EXIT(!ret);
 	return(0);
 	}
 
-static int MS_CALLBACK dsa_cb(int p, int n, BN_GENCB *arg)
+static int cb_exit(int ec)
+	{
+	EXIT(ec);
+	return(0);		/* To keep some compilers quiet */
+	}
+
+static void MS_CALLBACK dsa_cb(int p, int n, void *arg)
 	{
 	char c='*';
 	static int ok=0,num=0;
@@ -247,14 +239,13 @@ static int MS_CALLBACK dsa_cb(int p, int n, BN_GENCB *arg)
 	if (p == 1) c='+';
 	if (p == 2) { c='*'; ok++; }
 	if (p == 3) c='\n';
-	BIO_write(arg->arg,&c,1);
-	(void)BIO_flush(arg->arg);
+	BIO_write(arg,&c,1);
+	(void)BIO_flush(arg);
 
 	if (!ok && (p == 0) && (num > 1))
 		{
 		BIO_printf((BIO *)arg,"error in dsatest\n");
-		return 0;
+		cb_exit(1);
 		}
-	return 1;
 	}
 #endif

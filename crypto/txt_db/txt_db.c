@@ -66,7 +66,7 @@
 #undef BUFSIZE
 #define BUFSIZE	512
 
-const char *TXT_DB_version="TXT_DB" OPENSSL_VERSION_PTEXT;
+const char TXT_DB_version[]="TXT_DB" OPENSSL_VERSION_PTEXT;
 
 TXT_DB *TXT_DB_read(BIO *in, int num)
 	{
@@ -92,7 +92,7 @@ TXT_DB *TXT_DB_read(BIO *in, int num)
 		goto err;
 	if ((ret->index=(LHASH **)OPENSSL_malloc(sizeof(LHASH *)*num)) == NULL)
 		goto err;
-	if ((ret->qual=(int (**)(char **))OPENSSL_malloc(sizeof(int (**)(char **))*num)) == NULL)
+	if ((ret->qual=(int (**)())OPENSSL_malloc(sizeof(int (**)())*num)) == NULL)
 		goto err;
 	for (i=0; i<num; i++)
 		{
@@ -179,13 +179,10 @@ err:
 #if !defined(OPENSSL_NO_STDIO) && !defined(OPENSSL_SYS_WIN16)
 		if (er == 1) fprintf(stderr,"OPENSSL_malloc failure\n");
 #endif
-		if (ret != NULL)
-			{
-			if (ret->data != NULL) sk_free(ret->data);
-			if (ret->index != NULL) OPENSSL_free(ret->index);
-			if (ret->qual != NULL) OPENSSL_free(ret->qual);
-			if (ret != NULL) OPENSSL_free(ret);
-			}
+		if (ret->data != NULL) sk_free(ret->data);
+		if (ret->index != NULL) OPENSSL_free(ret->index);
+		if (ret->qual != NULL) OPENSSL_free(ret->qual);
+		if (ret != NULL) OPENSSL_free(ret);
 		return(NULL);
 		}
 	else
@@ -213,11 +210,11 @@ char **TXT_DB_get_by_index(TXT_DB *db, int idx, char **value)
 	return(ret);
 	}
 
-int TXT_DB_create_index(TXT_DB *db, int field, int (*qual)(char **),
+int TXT_DB_create_index(TXT_DB *db, int field, int (*qual)(),
 		LHASH_HASH_FN_TYPE hash, LHASH_COMP_FN_TYPE cmp)
 	{
 	LHASH *idx;
-	char **r;
+	char *r;
 	int i,n;
 
 	if (field >= db->num_fields)
@@ -233,12 +230,12 @@ int TXT_DB_create_index(TXT_DB *db, int field, int (*qual)(char **),
 	n=sk_num(db->data);
 	for (i=0; i<n; i++)
 		{
-		r=(char **)sk_value(db->data,i);
+		r=(char *)sk_value(db->data,i);
 		if ((qual != NULL) && (qual(r) == 0)) continue;
 		if ((r=lh_insert(idx,r)) != NULL)
 			{
 			db->error=DB_ERROR_INDEX_CLASH;
-			db->arg1=sk_find(db->data,(char *)r);
+			db->arg1=sk_find(db->data,r);
 			db->arg2=i;
 			lh_free(idx);
 			return(0);

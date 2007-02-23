@@ -60,9 +60,11 @@
 #include <openssl/objects.h>
 #include "ssl_locl.h"
 
-const char *tls1_version_str="TLSv1" OPENSSL_VERSION_PTEXT;
+const char tls1_version_str[]="TLSv1" OPENSSL_VERSION_PTEXT;
 
-SSL3_ENC_METHOD TLSv1_enc_data={
+static long tls1_default_timeout(void);
+
+static SSL3_ENC_METHOD TLSv1_enc_data={
 	tls1_enc,
 	tls1_mac,
 	tls1_setup_key_block,
@@ -76,17 +78,45 @@ SSL3_ENC_METHOD TLSv1_enc_data={
 	tls1_alert_code,
 	};
 
-long tls1_default_timeout(void)
+static SSL_METHOD TLSv1_data= {
+	TLS1_VERSION,
+	tls1_new,
+	tls1_clear,
+	tls1_free,
+	ssl_undefined_function,
+	ssl_undefined_function,
+	ssl3_read,
+	ssl3_peek,
+	ssl3_write,
+	ssl3_shutdown,
+	ssl3_renegotiate,
+	ssl3_renegotiate_check,
+	ssl3_ctrl,
+	ssl3_ctx_ctrl,
+	ssl3_get_cipher_by_char,
+	ssl3_put_cipher_by_char,
+	ssl3_pending,
+	ssl3_num_ciphers,
+	ssl3_get_cipher,
+	ssl_bad_method,
+	tls1_default_timeout,
+	&TLSv1_enc_data,
+	ssl_undefined_function,
+	ssl3_callback_ctrl,
+	ssl3_ctx_callback_ctrl,
+	};
+
+static long tls1_default_timeout(void)
 	{
 	/* 2 hours, the 24 hours mentioned in the TLSv1 spec
 	 * is way too long for http, the cache would over fill */
 	return(60*60*2);
 	}
 
-IMPLEMENT_tls1_meth_func(tlsv1_base_method,
-			ssl_undefined_function,
-			ssl_undefined_function,
-			ssl_bad_method)
+SSL_METHOD *tlsv1_base_method(void)
+	{
+	return(&TLSv1_data);
+	}
 
 int tls1_new(SSL *s)
 	{

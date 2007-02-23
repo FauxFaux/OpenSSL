@@ -58,7 +58,6 @@
 
 #include <stdio.h>
 #include <ctype.h>
-#include <limits.h>
 #include "cryptlib.h"
 #include <openssl/lhash.h>
 #include <openssl/asn1.h>
@@ -116,7 +115,7 @@ static unsigned long add_hash(const void *ca_void)
 	int i;
 	unsigned long ret=0;
 	unsigned char *p;
-	const ADDED_OBJ *ca = (const ADDED_OBJ *)ca_void;
+	ADDED_OBJ *ca = (ADDED_OBJ *)ca_void;
 
 	a=ca->obj;
 	switch (ca->type)
@@ -150,8 +149,8 @@ static int add_cmp(const void *ca_void, const void *cb_void)
 	{
 	ASN1_OBJECT *a,*b;
 	int i;
-	const ADDED_OBJ *ca = (const ADDED_OBJ *)ca_void;
-	const ADDED_OBJ *cb = (const ADDED_OBJ *)cb_void;
+	ADDED_OBJ *ca = (ADDED_OBJ *)ca_void;
+	ADDED_OBJ *cb = (ADDED_OBJ *)cb_void;
 
 	i=ca->type-cb->type;
 	if (i) return(i);
@@ -162,7 +161,7 @@ static int add_cmp(const void *ca_void, const void *cb_void)
 	case ADDED_DATA:
 		i=(a->length - b->length);
 		if (i) return(i);
-		return(memcmp(a->data,b->data,(size_t)a->length));
+		return(memcmp(a->data,b->data,a->length));
 	case ADDED_SNAME:
 		if (a->sn == NULL) return(-1);
 		else if (b->sn == NULL) return(1);
@@ -383,8 +382,8 @@ int OBJ_obj2nid(const ASN1_OBJECT *a)
 		adp=(ADDED_OBJ *)lh_retrieve(added,&ad);
 		if (adp != NULL) return (adp->obj->nid);
 		}
-	op=(ASN1_OBJECT **)OBJ_bsearch((const char *)&a,(const char *)obj_objs,
-		NUM_OBJ, sizeof(ASN1_OBJECT *),obj_cmp);
+	op=(ASN1_OBJECT **)OBJ_bsearch((char *)&a,(char *)obj_objs,NUM_OBJ,
+		sizeof(ASN1_OBJECT *),obj_cmp);
 	if (op == NULL)
 		return(NID_undef);
 	return((*op)->nid);
@@ -400,9 +399,7 @@ ASN1_OBJECT *OBJ_txt2obj(const char *s, int no_name)
 	{
 	int nid = NID_undef;
 	ASN1_OBJECT *op=NULL;
-	unsigned char *buf;
-	unsigned char *p;
-	const unsigned char *cp;
+	unsigned char *buf,*p;
 	int i, j;
 
 	if(!no_name) {
@@ -414,8 +411,8 @@ ASN1_OBJECT *OBJ_txt2obj(const char *s, int no_name)
 	/* Work out size of content octets */
 	i=a2d_ASN1_OBJECT(NULL,0,s,-1);
 	if (i <= 0) {
-		/* Don't clear the error */
-		/*ERR_clear_error();*/
+		/* Clear the error */
+		ERR_get_error();
 		return NULL;
 	}
 	/* Work out total size */
@@ -428,170 +425,75 @@ ASN1_OBJECT *OBJ_txt2obj(const char *s, int no_name)
 	ASN1_put_object(&p,0,i,V_ASN1_OBJECT,V_ASN1_UNIVERSAL);
 	/* Write out contents */
 	a2d_ASN1_OBJECT(p,i,s,-1);
-
-	cp=buf;
-	op=d2i_ASN1_OBJECT(NULL,&cp,j);
+	
+	p=buf;
+	op=d2i_ASN1_OBJECT(NULL,&p,j);
 	OPENSSL_free(buf);
 	return op;
 	}
 
 int OBJ_obj2txt(char *buf, int buf_len, const ASN1_OBJECT *a, int no_name)
 {
-	int i,n=0,len,nid, first, use_bn;
-	BIGNUM *bl;
+	int i,idx=0,n=0,len,nid;
 	unsigned long l;
 	unsigned char *p;
+	const char *s;
 	char tbuf[DECIMAL_SIZE(i)+DECIMAL_SIZE(l)+2];
+
+	if (buf_len <= 0) return(0);
 
 	if ((a == NULL) || (a->data == NULL)) {
 		buf[0]='\0';
 		return(0);
 	}
 
+	if (no_name || (nid=OBJ_obj2nid(a)) == NID_undef) {
+		len=a->length;
+		p=a->data;
 
-	if (!no_name && (nid=OBJ_obj2nid(a)) != NID_undef)
-		{
-		const char *s;
+		idx=0;
+		l=0;
+		while (idx < a->length) {
+			l|=(p[idx]&0x7f);
+			if (!(p[idx] & 0x80)) break;
+			l<<=7L;
+			idx++;
+		}
+		idx++;
+		i=(int)(l/40);
+		if (i > 2) i=2;
+		l-=(long)(i*40);
+
+		BIO_snprintf(tbuf,sizeof tbuf,"%d.%lu",i,l);
+		i=strlen(tbuf);
+		BUF_strlcpy(buf,tbuf,buf_len);
+		buf_len-=i;
+		buf+=i;
+		n+=i;
+
+		l=0;
+		for (; idx<len; idx++) {
+			l|=p[idx]&0x7f;
+			if (!(p[idx] & 0x80)) {
+				BIO_snprintf(tbuf,sizeof tbuf,".%lu",l);
+				i=strlen(tbuf);
+				if (buf_len > 0)
+					BUF_strlcpy(buf,tbuf,buf_len);
+				buf_len-=i;
+				buf+=i;
+				n+=i;
+				l=0;
+			}
+			l<<=7L;
+		}
+	} else {
 		s=OBJ_nid2ln(nid);
 		if (s == NULL)
 			s=OBJ_nid2sn(nid);
-		if (buf)
-			BUF_strlcpy(buf,s,buf_len);
+		BUF_strlcpy(buf,s,buf_len);
 		n=strlen(s);
-		return n;
-		}
-
-
-	len=a->length;
-	p=a->data;
-
-	first = 1;
-	bl = NULL;
-
-	while (len > 0)
-		{
-		l=0;
-		use_bn = 0;
-		for (;;)
-			{
-			unsigned char c = *p++;
-			len--;
-			if ((len == 0) && (c & 0x80))
-				goto err;
-			if (use_bn)
-				{
-				if (!BN_add_word(bl, c & 0x7f))
-					goto err;
-				}
-			else
-				l |= c  & 0x7f;
-			if (!(c & 0x80))
-				break;
-			if (!use_bn && (l > (ULONG_MAX >> 7L)))
-				{
-				if (!bl && !(bl = BN_new()))
-					goto err;
-				if (!BN_set_word(bl, l))
-					goto err;
-				use_bn = 1;
-				}
-			if (use_bn)
-				{
-				if (!BN_lshift(bl, bl, 7))
-					goto err;
-				}
-			else
-				l<<=7L;
-			}
-
-		if (first)
-			{
-			first = 0;
-			if (l >= 80)
-				{
-				i = 2;
-				if (use_bn)
-					{
-					if (!BN_sub_word(bl, 80))
-						goto err;
-					}
-				else
-					l -= 80;
-				}
-			else
-				{
-				i=(int)(l/40);
-				l-=(long)(i*40);
-				}
-			if (buf && (buf_len > 0))
-				{
-				*buf++ = i + '0';
-				buf_len--;
-				}
-			n++;
-			}
-
-		if (use_bn)
-			{
-			char *bndec;
-			bndec = BN_bn2dec(bl);
-			if (!bndec)
-				goto err;
-			i = strlen(bndec);
-			if (buf)
-				{
-				if (buf_len > 0)
-					{
-					*buf++ = '.';
-					buf_len--;
-					}
-				BUF_strlcpy(buf,bndec,buf_len);
-				if (i > buf_len)
-					{
-					buf += buf_len;
-					buf_len = 0;
-					}
-				else
-					{
-					buf+=i;
-					buf_len-=i;
-					}
-				}
-			n++;
-			n += i;
-			OPENSSL_free(bndec);
-			}
-		else
-			{
-			BIO_snprintf(tbuf,sizeof tbuf,".%lu",l);
-			i=strlen(tbuf);
-			if (buf && (buf_len > 0))
-				{
-				BUF_strlcpy(buf,tbuf,buf_len);
-				if (i > buf_len)
-					{
-					buf += buf_len;
-					buf_len = 0;
-					}
-				else
-					{
-					buf+=i;
-					buf_len-=i;
-					}
-				}
-			n+=i;
-			l=0;
-			}
-		}
-
-	if (bl)
-		BN_free(bl);
-	return n;
-
-	err:
-	if (bl)
-		BN_free(bl);
-	return -1;
+	}
+	return(n);
 }
 
 int OBJ_txt2nid(const char *s)
@@ -617,7 +519,7 @@ int OBJ_ln2nid(const char *s)
 		adp=(ADDED_OBJ *)lh_retrieve(added,&ad);
 		if (adp != NULL) return (adp->obj->nid);
 		}
-	op=(ASN1_OBJECT **)OBJ_bsearch((char *)&oo,(char *)ln_objs, NUM_LN,
+	op=(ASN1_OBJECT **)OBJ_bsearch((char *)&oo,(char *)ln_objs,NUM_LN,
 		sizeof(ASN1_OBJECT *),ln_cmp);
 	if (op == NULL) return(NID_undef);
 	return((*op)->nid);
@@ -645,8 +547,8 @@ int OBJ_sn2nid(const char *s)
 static int obj_cmp(const void *ap, const void *bp)
 	{
 	int j;
-	const ASN1_OBJECT *a= *(ASN1_OBJECT * const *)ap;
-	const ASN1_OBJECT *b= *(ASN1_OBJECT * const *)bp;
+	ASN1_OBJECT *a= *(ASN1_OBJECT **)ap;
+	ASN1_OBJECT *b= *(ASN1_OBJECT **)bp;
 
 	j=(a->length - b->length);
         if (j) return(j);
@@ -656,14 +558,8 @@ static int obj_cmp(const void *ap, const void *bp)
 const char *OBJ_bsearch(const char *key, const char *base, int num, int size,
 	int (*cmp)(const void *, const void *))
 	{
-	return OBJ_bsearch_ex(key, base, num, size, cmp, 0);
-	}
-
-const char *OBJ_bsearch_ex(const char *key, const char *base, int num,
-	int size, int (*cmp)(const void *, const void *), int flags)
-	{
-	int l,h,i=0,c=0;
-	const char *p = NULL;
+	int l,h,i,c;
+	const char *p;
 
 	if (num == 0) return(NULL);
 	l=0;
@@ -678,33 +574,20 @@ const char *OBJ_bsearch_ex(const char *key, const char *base, int num,
 		else if (c > 0)
 			l=i+1;
 		else
-			break;
+			return(p);
 		}
 #ifdef CHARSET_EBCDIC
 /* THIS IS A KLUDGE - Because the *_obj is sorted in ASCII order, and
  * I don't have perl (yet), we revert to a *LINEAR* search
  * when the object wasn't found in the binary search.
  */
-	if (c != 0)
-		{
-		for (i=0; i<num; ++i)
-			{
-			p= &(base[i*size]);
-			c = (*cmp)(key,p);
-			if (c == 0 || (c < 0 && (flags & OBJ_BSEARCH_VALUE_ON_NOMATCH)))
-				return p;
-			}
-		}
+	for (i=0; i<num; ++i) {
+		p= &(base[i*size]);
+		if ((*cmp)(key,p) == 0)
+			return p;
+	}
 #endif
-	if (c != 0 && !(flags & OBJ_BSEARCH_VALUE_ON_NOMATCH))
-		p = NULL;
-	else if (c == 0 && (flags & OBJ_BSEARCH_FIRST_VALUE_ON_MATCH))
-		{
-		while(i > 0 && (*cmp)(key,&(base[(i-1)*size])) == 0)
-			i--;
-		p = &(base[i*size]);
-		}
-	return(p);
+	return(NULL);
 	}
 
 int OBJ_create_objects(BIO *in)

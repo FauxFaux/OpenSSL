@@ -60,17 +60,55 @@
 #include <openssl/objects.h>
 #include "ssl_locl.h"
 
-long ssl23_default_timeout(void)
+static int ssl23_num_ciphers(void );
+static SSL_CIPHER *ssl23_get_cipher(unsigned int u);
+static int ssl23_read(SSL *s, void *buf, int len);
+static int ssl23_peek(SSL *s, void *buf, int len);
+static int ssl23_write(SSL *s, const void *buf, int len);
+static long ssl23_default_timeout(void );
+static int ssl23_put_cipher_by_char(const SSL_CIPHER *c, unsigned char *p);
+static SSL_CIPHER *ssl23_get_cipher_by_char(const unsigned char *p);
+const char SSL23_version_str[]="SSLv2/3 compatibility" OPENSSL_VERSION_PTEXT;
+
+static SSL_METHOD SSLv23_data= {
+	TLS1_VERSION,
+	tls1_new,
+	tls1_clear,
+	tls1_free,
+	ssl_undefined_function,
+	ssl_undefined_function,
+	ssl23_read,
+	ssl23_peek,
+	ssl23_write,
+	ssl_undefined_function,
+	ssl_undefined_function,
+	ssl_ok,
+	ssl3_ctrl,
+	ssl3_ctx_ctrl,
+	ssl23_get_cipher_by_char,
+	ssl23_put_cipher_by_char,
+	ssl_undefined_const_function,
+	ssl23_num_ciphers,
+	ssl23_get_cipher,
+	ssl_bad_method,
+	ssl23_default_timeout,
+	&ssl3_undef_enc_method,
+	ssl_undefined_function,
+	ssl3_callback_ctrl,
+	ssl3_ctx_callback_ctrl,
+	};
+
+static long ssl23_default_timeout(void)
 	{
 	return(300);
 	}
 
-IMPLEMENT_ssl23_meth_func(sslv23_base_method,
-			ssl_undefined_function,
-			ssl_undefined_function,
-			ssl_bad_method)
+SSL_METHOD *sslv23_base_method(void)
+	{
+	return(&SSLv23_data);
+	}
 
-int ssl23_num_ciphers(void)
+static int ssl23_num_ciphers(void)
 	{
 	return(ssl3_num_ciphers()
 #ifndef OPENSSL_NO_SSL2
@@ -79,7 +117,7 @@ int ssl23_num_ciphers(void)
 	    );
 	}
 
-SSL_CIPHER *ssl23_get_cipher(unsigned int u)
+static SSL_CIPHER *ssl23_get_cipher(unsigned int u)
 	{
 	unsigned int uu=ssl3_num_ciphers();
 
@@ -95,7 +133,7 @@ SSL_CIPHER *ssl23_get_cipher(unsigned int u)
 
 /* This function needs to check if the ciphers required are actually
  * available */
-SSL_CIPHER *ssl23_get_cipher_by_char(const unsigned char *p)
+static SSL_CIPHER *ssl23_get_cipher_by_char(const unsigned char *p)
 	{
 	SSL_CIPHER c,*cp;
 	unsigned long id;
@@ -113,7 +151,7 @@ SSL_CIPHER *ssl23_get_cipher_by_char(const unsigned char *p)
 	return(cp);
 	}
 
-int ssl23_put_cipher_by_char(const SSL_CIPHER *c, unsigned char *p)
+static int ssl23_put_cipher_by_char(const SSL_CIPHER *c, unsigned char *p)
 	{
 	long l;
 
@@ -128,7 +166,7 @@ int ssl23_put_cipher_by_char(const SSL_CIPHER *c, unsigned char *p)
 	return(3);
 	}
 
-int ssl23_read(SSL *s, void *buf, int len)
+static int ssl23_read(SSL *s, void *buf, int len)
 	{
 	int n;
 
@@ -151,7 +189,7 @@ int ssl23_read(SSL *s, void *buf, int len)
 		}
 	}
 
-int ssl23_peek(SSL *s, void *buf, int len)
+static int ssl23_peek(SSL *s, void *buf, int len)
 	{
 	int n;
 
@@ -174,7 +212,7 @@ int ssl23_peek(SSL *s, void *buf, int len)
 		}
 	}
 
-int ssl23_write(SSL *s, const void *buf, int len)
+static int ssl23_write(SSL *s, const void *buf, int len)
 	{
 	int n;
 

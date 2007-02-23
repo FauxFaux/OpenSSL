@@ -107,8 +107,7 @@ int RSA_verify_ASN1_OCTET_STRING(int dtype,
 	RSA *rsa)
 	{
 	int i,ret=0;
-	unsigned char *s;
-	const unsigned char *p;
+	unsigned char *p,*s;
 	ASN1_OCTET_STRING *sig=NULL;
 
 	if (siglen != (unsigned int)RSA_size(rsa))

@@ -56,12 +56,6 @@
  * [including the GNU Public Licence.]
  */
 
-/* Until the key-gen callbacks are modified to use newer prototypes, we allow
- * deprecated functions for openssl-internal code */
-#ifdef OPENSSL_NO_DEPRECATED
-#undef OPENSSL_NO_DEPRECATED
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -89,13 +83,12 @@ int main(int argc, char *argv[])
 #define MS_CALLBACK
 #endif
 
-static int MS_CALLBACK cb(int p, int n, BN_GENCB *arg);
+static void MS_CALLBACK cb(int p, int n, void *arg);
 
 static const char rnd_seed[] = "string to make the random number generator think it has entropy";
 
 int main(int argc, char *argv[])
 	{
-	BN_GENCB _cb;
 	DH *a;
 	DH *b=NULL;
 	char buf[12];
@@ -117,10 +110,8 @@ int main(int argc, char *argv[])
 	if (out == NULL) EXIT(1);
 	BIO_set_fp(out,stdout,BIO_NOCLOSE);
 
-	BN_GENCB_set(&_cb, &cb, out);
-	if(((a = DH_new()) == NULL) || !DH_generate_parameters_ex(a, 64,
-				DH_GENERATOR_5, &_cb))
-		goto err;
+	a=DH_generate_parameters(64,DH_GENERATOR_5,cb,out);
+	if (a == NULL) goto err;
 
 	if (!DH_check(a, &i)) goto err;
 	if (i & DH_CHECK_P_NOT_PRIME)
@@ -201,14 +192,14 @@ err:
 	if(b != NULL) DH_free(b);
 	if(a != NULL) DH_free(a);
 	BIO_free(out);
-#ifdef OPENSSL_SYS_NETWARE
-    if (ret) printf("ERROR: %d\n", ret);
-#endif
+	CRYPTO_cleanup_all_ex_data();
+	ERR_remove_state(0);
+	CRYPTO_mem_leaks_fp(stderr);
 	EXIT(ret);
 	return(ret);
 	}
 
-static int MS_CALLBACK cb(int p, int n, BN_GENCB *arg)
+static void MS_CALLBACK cb(int p, int n, void *arg)
 	{
 	char c='*';
 
@@ -216,11 +207,10 @@ static int MS_CALLBACK cb(int p, int n, BN_GENCB *arg)
 	if (p == 1) c='+';
 	if (p == 2) c='*';
 	if (p == 3) c='\n';
-	BIO_write(arg->arg,&c,1);
-	(void)BIO_flush(arg->arg);
+	BIO_write((BIO *)arg,&c,1);
+	(void)BIO_flush((BIO *)arg);
 #ifdef LINT
 	p=n;
 #endif
-	return 1;
 	}
 #endif

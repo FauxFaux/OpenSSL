@@ -62,7 +62,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <openssl/opensslconf.h> /* To see if OPENSSL_NO_BF is defined */
 
 #include "../e_os.h"
 
@@ -278,9 +277,6 @@ int main(int argc, char *argv[])
 	else
 		ret=test();
 
-#ifdef OPENSSL_SYS_NETWARE
-    if (ret) printf("ERROR: %d\n", ret);
-#endif
 	EXIT(ret);
 	return(0);
 	}

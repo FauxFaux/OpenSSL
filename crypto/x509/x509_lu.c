@@ -187,8 +187,10 @@ X509_STORE *X509_STORE_new(void)
 	ret->verify=0;
 	ret->verify_cb=0;
 
-	if ((ret->param = X509_VERIFY_PARAM_new()) == NULL)
-		return NULL;
+	ret->purpose = 0;
+	ret->trust = 0;
+
+	ret->flags = 0;
 
 	ret->get_issuer = 0;
 	ret->check_issued = 0;
@@ -200,6 +202,7 @@ X509_STORE *X509_STORE_new(void)
 
 	CRYPTO_new_ex_data(CRYPTO_EX_INDEX_X509_STORE, ret, &ret->ex_data);
 	ret->references=1;
+	ret->depth=0;
 	return ret;
 	}
 
@@ -241,8 +244,6 @@ void X509_STORE_free(X509_STORE *vfy)
 	sk_X509_OBJECT_pop_free(vfy->objs, cleanup);
 
 	CRYPTO_free_ex_data(CRYPTO_EX_INDEX_X509_STORE, vfy, &vfy->ex_data);
-	if (vfy->param)
-		X509_VERIFY_PARAM_free(vfy->param);
 	OPENSSL_free(vfy);
 	}
 
@@ -497,7 +498,7 @@ int X509_STORE_CTX_get1_issuer(X509 **issuer, X509_STORE_CTX *ctx, X509 *x)
 		if (ok == X509_LU_RETRY)
 			{
 			X509_OBJECT_free_contents(&obj);
-			X509err(X509_F_X509_STORE_CTX_GET1_ISSUER,X509_R_SHOULD_RETRY);
+			X509err(X509_F_X509_VERIFY_CERT,X509_R_SHOULD_RETRY);
 			return -1;
 			}
 		else if (ok != X509_LU_FAIL)
@@ -537,30 +538,19 @@ int X509_STORE_CTX_get1_issuer(X509 **issuer, X509_STORE_CTX *ctx, X509 *x)
 	return 0;
 }
 
-int X509_STORE_set_flags(X509_STORE *ctx, unsigned long flags)
+void X509_STORE_set_flags(X509_STORE *ctx, long flags)
 	{
-	return X509_VERIFY_PARAM_set_flags(ctx->param, flags);
-	}
-
-int X509_STORE_set_depth(X509_STORE *ctx, int depth)
-	{
-	X509_VERIFY_PARAM_set_depth(ctx->param, depth);
-	return 1;
+	ctx->flags |= flags;
 	}
 
 int X509_STORE_set_purpose(X509_STORE *ctx, int purpose)
 	{
-	return X509_VERIFY_PARAM_set_purpose(ctx->param, purpose);
+	return X509_PURPOSE_set(&ctx->purpose, purpose);
 	}
 
 int X509_STORE_set_trust(X509_STORE *ctx, int trust)
 	{
-	return X509_VERIFY_PARAM_set_trust(ctx->param, trust);
-	}
-
-int X509_STORE_set1_param(X509_STORE *ctx, X509_VERIFY_PARAM *param)
-	{
-	return X509_VERIFY_PARAM_set1(ctx->param, param);
+	return X509_TRUST_set(&ctx->trust, trust);
 	}
 
 IMPLEMENT_STACK_OF(X509_LOOKUP)

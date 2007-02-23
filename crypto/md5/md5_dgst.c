@@ -60,7 +60,7 @@
 #include "md5_locl.h"
 #include <openssl/opensslv.h>
 
-const char *MD5_version="MD5" OPENSSL_VERSION_PTEXT;
+const char MD5_version[]="MD5" OPENSSL_VERSION_PTEXT;
 
 /* Implemented from RFC1321 The MD5 Message-Digest Algorithm
  */
@@ -70,7 +70,7 @@ const char *MD5_version="MD5" OPENSSL_VERSION_PTEXT;
 #define INIT_DATA_C (unsigned long)0x98badcfeL
 #define INIT_DATA_D (unsigned long)0x10325476L
 
-int MD5_Init(MD5_CTX *c)
+FIPS_NON_FIPS_MD_Init(MD5)
 	{
 	c->A=INIT_DATA_A;
 	c->B=INIT_DATA_B;
@@ -83,7 +83,7 @@ int MD5_Init(MD5_CTX *c)
 	}
 
 #ifndef md5_block_host_order
-void md5_block_host_order (MD5_CTX *c, const void *data, size_t num)
+void md5_block_host_order (MD5_CTX *c, const void *data, int num)
 	{
 	const MD5_LONG *X=data;
 	register unsigned MD32_REG_T A,B,C,D;
@@ -176,7 +176,7 @@ void md5_block_host_order (MD5_CTX *c, const void *data, size_t num)
 #ifdef X
 #undef X
 #endif
-void md5_block_data_order (MD5_CTX *c, const void *data_, size_t num)
+void md5_block_data_order (MD5_CTX *c, const void *data_, int num)
 	{
 	const unsigned char *data=data_;
 	register unsigned MD32_REG_T A,B,C,D,l;
