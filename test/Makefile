@@ -195,7 +195,7 @@ test_x509:
 	echo test second x509v3 certificate
 	sh ./tx509 v3-cert2.pem 2>/dev/null
 
-test_rsa:
+test_rsa: $(RSATEST)$(EXE_EXT)
 	@sh ./trsa 2>/dev/null
 	../util/shlib_wrap.sh ./$(RSATEST)
 
@@ -313,11 +313,7 @@ $(DLIBCRYPTO):
 BUILD_CMD=shlib_target=; if [ -n "$(SHARED_LIBS)" ]; then \
 		shlib_target="$(SHLIB_TARGET)"; \
 	fi; \
-	if [ "$${shlib_target}" = "hpux-shared" -o "$${shlib_target}" = "darwin-shared" ] ; then \
-		LIBRARIES="$(DLIBSSL) $(DLIBCRYPTO) $(LIBKRB5)"; \
-	else \
-		LIBRARIES="$(LIBSSL) $(LIBCRYPTO) $(LIBKRB5)"; \
-	fi; \
+	LIBRARIES="$(LIBSSL) $(LIBCRYPTO) $(LIBKRB5)"; \
 	$(MAKE) -f $(TOP)/Makefile.shared -e \
 		APPNAME=$$target$(EXE_EXT) OBJECTS="$$target.o" \
 		LIBDEPS="$(PEX_LIBS) $$LIBRARIES $(EX_LIBS)" \
