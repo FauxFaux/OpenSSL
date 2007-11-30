@@ -70,12 +70,9 @@
 
 static ERR_STRING_DATA BUF_str_functs[]=
 	{
-{ERR_FUNC(BUF_F_BUF_MEMDUP),	"BUF_memdup"},
 {ERR_FUNC(BUF_F_BUF_MEM_GROW),	"BUF_MEM_grow"},
-{ERR_FUNC(BUF_F_BUF_MEM_GROW_CLEAN),	"BUF_MEM_grow_clean"},
 {ERR_FUNC(BUF_F_BUF_MEM_NEW),	"BUF_MEM_new"},
 {ERR_FUNC(BUF_F_BUF_STRDUP),	"BUF_strdup"},
-{ERR_FUNC(BUF_F_BUF_STRNDUP),	"BUF_strndup"},
 {0,NULL}
 	};
 
@@ -88,12 +85,15 @@ static ERR_STRING_DATA BUF_str_reasons[]=
 
 void ERR_load_BUF_strings(void)
 	{
-#ifndef OPENSSL_NO_ERR
+	static int init=1;
 
-	if (ERR_func_error_string(BUF_str_functs[0].error) == NULL)
+	if (init)
 		{
+		init=0;
+#ifndef OPENSSL_NO_ERR
 		ERR_load_strings(0,BUF_str_functs);
 		ERR_load_strings(0,BUF_str_reasons);
-		}
 #endif
+
+		}
 	}

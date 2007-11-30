@@ -1,9 +1,9 @@
 /* pk7_smime.c */
 /* Written by Dr Stephen N Henson (shenson@bigfoot.com) for the OpenSSL
- * project.
+ * project 1999.
  */
 /* ====================================================================
- * Copyright (c) 1999-2004 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1999-2003 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -66,10 +66,10 @@
 PKCS7 *PKCS7_sign(X509 *signcert, EVP_PKEY *pkey, STACK_OF(X509) *certs,
 		  BIO *data, int flags)
 {
-	PKCS7 *p7 = NULL;
+	PKCS7 *p7;
 	PKCS7_SIGNER_INFO *si;
-	BIO *p7bio = NULL;
-	STACK_OF(X509_ALGOR) *smcap = NULL;
+	BIO *p7bio;
+	STACK_OF(X509_ALGOR) *smcap;
 	int i;
 
 	if(!X509_check_private_key(signcert, pkey)) {
@@ -82,87 +82,66 @@ PKCS7 *PKCS7_sign(X509 *signcert, EVP_PKEY *pkey, STACK_OF(X509) *certs,
 		return NULL;
 	}
 
-	if (!PKCS7_set_type(p7, NID_pkcs7_signed))
-		goto err;
+	PKCS7_set_type(p7, NID_pkcs7_signed);
 
-	if (!PKCS7_content_new(p7, NID_pkcs7_data))
-		goto err;
+	PKCS7_content_new(p7, NID_pkcs7_data);
 
-	if (!(si = PKCS7_add_signature(p7,signcert,pkey,EVP_sha1()))) {
+    	if (!(si = PKCS7_add_signature(p7,signcert,pkey,EVP_sha1()))) {
 		PKCS7err(PKCS7_F_PKCS7_SIGN,PKCS7_R_PKCS7_ADD_SIGNATURE_ERROR);
-		goto err;
+		return NULL;
 	}
 
 	if(!(flags & PKCS7_NOCERTS)) {
-		if (!PKCS7_add_certificate(p7, signcert))
-			goto err;
+		PKCS7_add_certificate(p7, signcert);
 		if(certs) for(i = 0; i < sk_X509_num(certs); i++)
-			if (!PKCS7_add_certificate(p7, sk_X509_value(certs, i)))
-				goto err;
+			PKCS7_add_certificate(p7, sk_X509_value(certs, i));
 	}
 
+	if(!(p7bio = PKCS7_dataInit(p7, NULL))) {
+		PKCS7err(PKCS7_F_PKCS7_SIGN,ERR_R_MALLOC_FAILURE);
+		return NULL;
+	}
+
+
+	SMIME_crlf_copy(data, p7bio, flags);
+
 	if(!(flags & PKCS7_NOATTR)) {
-		if (!PKCS7_add_signed_attribute(si, NID_pkcs9_contentType,
-				V_ASN1_OBJECT, OBJ_nid2obj(NID_pkcs7_data)))
-			goto err;
+		PKCS7_add_signed_attribute(si, NID_pkcs9_contentType,
+				V_ASN1_OBJECT, OBJ_nid2obj(NID_pkcs7_data));
 		/* Add SMIMECapabilities */
 		if(!(flags & PKCS7_NOSMIMECAP))
 		{
 		if(!(smcap = sk_X509_ALGOR_new_null())) {
 			PKCS7err(PKCS7_F_PKCS7_SIGN,ERR_R_MALLOC_FAILURE);
-			goto err;
+			return NULL;
 		}
 #ifndef OPENSSL_NO_DES
-		if (!PKCS7_simple_smimecap (smcap, NID_des_ede3_cbc, -1))
-			goto err;
+		PKCS7_simple_smimecap (smcap, NID_des_ede3_cbc, -1);
 #endif
 #ifndef OPENSSL_NO_RC2
-		if (!PKCS7_simple_smimecap (smcap, NID_rc2_cbc, 128))
-			goto err;
-		if (!PKCS7_simple_smimecap (smcap, NID_rc2_cbc, 64))
-			goto err;
+		PKCS7_simple_smimecap (smcap, NID_rc2_cbc, 128);
+		PKCS7_simple_smimecap (smcap, NID_rc2_cbc, 64);
 #endif
 #ifndef OPENSSL_NO_DES
-		if (!PKCS7_simple_smimecap (smcap, NID_des_cbc, -1))
-			goto err;
+		PKCS7_simple_smimecap (smcap, NID_des_cbc, -1);
 #endif
 #ifndef OPENSSL_NO_RC2
-		if (!PKCS7_simple_smimecap (smcap, NID_rc2_cbc, 40))
-			goto err;
+		PKCS7_simple_smimecap (smcap, NID_rc2_cbc, 40);
 #endif
-		if (!PKCS7_add_attrib_smimecap (si, smcap))
-			goto err;
+		PKCS7_add_attrib_smimecap (si, smcap);
 		sk_X509_ALGOR_pop_free(smcap, X509_ALGOR_free);
-		smcap = NULL;
 		}
 	}
 
 	if(flags & PKCS7_DETACHED)PKCS7_set_detached(p7, 1);
 
-	if (flags & PKCS7_STREAM)
-		return p7;
-
-
-	if (!(p7bio = PKCS7_dataInit(p7, NULL))) {
-		PKCS7err(PKCS7_F_PKCS7_SIGN,ERR_R_MALLOC_FAILURE);
-		goto err;
-	}
-
-	SMIME_crlf_copy(data, p7bio, flags);
-
-
-	if (!PKCS7_dataFinal(p7,p7bio)) {
+        if (!PKCS7_dataFinal(p7,p7bio)) {
 		PKCS7err(PKCS7_F_PKCS7_SIGN,PKCS7_R_PKCS7_DATASIGN);
-		goto err;
+		return NULL;
 	}
 
-	BIO_free_all(p7bio);
+        BIO_free_all(p7bio);
 	return p7;
-err:
-	sk_X509_ALGOR_pop_free(smcap, X509_ALGOR_free);
-	BIO_free_all(p7bio);
-	PKCS7_free(p7);
-	return NULL;
 }
 
 int PKCS7_verify(PKCS7 *p7, STACK_OF(X509) *certs, X509_STORE *store,
@@ -236,8 +215,6 @@ int PKCS7_verify(PKCS7 *p7, STACK_OF(X509) *certs, X509_STORE *store,
 			sk_X509_free(signers);
 			return 0;
 		}
-		if (!(flags & PKCS7_NOCRL))
-			X509_STORE_CTX_set0_crls(&cert_ctx, p7->d.sign->crl);
 		i = X509_verify_cert(&cert_ctx);
 		if (i <= 0) j = X509_STORE_CTX_get_error(&cert_ctx);
 		X509_STORE_CTX_cleanup(&cert_ctx);
@@ -274,8 +251,7 @@ int PKCS7_verify(PKCS7 *p7, STACK_OF(X509) *certs, X509_STORE *store,
 		tmpin = indata;
 		
 
-	if (!(p7bio=PKCS7_dataInit(p7,tmpin)))
-		goto err;
+	p7bio=PKCS7_dataInit(p7,tmpin);
 
 	if(flags & PKCS7_TEXT) {
 		if(!(tmpout = BIO_new(BIO_s_mem()))) {
@@ -354,7 +330,7 @@ STACK_OF(X509) *PKCS7_get0_signers(PKCS7 *p7, STACK_OF(X509) *certs, int flags)
 
 	if(sk_PKCS7_SIGNER_INFO_num(sinfos) <= 0) {
 		PKCS7err(PKCS7_F_PKCS7_GET0_SIGNERS,PKCS7_R_NO_SIGNERS);
-		return NULL;
+		return 0;
 	}
 
 	if(!(signers = sk_X509_new_null())) {
@@ -377,13 +353,10 @@ STACK_OF(X509) *PKCS7_get0_signers(PKCS7 *p7, STACK_OF(X509) *certs, int flags)
 	    if (!signer) {
 			PKCS7err(PKCS7_F_PKCS7_GET0_SIGNERS,PKCS7_R_SIGNER_CERTIFICATE_NOT_FOUND);
 			sk_X509_free(signers);
-			return NULL;
+			return 0;
 	    }
 
-	    if (!sk_X509_push(signers, signer)) {
-			sk_X509_free(signers);
-			return NULL;
-	    }
+	    sk_X509_push(signers, signer);
 	}
 	return signers;
 }
@@ -403,8 +376,7 @@ PKCS7 *PKCS7_encrypt(STACK_OF(X509) *certs, BIO *in, const EVP_CIPHER *cipher,
 		return NULL;
 	}
 
-	if (!PKCS7_set_type(p7, NID_pkcs7_enveloped))
-		goto err;
+	PKCS7_set_type(p7, NID_pkcs7_enveloped);
 	if(!PKCS7_set_cipher(p7, cipher)) {
 		PKCS7err(PKCS7_F_PKCS7_ENCRYPT,PKCS7_R_ERROR_SETTING_CIPHER);
 		goto err;
@@ -426,7 +398,7 @@ PKCS7 *PKCS7_encrypt(STACK_OF(X509) *certs, BIO *in, const EVP_CIPHER *cipher,
 
 	SMIME_crlf_copy(in, p7bio, flags);
 
-	(void)BIO_flush(p7bio);
+	BIO_flush(p7bio);
 
         if (!PKCS7_dataFinal(p7,p7bio)) {
 		PKCS7err(PKCS7_F_PKCS7_ENCRYPT,PKCS7_R_PKCS7_DATAFINAL_ERROR);
@@ -438,7 +410,7 @@ PKCS7 *PKCS7_encrypt(STACK_OF(X509) *certs, BIO *in, const EVP_CIPHER *cipher,
 
 	err:
 
-	BIO_free_all(p7bio);
+	BIO_free(p7bio);
 	PKCS7_free(p7);
 	return NULL;
 
@@ -460,7 +432,7 @@ int PKCS7_decrypt(PKCS7 *p7, EVP_PKEY *pkey, X509 *cert, BIO *data, int flags)
 		return 0;
 	}
 
-	if(cert && !X509_check_private_key(cert, pkey)) {
+	if(!X509_check_private_key(cert, pkey)) {
 		PKCS7err(PKCS7_F_PKCS7_DECRYPT,
 				PKCS7_R_PRIVATE_KEY_DOES_NOT_MATCH_CERTIFICATE);
 		return 0;
@@ -476,13 +448,10 @@ int PKCS7_decrypt(PKCS7 *p7, EVP_PKEY *pkey, X509 *cert, BIO *data, int flags)
 		/* Encrypt BIOs can't do BIO_gets() so add a buffer BIO */
 		if(!(tmpbuf = BIO_new(BIO_f_buffer()))) {
 			PKCS7err(PKCS7_F_PKCS7_DECRYPT, ERR_R_MALLOC_FAILURE);
-			BIO_free_all(tmpmem);
 			return 0;
 		}
 		if(!(bread = BIO_push(tmpbuf, tmpmem))) {
 			PKCS7err(PKCS7_F_PKCS7_DECRYPT, ERR_R_MALLOC_FAILURE);
-			BIO_free_all(tmpbuf);
-			BIO_free_all(tmpmem);
 			return 0;
 		}
 		ret = SMIME_text(bread, data);

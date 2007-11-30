@@ -62,6 +62,8 @@
 #include <errno.h>
 #include <signal.h>
 
+#include <openssl/e_os2.h>
+
 /* With IPv6, it looks like Digital has mixed up the proper order of
    recursive header file inclusion, resulting in the compiler complaining
    that u_int isn't defined, but only if _POSIX_C_SOURCE is defined, which
@@ -79,26 +81,14 @@ typedef unsigned int u_int;
 #include "s_apps.h"
 #include <openssl/ssl.h>
 
-#ifdef FLAT_INC
-#include "e_os.h"
-#else
-#include "../e_os.h"
-#endif
-
-#ifndef OPENSSL_NO_SOCK
-
-#if defined(OPENSSL_SYS_NETWARE) && defined(NETWARE_BSDSOCK)
-#include "netdb.h"
-#endif
-
 static struct hostent *GetHostByName(char *name);
-#if defined(OPENSSL_SYS_WINDOWS) || (defined(OPENSSL_SYS_NETWARE) && !defined(NETWARE_BSDSOCK))
+#ifdef OPENSSL_SYS_WINDOWS
 static void ssl_sock_cleanup(void);
 #endif
 static int ssl_sock_init(void);
-static int init_client_ip(int *sock,unsigned char ip[4], int port, int type);
-static int init_server(int *sock, int port, int type);
-static int init_server_long(int *sock, int port,char *ip, int type);
+static int init_client_ip(int *sock,unsigned char ip[4], int port);
+static int init_server(int *sock, int port);
+static int init_server_long(int *sock, int port,char *ip);
 static int do_accept(int acc_sock, int *sock, char **host);
 static int host_ip(char *str, unsigned char ip[4]);
 
@@ -106,10 +96,6 @@ static int host_ip(char *str, unsigned char ip[4]);
 #define SOCKET_PROTOCOL	0 /* more microsoft stupidity */
 #else
 #define SOCKET_PROTOCOL	IPPROTO_TCP
-#endif
-
-#if defined(OPENSSL_SYS_NETWARE) && !defined(NETWARE_BSDSOCK)
-static int wsa_init_done=0;
 #endif
 
 #ifdef OPENSSL_SYS_WINDOWS
@@ -160,15 +146,6 @@ static void ssl_sock_cleanup(void)
 		WSACleanup();
 		}
 	}
-#elif defined(OPENSSL_SYS_NETWARE) && !defined(NETWARE_BSDSOCK)
-static void sock_cleanup(void)
-    {
-    if (wsa_init_done)
-        {
-        wsa_init_done=0;
-		WSACleanup();
-		}
-	}
 #endif
 
 static int ssl_sock_init(void)
@@ -203,32 +180,11 @@ static int ssl_sock_init(void)
 		SetWindowLong(topWnd,GWL_WNDPROC,(LONG)lpTopHookProc);
 #endif /* OPENSSL_SYS_WIN16 */
 		}
-#elif defined(OPENSSL_SYS_NETWARE) && !defined(NETWARE_BSDSOCK)
-   WORD wVerReq;
-   WSADATA wsaData;
-   int err;
-
-   if (!wsa_init_done)
-      {
-   
-# ifdef SIGINT
-      signal(SIGINT,(void (*)(int))sock_cleanup);
-# endif
-
-      wsa_init_done=1;
-      wVerReq = MAKEWORD( 2, 0 );
-      err = WSAStartup(wVerReq,&wsaData);
-      if (err != 0)
-         {
-         BIO_printf(bio_err,"unable to start WINSOCK2, error code=%d\n",err);
-         return(0);
-         }
-      }
 #endif /* OPENSSL_SYS_WINDOWS */
 	return(1);
 	}
 
-int init_client(int *sock, char *host, int port, int type)
+int init_client(int *sock, char *host, int port)
 	{
 	unsigned char ip[4];
 	short p=0;
@@ -238,10 +194,10 @@ int init_client(int *sock, char *host, int port, int type)
 		return(0);
 		}
 	if (p != 0) port=p;
-	return(init_client_ip(sock,ip,port,type));
+	return(init_client_ip(sock,ip,port));
 	}
 
-static int init_client_ip(int *sock, unsigned char ip[4], int port, int type)
+static int init_client_ip(int *sock, unsigned char ip[4], int port)
 	{
 	unsigned long addr;
 	struct sockaddr_in them;
@@ -259,20 +215,13 @@ static int init_client_ip(int *sock, unsigned char ip[4], int port, int type)
 		((unsigned long)ip[3]);
 	them.sin_addr.s_addr=htonl(addr);
 
-	if (type == SOCK_STREAM)
-		s=socket(AF_INET,SOCK_STREAM,SOCKET_PROTOCOL);
-	else /* ( type == SOCK_DGRAM) */
-		s=socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);
-			
+	s=socket(AF_INET,SOCK_STREAM,SOCKET_PROTOCOL);
 	if (s == INVALID_SOCKET) { perror("socket"); return(0); }
 
 #ifndef OPENSSL_SYS_MPE
-	if (type == SOCK_STREAM)
-		{
-		i=0;
-		i=setsockopt(s,SOL_SOCKET,SO_KEEPALIVE,(char *)&i,sizeof(i));
-		if (i < 0) { perror("keepalive"); return(0); }
-		}
+	i=0;
+	i=setsockopt(s,SOL_SOCKET,SO_KEEPALIVE,(char *)&i,sizeof(i));
+	if (i < 0) { perror("keepalive"); return(0); }
 #endif
 
 	if (connect(s,(struct sockaddr *)&them,sizeof(them)) == -1)
@@ -281,36 +230,30 @@ static int init_client_ip(int *sock, unsigned char ip[4], int port, int type)
 	return(1);
 	}
 
-int do_server(int port, int type, int *ret, int (*cb)(char *hostname, int s, unsigned char *context), unsigned char *context)
+int do_server(int port, int *ret, int (*cb)(), char *context)
 	{
 	int sock;
-	char *name = NULL;
+	char *name;
 	int accept_socket;
 	int i;
 
-	if (!init_server(&accept_socket,port,type)) return(0);
+	if (!init_server(&accept_socket,port)) return(0);
 
 	if (ret != NULL)
 		{
 		*ret=accept_socket;
 		/* return(1);*/
 		}
-  	for (;;)
-  		{
-		if (type==SOCK_STREAM)
+	for (;;)
+		{
+		if (do_accept(accept_socket,&sock,&name) == 0)
 			{
-			if (do_accept(accept_socket,&sock,&name) == 0)
-				{
-				SHUTDOWN(accept_socket);
-				return(0);
-				}
+			SHUTDOWN(accept_socket);
+			return(0);
 			}
-		else
-			sock = accept_socket;
 		i=(*cb)(name,sock, context);
 		if (name != NULL) OPENSSL_free(name);
-		if (type==SOCK_STREAM)
-			SHUTDOWN2(sock);
+		SHUTDOWN2(sock);
 		if (i < 0)
 			{
 			SHUTDOWN2(accept_socket);
@@ -319,7 +262,7 @@ int do_server(int port, int type, int *ret, int (*cb)(char *hostname, int s, uns
 		}
 	}
 
-static int init_server_long(int *sock, int port, char *ip, int type)
+static int init_server_long(int *sock, int port, char *ip)
 	{
 	int ret=0;
 	struct sockaddr_in server;
@@ -339,11 +282,7 @@ static int init_server_long(int *sock, int port, char *ip, int type)
 #else
 		memcpy(&server.sin_addr,ip,4);
 #endif
-	
-		if (type == SOCK_STREAM)
-			s=socket(AF_INET,SOCK_STREAM,SOCKET_PROTOCOL);
-		else /* type == SOCK_DGRAM */
-			s=socket(AF_INET, SOCK_DGRAM,IPPROTO_UDP);
+	s=socket(AF_INET,SOCK_STREAM,SOCKET_PROTOCOL);
 
 	if (s == INVALID_SOCKET) goto err;
 #if defined SOL_SOCKET && defined SO_REUSEADDR
@@ -361,7 +300,7 @@ static int init_server_long(int *sock, int port, char *ip, int type)
 		goto err;
 		}
 	/* Make it 128 for linux */
-	if (type==SOCK_STREAM && listen(s,128) == -1) goto err;
+	if (listen(s,128) == -1) goto err;
 	i=0;
 	*sock=s;
 	ret=1;
@@ -373,9 +312,9 @@ err:
 	return(ret);
 	}
 
-static int init_server(int *sock, int port, int type)
+static int init_server(int *sock, int port)
 	{
-	return(init_server_long(sock, port, NULL, type));
+	return(init_server_long(sock, port, NULL));
 	}
 
 static int do_accept(int acc_sock, int *sock, char **host)
@@ -402,7 +341,7 @@ redoit:
 	ret=accept(acc_sock,(struct sockaddr *)&from,(void *)&len);
 	if (ret == INVALID_SOCKET)
 		{
-#if defined(OPENSSL_SYS_WINDOWS) || (defined(OPENSSL_SYS_NETWARE) && !defined(NETWARE_BSDSOCK))
+#ifdef OPENSSL_SYS_WINDOWS
 		i=WSAGetLastError();
 		BIO_printf(bio_err,"accept error %d\n",i);
 #else
@@ -613,5 +552,3 @@ static struct hostent *GetHostByName(char *name)
 		return(ret);
 		}
 	}
-
-#endif

@@ -79,7 +79,7 @@
 #include <openssl/bn.h>         /* To get BN_LLONG properly defined */
 #include <openssl/bio.h>
 
-#if defined(BN_LLONG) || defined(SIXTY_FOUR_BIT)
+#ifdef BN_LLONG
 # ifndef HAVE_LONG_LONG
 #  define HAVE_LONG_LONG 1
 # endif
@@ -117,7 +117,7 @@
 
 #if HAVE_LONG_LONG
 # if defined(OPENSSL_SYS_WIN32) && !defined(__GNUC__)
-# define LLONG __int64
+# define LLONG _int64
 # else
 # define LLONG long long
 # endif
@@ -482,7 +482,7 @@ fmtint(
     int flags)
 {
     int signvalue = 0;
-    const char *prefix = "";
+    char *prefix = "";
     unsigned LLONG uvalue;
     char convert[DECIMAL_SIZE(value)+3];
     int place = 0;
@@ -513,8 +513,8 @@ fmtint(
             (caps ? "0123456789ABCDEF" : "0123456789abcdef")
             [uvalue % (unsigned) base];
         uvalue = (uvalue / (unsigned) base);
-    } while (uvalue && (place < (int)sizeof(convert)));
-    if (place == sizeof(convert))
+    } while (uvalue && (place < sizeof convert));
+    if (place == sizeof convert)
         place--;
     convert[place] = 0;
 
@@ -619,7 +619,6 @@ fmtfp(
     int caps = 0;
     long intpart;
     long fracpart;
-    long max10;
 
     if (max < 0)
         max = 6;
@@ -640,12 +639,11 @@ fmtfp(
 
     /* we "cheat" by converting the fractional part to integer by
        multiplying by a factor of 10 */
-    max10 = roundv(pow_10(max));
-    fracpart = roundv(pow_10(max) * (ufvalue - intpart));
+    fracpart = roundv((pow_10(max)) * (ufvalue - intpart));
 
-    if (fracpart >= max10) {
+    if (fracpart >= (long)pow_10(max)) {
         intpart++;
-        fracpart -= max10;
+        fracpart -= (long)pow_10(max);
     }
 
     /* convert integer part */
@@ -654,7 +652,7 @@ fmtfp(
             (caps ? "0123456789ABCDEF"
               : "0123456789abcdef")[intpart % 10];
         intpart = (intpart / 10);
-    } while (intpart && (iplace < (int)sizeof(iconvert)));
+    } while (intpart && (iplace < sizeof iconvert));
     if (iplace == sizeof iconvert)
         iplace--;
     iconvert[iplace] = 0;

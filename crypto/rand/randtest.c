@@ -65,7 +65,7 @@
 /* some FIPS 140-1 random number test */
 /* some simple tests */
 
-int main(int argc,char **argv)
+int main()
 	{
 	unsigned char buf[2500];
 	int i,j,k,s,sign,nsign,err=0;
@@ -211,9 +211,6 @@ int main(int argc,char **argv)
 	printf("test 4 done\n");
  err:
 	err=((err)?1:0);
-#ifdef OPENSSL_SYS_NETWARE
-    if (err) printf("ERROR: %d\n", err);
-#endif
 	EXIT(err);
 	return(err);
 	}

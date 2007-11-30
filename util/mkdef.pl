@@ -79,27 +79,19 @@ my $OS2=0;
 my $safe_stack_def = 0;
 
 my @known_platforms = ( "__FreeBSD__", "PERL5", "NeXT",
-			"EXPORT_VAR_AS_FUNCTION" );
+			"EXPORT_VAR_AS_FUNCTION", "OPENSSL_FIPS" );
 my @known_ossl_platforms = ( "VMS", "WIN16", "WIN32", "WINNT", "OS2" );
 my @known_algorithms = ( "RC2", "RC4", "RC5", "IDEA", "DES", "BF",
 			 "CAST", "MD2", "MD4", "MD5", "SHA", "SHA0", "SHA1",
 			 "SHA256", "SHA512", "RIPEMD",
-			 "MDC2", "RSA", "DSA", "DH", "EC", "ECDH", "ECDSA", "HMAC", "AES", "CAMELLIA", "SEED",
+			 "MDC2", "RSA", "DSA", "DH", "EC", "HMAC", "AES",
 			 # Envelope "algorithms"
 			 "EVP", "X509", "ASN1_TYPEDEFS",
 			 # Helper "algorithms"
 			 "BIO", "COMP", "BUFFER", "LHASH", "STACK", "ERR",
 			 "LOCKING",
 			 # External "algorithms"
-			 "FP_API", "STDIO", "SOCK", "KRB5", "DGRAM",
-			 # Engines
-			 "STATIC_ENGINE", "ENGINE", "HW", "GMP",
-			 # RFC3779 support 
-			 "RFC3779",
-			 # TLS extension support
-			 "TLSEXT",
-			 # Deprecated functions
-			 "DEPRECATED" );
+			 "FP_API", "STDIO", "SOCK", "KRB5", "ENGINE", "HW" );
 
 my $options="";
 open(IN,"<Makefile") || die "unable to open Makefile!\n";
@@ -115,11 +107,9 @@ my $no_rc2; my $no_rc4; my $no_rc5; my $no_idea; my $no_des; my $no_bf;
 my $no_cast;
 my $no_md2; my $no_md4; my $no_md5; my $no_sha; my $no_ripemd; my $no_mdc2;
 my $no_rsa; my $no_dsa; my $no_dh; my $no_hmac=0; my $no_aes; my $no_krb5;
-my $no_ec; my $no_ecdsa; my $no_ecdh; my $no_engine; my $no_hw; my $no_camellia;
-my $no_seed;
-my $no_fp_api; my $no_static_engine; my $no_gmp; my $no_deprecated;
-my $no_rfc3779; my $no_tlsext;
-
+my $no_ec; my $no_engine; my $no_hw;
+my $no_fp_api;
+my $fips;
 
 foreach (@ARGV, split(/ /, $options))
 	{
@@ -140,6 +130,7 @@ foreach (@ARGV, split(/ /, $options))
 	}
 	$VMS=1 if $_ eq "VMS";
 	$OS2=1 if $_ eq "OS2";
+	$fips=1 if $_ eq "fips";
 
 	$do_ssl=1 if $_ eq "ssleay";
 	if ($_ eq "ssl") {
@@ -151,8 +142,6 @@ foreach (@ARGV, split(/ /, $options))
 		$do_crypto=1;
 		$libname=$_;
 	}
-	$no_static_engine=1 if $_ eq "no-static-engine";
-	$no_static_engine=0 if $_ eq "enable-static-engine";
 	$do_update=1 if $_ eq "update";
 	$do_rewrite=1 if $_ eq "rewrite";
 	$do_ctest=1 if $_ eq "ctest";
@@ -177,12 +166,8 @@ foreach (@ARGV, split(/ /, $options))
 	elsif (/^no-dsa$/)      { $no_dsa=1; }
 	elsif (/^no-dh$/)       { $no_dh=1; }
 	elsif (/^no-ec$/)       { $no_ec=1; }
-	elsif (/^no-ecdsa$/)	{ $no_ecdsa=1; }
-	elsif (/^no-ecdh$/) 	{ $no_ecdh=1; }
 	elsif (/^no-hmac$/)	{ $no_hmac=1; }
 	elsif (/^no-aes$/)	{ $no_aes=1; }
-	elsif (/^no-camellia$/)	{ $no_camellia=1; }
-	elsif (/^no-seed$/)     { $no_seed=1; }
 	elsif (/^no-evp$/)	{ $no_evp=1; }
 	elsif (/^no-lhash$/)	{ $no_lhash=1; }
 	elsif (/^no-stack$/)	{ $no_stack=1; }
@@ -195,9 +180,6 @@ foreach (@ARGV, split(/ /, $options))
 	elsif (/^no-krb5$/)	{ $no_krb5=1; }
 	elsif (/^no-engine$/)	{ $no_engine=1; }
 	elsif (/^no-hw$/)	{ $no_hw=1; }
-	elsif (/^no-gmp$/)	{ $no_gmp=1; }
-	elsif (/^no-rfc3779$/)	{ $no_rfc3779=1; }
-	elsif (/^no-tlsext$/)	{ $no_tlsext=1; }
 	}
 
 
@@ -233,10 +215,8 @@ $max_crypto = $max_num;
 
 my $ssl="ssl/ssl.h";
 $ssl.=" ssl/kssl.h";
-$ssl.=" ssl/tls1.h";
 
 my $crypto ="crypto/crypto.h";
-$crypto.=" crypto/o_dir.h";
 $crypto.=" crypto/des/des.h crypto/des/des_old.h" ; # unless $no_des;
 $crypto.=" crypto/idea/idea.h" ; # unless $no_idea;
 $crypto.=" crypto/rc4/rc4.h" ; # unless $no_rc4;
@@ -251,16 +231,12 @@ $crypto.=" crypto/mdc2/mdc2.h" ; # unless $no_mdc2;
 $crypto.=" crypto/sha/sha.h" ; # unless $no_sha;
 $crypto.=" crypto/ripemd/ripemd.h" ; # unless $no_ripemd;
 $crypto.=" crypto/aes/aes.h" ; # unless $no_aes;
-$crypto.=" crypto/camellia/camellia.h" ; # unless $no_camellia;
-$crypto.=" crypto/seed/seed.h"; # unless $no_seed;
 
 $crypto.=" crypto/bn/bn.h";
 $crypto.=" crypto/rsa/rsa.h" ; # unless $no_rsa;
 $crypto.=" crypto/dsa/dsa.h" ; # unless $no_dsa;
 $crypto.=" crypto/dh/dh.h" ; # unless $no_dh;
 $crypto.=" crypto/ec/ec.h" ; # unless $no_ec;
-$crypto.=" crypto/ecdsa/ecdsa.h" ; # unless $no_ecdsa;
-$crypto.=" crypto/ecdh/ecdh.h" ; # unless $no_ecdh;
 $crypto.=" crypto/hmac/hmac.h" ; # unless $no_hmac;
 
 $crypto.=" crypto/engine/engine.h"; # unless $no_engine;
@@ -291,8 +267,7 @@ $crypto.=" crypto/ocsp/ocsp.h";
 $crypto.=" crypto/ui/ui.h crypto/ui/ui_compat.h";
 $crypto.=" crypto/krb5/krb5_asn.h";
 $crypto.=" crypto/tmdiff.h";
-$crypto.=" crypto/store/store.h";
-$crypto.=" crypto/pqueue/pqueue.h";
+$crypto.=" fips-1.0/fips.h fips-1.0/rand/fips_rand.h fips-1.0/sha/fips_sha.h";
 
 my $symhacks="crypto/symhacks.h";
 
@@ -448,11 +423,7 @@ sub do_defs
 
 		print STDERR "DEBUG: parsing ----------\n" if $debug;
 		while(<IN>) {
-			if (/\/\* Error codes for the \w+ functions\. \*\//)
-				{
-				undef @tag;
-				last;
-				}
+			last if (/\/\* Error codes for the \w+ functions\. \*\//);
 			if ($line ne '') {
 				$_ = $line . $_;
 				$line = '';
@@ -465,22 +436,17 @@ sub do_defs
 				next;
 			}
 
-			if(/\/\*/) {
-				if (not /\*\//) {	# multiline comment...
-					$line = $_;	# ... just accumulate
-					next;
-				} else {
-					s/\/\*.*?\*\///gs;# wipe it
-				}
-			}
-
+	    		$cpp = 1 if /^\#.*ifdef.*cplusplus/;
 			if ($cpp) {
-				$cpp++ if /^#\s*if/;
-				$cpp-- if /^#\s*endif/;
+				$cpp = 0 if /^\#.*endif/;
 				next;
 	    		}
-			$cpp = 1 if /^#.*ifdef.*cplusplus/;
 
+			s/\/\*.*?\*\///gs;                   # ignore comments
+			if (/\/\*/) {			     # if we have part
+				$line = $_;		     # of a comment,
+				next;			     # continue reading
+			}
 			s/{[^{}]*}//gs;                      # ignore {} blocks
 			print STDERR "DEBUG: \$def=\"$def\"\n" if $debug && $def ne "";
 			print STDERR "DEBUG: \$_=\"$_\"\n" if $debug;
@@ -539,7 +505,7 @@ sub do_defs
 				}
 			} elsif (/^\#\s*endif/) {
 				my $tag_i = $#tag;
-				while($tag_i > 0 && $tag[$tag_i] ne "-") {
+				while($tag[$tag_i] ne "-") {
 					my $t=$tag[$tag_i];
 					print STDERR "DEBUG: \$t=\"$t\"\n" if $debug;
 					if ($tag{$t}==2) {
@@ -706,10 +672,6 @@ sub do_defs
 						      "EXPORT_VAR_AS_FUNCTION",
 						      "FUNCTION");
 					next;
-				} elsif (/^\s*DECLARE_ASN1_ALLOC_FUNCTIONS\s*\(\s*(\w*)\s*\)/) {
-					$def .= "int $1_free(void);";
-					$def .= "int $1_new(void);";
-					next;
 				} elsif (/^\s*DECLARE_ASN1_FUNCTIONS_name\s*\(\s*(\w*)\s*,\s*(\w*)\s*\)/) {
 					$def .= "int d2i_$2(void);";
 					$def .= "int i2d_$2(void);";
@@ -754,21 +716,12 @@ sub do_defs
 						      "EXPORT_VAR_AS_FUNCTION",
 						      "FUNCTION");
 					next;
-				} elsif (/^\s*DECLARE_ASN1_NDEF_FUNCTION\s*\(\s*(\w*)\s*\)/) {
-					$def .= "int i2d_$1_NDEF(void);";
 				} elsif (/^\s*DECLARE_ASN1_SET_OF\s*\(\s*(\w*)\s*\)/) {
-					next;
-				} elsif (/^\s*DECLARE_ASN1_PRINT_FUNCTION\s*\(\s*(\w*)\s*\)/) {
-					$def .= "int $1_print_ctx(void);";
-					next;
-				} elsif (/^\s*DECLARE_ASN1_PRINT_FUNCTION_name\s*\(\s*(\w*)\s*,\s*(\w*)\s*\)/) {
-					$def .= "int $2_print_ctx(void);";
 					next;
 				} elsif (/^\s*DECLARE_PKCS12_STACK_OF\s*\(\s*(\w*)\s*\)/) {
 					next;
 				} elsif (/^DECLARE_PEM_rw\s*\(\s*(\w*)\s*,/ ||
-					 /^DECLARE_PEM_rw_cb\s*\(\s*(\w*)\s*,/ ||
-					 /^DECLARE_PEM_rw_const\s*\(\s*(\w*)\s*,/ ) {
+					 /^DECLARE_PEM_rw_cb\s*\(\s*(\w*)\s*,/ ) {
 					# Things not in Win16
 					$def .=
 					    "#INFO:"
@@ -844,7 +797,7 @@ sub do_defs
 		}
 		close(IN);
 
-		my $algs;
+		my $algs = '';
 		my $plays;
 
 		print STDERR "DEBUG: postprocessing ----------\n" if $debug;
@@ -856,17 +809,6 @@ sub do_defs
 			next if(/typedef\W/);
 			next if(/\#define/);
 
-			# Reduce argument lists to empty ()
-			# fold round brackets recursively: (t(*v)(t),t) -> (t{}{},t) -> {}
-			while(/\(.*\)/s) {
-				s/\([^\(\)]+\)/\{\}/gs;
-				s/\(\s*\*\s*(\w+)\s*\{\}\s*\)/$1/gs;	#(*f{}) -> f
-			}
-			# pretend as we didn't use curly braces: {} -> ()
-			s/\{\}/\(\)/gs;
-
-			s/STACK_OF\(\)/void/gs;
-
 			print STDERR "DEBUG: \$_ = \"$_\"\n" if $debug;
 			if (/^\#INFO:([^:]*):(.*)$/) {
 				$plats = $1;
@@ -877,10 +819,21 @@ sub do_defs
 				$s = $1;
 				$k = "VARIABLE";
 				print STDERR "DEBUG: found external variable $s\n" if $debug;
-			} elsif (/TYPEDEF_\w+_OF/s) {
+			} elsif (/\(\*(\w*(\{[0-9]+\})?)\([^\)]+/) {
+				$s = $1;
+				print STDERR "DEBUG: found ANSI C function $s\n" if $debug;
+			} elsif (/\w+\W+(\w+)\W*\(\s*\)(\s*__attribute__\(.*\)\s*)?$/s) {
+				# K&R C
+				print STDERR "DEBUG: found K&R C function $s\n" if $debug;
 				next;
-			} elsif (/(\w+)\s*\(\).*/s) {	# first token prior [first] () is
-				$s = $1;		# a function name!
+			} elsif (/\w+\W+\w+(\{[0-9]+\})?\W*\(.*\)(\s*__attribute__\(.*\)\s*)?$/s) {
+				while (not /\(\)(\s*__attribute__\(.*\)\s*)?$/s) {
+					s/[^\(\)]*\)(\s*__attribute__\(.*\)\s*)?$/\)/s;
+					s/\([^\(\)]*\)\)(\s*__attribute__\(.*\)\s*)?$/\)/s;
+				}
+				s/\(void\)//;
+				/(\w+(\{[0-9]+\})?)\W*\(\)/s;
+				$s = $1;
 				print STDERR "DEBUG: found function $s\n" if $debug;
 			} elsif (/\(/ and not (/=/)) {
 				print STDERR "File $file: cannot parse: $_;\n";
@@ -911,9 +864,13 @@ sub do_defs
 			$a .= ",RSA" if($s =~ /PEM_Seal(Final|Init|Update)/);
 			$a .= ",RSA" if($s =~ /RSAPrivateKey/);
 			$a .= ",RSA" if($s =~ /SSLv23?_((client|server)_)?method/);
+			# SHA2 algorithms only defined in FIPS mode for
+			# OpenSSL 0.9.7
+			$p .= "OPENSSL_FIPS" if($s =~ /SHA[235]/);
 
 			$platform{$s} =
 			    &reduce_platforms((defined($platform{$s})?$platform{$s}.',':"").$p);
+			$algorithm{$s} = '' if !defined $algorithm{$s};
 			$algorithm{$s} .= ','.$a;
 
 			if (defined($variant{$s})) {
@@ -1078,6 +1035,9 @@ sub is_valid
 			if ($keyword eq "EXPORT_VAR_AS_FUNCTION" && ($VMSVAX || $W32 || $W16)) {
 				return 1;
 			}
+			if ($keyword eq "OPENSSL_FIPS" && $fips) {
+				return 1;
+			}
 			return 0;
 		} else {
 			# algorithms
@@ -1098,12 +1058,8 @@ sub is_valid
 			if ($keyword eq "DSA" && $no_dsa) { return 0; }
 			if ($keyword eq "DH" && $no_dh) { return 0; }
 			if ($keyword eq "EC" && $no_ec) { return 0; }
-			if ($keyword eq "ECDSA" && $no_ecdsa) { return 0; }
-			if ($keyword eq "ECDH" && $no_ecdh) { return 0; }
 			if ($keyword eq "HMAC" && $no_hmac) { return 0; }
 			if ($keyword eq "AES" && $no_aes) { return 0; }
-			if ($keyword eq "CAMELLIA" && $no_camellia) { return 0; }
-			if ($keyword eq "SEED" && $no_seed) { return 0; }
 			if ($keyword eq "EVP" && $no_evp) { return 0; }
 			if ($keyword eq "LHASH" && $no_lhash) { return 0; }
 			if ($keyword eq "STACK" && $no_stack) { return 0; }
@@ -1116,11 +1072,6 @@ sub is_valid
 			if ($keyword eq "ENGINE" && $no_engine) { return 0; }
 			if ($keyword eq "HW" && $no_hw) { return 0; }
 			if ($keyword eq "FP_API" && $no_fp_api) { return 0; }
-			if ($keyword eq "STATIC_ENGINE" && $no_static_engine) { return 0; }
-			if ($keyword eq "GMP" && $no_gmp) { return 0; }
-			if ($keyword eq "RFC3779" && $no_rfc3779) { return 0; }
-			if ($keyword eq "TLSEXT" && $no_tlsext) { return 0; }
-			if ($keyword eq "DEPRECATED" && $no_deprecated) { return 0; }
 
 			# Nothing recognise as true
 			return 1;
@@ -1222,6 +1173,8 @@ EOO
 ;
 
 LIBRARY         $libname	$liboptions
+
+DESCRIPTION     '$description'
 
 EOF
 

@@ -91,12 +91,15 @@ static ERR_STRING_DATA OBJ_str_reasons[]=
 
 void ERR_load_OBJ_strings(void)
 	{
-#ifndef OPENSSL_NO_ERR
+	static int init=1;
 
-	if (ERR_func_error_string(OBJ_str_functs[0].error) == NULL)
+	if (init)
 		{
+		init=0;
+#ifndef OPENSSL_NO_ERR
 		ERR_load_strings(0,OBJ_str_functs);
 		ERR_load_strings(0,OBJ_str_reasons);
-		}
 #endif
+
+		}
 	}

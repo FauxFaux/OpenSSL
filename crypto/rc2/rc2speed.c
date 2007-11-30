@@ -69,10 +69,7 @@
 #include OPENSSL_UNISTD_IO
 OPENSSL_DECLARE_EXIT
 
-#ifndef OPENSSL_SYS_NETWARE
 #include <signal.h>
-#endif
-
 #ifndef _IRIX
 #include <time.h>
 #endif
@@ -105,10 +102,10 @@ OPENSSL_DECLARE_EXIT
 #ifndef HZ
 #ifndef CLK_TCK
 #define HZ	100.0
-#else	/* CLK_TCK */
+#endif
+#else /* CLK_TCK */
 #define HZ ((double)CLK_TCK)
-#endif	/* CLK_TCK */
-#endif	/* HZ */
+#endif
 
 #define BUFSIZE	((long)1024)
 long run=0;

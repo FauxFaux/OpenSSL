@@ -8,7 +8,6 @@
 #include <openssl/crypto.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
-#include <openssl/bn.h>
 #ifdef OPENSSL_NO_RSA
 int main(int argc, char *argv[])
 {
@@ -219,7 +218,6 @@ int main(int argc, char *argv[])
     int plen;
     int clen = 0;
     int num;
-    int n;
 
     CRYPTO_malloc_debug_init();
     CRYPTO_dbg_set_options(V_CRYPTO_MDEBUG_ALL);
@@ -243,7 +241,7 @@ int main(int argc, char *argv[])
 	clen = key3(key, ctext_ex);
 	break;
 	}
-	if (v/3 >= 1) key->flags |= RSA_FLAG_NO_CONSTTIME;
+	if (v/3 > 1) key->flags |= RSA_FLAG_NO_EXP_CONSTTIME;
 
 	num = RSA_public_encrypt(plen, ptext_ex, ctext, key,
 				 RSA_PKCS1_PADDING);
@@ -279,7 +277,7 @@ int main(int argc, char *argv[])
 	    err=1;
 	    goto next;
 	    }
-
+  
 	num = RSA_private_decrypt(num, ctext, ptext, key,
 				  RSA_PKCS1_OAEP_PADDING);
 	if (num != plen || memcmp(ptext, ptext_ex, num) != 0)
@@ -288,7 +286,10 @@ int main(int argc, char *argv[])
 	    err=1;
 	    }
 	else if (memcmp(ctext, ctext_ex, num) == 0)
+	    {
 	    printf("OAEP test vector %d passed!\n", v);
+	    goto next;
+	    }
     
 	/* Different ciphertexts (rsa_oaep.c without -DPKCS_TESTVECT).
 	   Try decrypting ctext_ex */
@@ -303,26 +304,6 @@ int main(int argc, char *argv[])
 	    }
 	else
 	    printf("OAEP encryption/decryption ok\n");
-
-	/* Try decrypting corrupted ciphertexts */
-	for(n = 0 ; n < clen ; ++n)
-	    {
-	    int b;
-	    unsigned char saved = ctext[n];
-	    for(b = 0 ; b < 256 ; ++b)
-		{
-		if(b == saved)
-		    continue;
-		ctext[n] = b;
-		num = RSA_private_decrypt(num, ctext, ptext, key,
-					  RSA_PKCS1_OAEP_PADDING);
-		if(num > 0)
-		    {
-		    printf("Corrupt data decrypted!\n");
-		    err = 1;
-		    }
-		}
-	    }
     next:
 	RSA_free(key);
 	}
@@ -332,9 +313,6 @@ int main(int argc, char *argv[])
 
     CRYPTO_mem_leaks_fp(stderr);
 
-#ifdef OPENSSL_SYS_NETWARE
-    if (err) printf("ERROR: %d\n", err);
-#endif
     return err;
     }
 #endif

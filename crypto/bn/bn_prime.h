@@ -58,12 +58,10 @@
 
 #ifndef EIGHT_BIT
 #define NUMPRIMES 2048
-typedef unsigned short prime_t;
 #else
 #define NUMPRIMES 54
-typedef unsigned char prime_t;
 #endif
-static const prime_t primes[NUMPRIMES]=
+static const unsigned int primes[NUMPRIMES]=
 	{
 	   2,   3,   5,   7,  11,  13,  17,  19,
 	  23,  29,  31,  37,  41,  43,  47,  53,

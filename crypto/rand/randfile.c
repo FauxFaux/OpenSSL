@@ -102,8 +102,10 @@ int RAND_load_file(const char *file, long bytes)
 
 	if (file == NULL) return(0);
 
-	if (stat(file,&sb) < 0) return(0);
-	RAND_add(&sb,sizeof(sb),0.0);
+	i=stat(file,&sb);
+	/* If the state fails, put some crap in anyway */
+	RAND_add(&sb,sizeof(sb),0);
+	if (i < 0) return(0);
 	if (bytes == 0) return(ret);
 
 	in=fopen(file,"rb");
@@ -127,7 +129,7 @@ int RAND_load_file(const char *file, long bytes)
 		i=fread(buf,1,n,in);
 		if (i <= 0) break;
 		/* even if n != i, use the full array */
-		RAND_add(buf,n,(double)i);
+		RAND_add(buf,n,i);
 		ret+=i;
 		if (bytes > 0)
 			{

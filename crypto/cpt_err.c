@@ -92,12 +92,15 @@ static ERR_STRING_DATA CRYPTO_str_reasons[]=
 
 void ERR_load_CRYPTO_strings(void)
 	{
-#ifndef OPENSSL_NO_ERR
+	static int init=1;
 
-	if (ERR_func_error_string(CRYPTO_str_functs[0].error) == NULL)
+	if (init)
 		{
+		init=0;
+#ifndef OPENSSL_NO_ERR
 		ERR_load_strings(0,CRYPTO_str_functs);
 		ERR_load_strings(0,CRYPTO_str_reasons);
-		}
 #endif
+
+		}
 	}

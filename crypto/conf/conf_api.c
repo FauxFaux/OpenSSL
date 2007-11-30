@@ -121,7 +121,7 @@ int _CONF_add_string(CONF *conf, CONF_VALUE *section, CONF_VALUE *value)
 	v = (CONF_VALUE *)lh_insert(conf->data, value);
 	if (v != NULL)
 		{
-		(void)sk_CONF_VALUE_delete_ptr(ts,v);
+		sk_CONF_VALUE_delete_ptr(ts,v);
 		OPENSSL_free(v->name);
 		OPENSSL_free(v->value);
 		OPENSSL_free(v);

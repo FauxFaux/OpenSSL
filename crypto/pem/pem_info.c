@@ -63,12 +63,6 @@
 #include <openssl/evp.h>
 #include <openssl/x509.h>
 #include <openssl/pem.h>
-#ifndef OPENSSL_NO_RSA
-#include <openssl/rsa.h>
-#endif
-#ifndef OPENSSL_NO_DSA
-#include <openssl/dsa.h>
-#endif
 
 #ifndef OPENSSL_NO_FP_API
 STACK_OF(X509_INFO) *PEM_X509_INFO_read(FILE *fp, STACK_OF(X509_INFO) *sk, pem_password_cb *cb, void *u)
@@ -91,15 +85,13 @@ STACK_OF(X509_INFO) *PEM_X509_INFO_read(FILE *fp, STACK_OF(X509_INFO) *sk, pem_p
 STACK_OF(X509_INFO) *PEM_X509_INFO_read_bio(BIO *bp, STACK_OF(X509_INFO) *sk, pem_password_cb *cb, void *u)
 	{
 	X509_INFO *xi=NULL;
-	char *name=NULL,*header=NULL;
-	void *pp;
-	unsigned char *data=NULL;
-	const unsigned char *p;
+	char *name=NULL,*header=NULL,**pp;
+	unsigned char *data=NULL,*p;
 	long len,error=0;
 	int ok=0;
 	STACK_OF(X509_INFO) *ret=NULL;
 	unsigned int i,raw;
-	d2i_of_void *d2i;
+	char *(*d2i)();
 
 	if (sk == NULL)
 		{
@@ -131,42 +123,42 @@ start:
 		if (	(strcmp(name,PEM_STRING_X509) == 0) ||
 			(strcmp(name,PEM_STRING_X509_OLD) == 0))
 			{
-			d2i=(D2I_OF(void))d2i_X509;
+			d2i=(char *(*)())d2i_X509;
 			if (xi->x509 != NULL)
 				{
 				if (!sk_X509_INFO_push(ret,xi)) goto err;
 				if ((xi=X509_INFO_new()) == NULL) goto err;
 				goto start;
 				}
-			pp=&(xi->x509);
+			pp=(char **)&(xi->x509);
 			}
 		else if ((strcmp(name,PEM_STRING_X509_TRUSTED) == 0))
 			{
-			d2i=(D2I_OF(void))d2i_X509_AUX;
+			d2i=(char *(*)())d2i_X509_AUX;
 			if (xi->x509 != NULL)
 				{
 				if (!sk_X509_INFO_push(ret,xi)) goto err;
 				if ((xi=X509_INFO_new()) == NULL) goto err;
 				goto start;
 				}
-			pp=&(xi->x509);
+			pp=(char **)&(xi->x509);
 			}
 		else if (strcmp(name,PEM_STRING_X509_CRL) == 0)
 			{
-			d2i=(D2I_OF(void))d2i_X509_CRL;
+			d2i=(char *(*)())d2i_X509_CRL;
 			if (xi->crl != NULL)
 				{
 				if (!sk_X509_INFO_push(ret,xi)) goto err;
 				if ((xi=X509_INFO_new()) == NULL) goto err;
 				goto start;
 				}
-			pp=&(xi->crl);
+			pp=(char **)&(xi->crl);
 			}
 		else
 #ifndef OPENSSL_NO_RSA
 			if (strcmp(name,PEM_STRING_RSA) == 0)
 			{
-			d2i=(D2I_OF(void))d2i_RSAPrivateKey;
+			d2i=(char *(*)())d2i_RSAPrivateKey;
 			if (xi->x_pkey != NULL) 
 				{
 				if (!sk_X509_INFO_push(ret,xi)) goto err;
@@ -181,7 +173,7 @@ start:
 			if ((xi->x_pkey->dec_pkey=EVP_PKEY_new()) == NULL)
 				goto err;
 			xi->x_pkey->dec_pkey->type=EVP_PKEY_RSA;
-			pp=&(xi->x_pkey->dec_pkey->pkey.rsa);
+			pp=(char **)&(xi->x_pkey->dec_pkey->pkey.rsa);
 			if ((int)strlen(header) > 10) /* assume encrypted */
 				raw=1;
 			}
@@ -190,7 +182,7 @@ start:
 #ifndef OPENSSL_NO_DSA
 			if (strcmp(name,PEM_STRING_DSA) == 0)
 			{
-			d2i=(D2I_OF(void))d2i_DSAPrivateKey;
+			d2i=(char *(*)())d2i_DSAPrivateKey;
 			if (xi->x_pkey != NULL) 
 				{
 				if (!sk_X509_INFO_push(ret,xi)) goto err;
@@ -208,30 +200,6 @@ start:
 			pp=(char **)&(xi->x_pkey->dec_pkey->pkey.dsa);
 			if ((int)strlen(header) > 10) /* assume encrypted */
 				raw=1;
-			}
-		else
-#endif
-#ifndef OPENSSL_NO_EC
- 			if (strcmp(name,PEM_STRING_ECPRIVATEKEY) == 0)
- 			{
- 				d2i=(D2I_OF(void))d2i_ECPrivateKey;
- 				if (xi->x_pkey != NULL) 
- 				{
- 					if (!sk_X509_INFO_push(ret,xi)) goto err;
- 					if ((xi=X509_INFO_new()) == NULL) goto err;
- 						goto start;
- 				}
- 
- 			xi->enc_data=NULL;
- 			xi->enc_len=0;
- 
- 			xi->x_pkey=X509_PKEY_new();
- 			if ((xi->x_pkey->dec_pkey=EVP_PKEY_new()) == NULL)
- 				goto err;
- 			xi->x_pkey->dec_pkey->type=EVP_PKEY_EC;
- 			pp=&(xi->x_pkey->dec_pkey->pkey.ec);
- 			if ((int)strlen(header) > 10) /* assume encrypted */
- 				raw=1;
 			}
 		else
 #endif

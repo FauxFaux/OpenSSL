@@ -101,12 +101,15 @@ static ERR_STRING_DATA UI_str_reasons[]=
 
 void ERR_load_UI_strings(void)
 	{
-#ifndef OPENSSL_NO_ERR
+	static int init=1;
 
-	if (ERR_func_error_string(UI_str_functs[0].error) == NULL)
+	if (init)
 		{
+		init=0;
+#ifndef OPENSSL_NO_ERR
 		ERR_load_strings(0,UI_str_functs);
 		ERR_load_strings(0,UI_str_reasons);
-		}
 #endif
+
+		}
 	}

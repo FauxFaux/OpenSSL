@@ -62,11 +62,11 @@
 #include <openssl/asn1.h>
 #include <openssl/asn1_mac.h>
 
-static int asn1_get_length(const unsigned char **pp,int *inf,long *rl,int max);
+static int asn1_get_length(unsigned char **pp,int *inf,long *rl,int max);
 static void asn1_put_length(unsigned char **pp, int length);
-const char ASN1_version[]="ASN.1" OPENSSL_VERSION_PTEXT;
+const char *ASN1_version="ASN.1" OPENSSL_VERSION_PTEXT;
 
-static int _asn1_check_infinite_end(const unsigned char **p, long len)
+int ASN1_check_infinite_end(unsigned char **p, long len)
 	{
 	/* If there is 0 or 1 byte left, the length check should pick
 	 * things up */
@@ -80,23 +80,13 @@ static int _asn1_check_infinite_end(const unsigned char **p, long len)
 	return(0);
 	}
 
-int ASN1_check_infinite_end(unsigned char **p, long len)
-	{
-	return _asn1_check_infinite_end((const unsigned char **)p, len);
-	}
 
-int ASN1_const_check_infinite_end(const unsigned char **p, long len)
-	{
-	return _asn1_check_infinite_end(p, len);
-	}
-
-
-int ASN1_get_object(const unsigned char **pp, long *plength, int *ptag,
-	int *pclass, long omax)
+int ASN1_get_object(unsigned char **pp, long *plength, int *ptag, int *pclass,
+	     long omax)
 	{
 	int i,ret;
 	long l;
-	const unsigned char *p= *pp;
+	unsigned char *p= *pp;
 	int tag,xclass,inf;
 	long max=omax;
 
@@ -151,11 +141,11 @@ err:
 	return(0x80);
 	}
 
-static int asn1_get_length(const unsigned char **pp, int *inf, long *rl, int max)
+static int asn1_get_length(unsigned char **pp, int *inf, long *rl, int max)
 	{
-	const unsigned char *p= *pp;
+	unsigned char *p= *pp;
 	unsigned long ret=0;
-	unsigned int i;
+	int i;
 
 	if (max-- < 1) return(0);
 	if (*p == 0x80)
@@ -215,20 +205,11 @@ void ASN1_put_object(unsigned char **pp, int constructed, int length, int tag,
 			}
 		p += ttag;
 		}
-	if (constructed == 2)
-		*(p++)=0x80;
+	if ((constructed == 2) && (length == 0))
+		*(p++)=0x80; /* der_put_length would output 0 instead */
 	else
 		asn1_put_length(&p,length);
 	*pp=p;
-	}
-
-int ASN1_put_eoc(unsigned char **pp)
-	{
-	unsigned char *p = *pp;
-	*p++ = 0;
-	*p++ = 0;
-	*pp = p;
-	return 2;
 	}
 
 static void asn1_put_length(unsigned char **pp, int length)
@@ -268,8 +249,8 @@ int ASN1_object_size(int constructed, int length, int tag)
 			ret++;
 			}
 		}
-	if (constructed == 2)
-		return ret + 3;
+	if ((length == 0) && (constructed == 2))
+		ret+=2;
 	ret++;
 	if (length > 127)
 		{
@@ -282,11 +263,11 @@ int ASN1_object_size(int constructed, int length, int tag)
 	return(ret);
 	}
 
-static int _asn1_Finish(ASN1_const_CTX *c)
+int asn1_Finish(ASN1_CTX *c)
 	{
 	if ((c->inf == (1|V_ASN1_CONSTRUCTED)) && (!c->eos))
 		{
-		if (!ASN1_const_check_infinite_end(&c->p,c->slen))
+		if (!ASN1_check_infinite_end(&c->p,c->slen))
 			{
 			c->error=ERR_R_MISSING_ASN1_EOS;
 			return(0);
@@ -301,19 +282,9 @@ static int _asn1_Finish(ASN1_const_CTX *c)
 	return(1);
 	}
 
-int asn1_Finish(ASN1_CTX *c)
+int asn1_GetSequence(ASN1_CTX *c, long *length)
 	{
-	return _asn1_Finish((ASN1_const_CTX *)c);
-	}
-
-int asn1_const_Finish(ASN1_const_CTX *c)
-	{
-	return _asn1_Finish(c);
-	}
-
-int asn1_GetSequence(ASN1_const_CTX *c, long *length)
-	{
-	const unsigned char *q;
+	unsigned char *q;
 
 	q=c->p;
 	c->inf=ASN1_get_object(&(c->p),&(c->slen),&(c->tag),&(c->xclass),
@@ -440,7 +411,7 @@ int ASN1_STRING_cmp(ASN1_STRING *a, ASN1_STRING *b)
 		return(i);
 	}
 
-void asn1_add_error(const unsigned char *address, int offset)
+void asn1_add_error(unsigned char *address, int offset)
 	{
 	char buf1[DECIMAL_SIZE(address)+1],buf2[DECIMAL_SIZE(offset)+1];
 
