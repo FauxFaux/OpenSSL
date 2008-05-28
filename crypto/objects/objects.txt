@@ -11,6 +11,10 @@ iso 2			: member-body		: ISO Member Body
 
 iso 3			: identified-organization
 
+# HMAC OIDs
+identified-organization 6 1 5 5 8 1 1	: HMAC-MD5	: hmac-md5
+identified-organization 6 1 5 5 8 1 2	: HMAC-SHA1	: hmac-sha1
+
 identified-organization 132	: certicom-arc
 
 joint-iso-itu-t 23	: international-organizations	: International Organizations
@@ -141,6 +145,10 @@ ISO-US 113533 7 66 10	: CAST5-CBC		: cast5-cbc
 !Cname pbeWithMD5AndCast5-CBC
 ISO-US 113533 7 66 12	:			: pbeWithMD5AndCast5CBC
 
+# Macs for CMP and CRMF
+ISO-US 113533 7 66 13	: id-PasswordBasedMAC	: password based MAC
+ISO-US 113533 7 66 30	: id-DHBasedMac		: Diffie-Hellman based MAC
+
 ISO-US 113549		: rsadsi		: RSA Data Security, Inc.
 
 rsadsi 1		: pkcs			: RSA Data Security, Inc. PKCS
@@ -237,6 +245,8 @@ id-smime-ct 5		: id-smime-ct-TDTInfo
 id-smime-ct 6		: id-smime-ct-contentInfo
 id-smime-ct 7		: id-smime-ct-DVCSRequestData
 id-smime-ct 8		: id-smime-ct-DVCSResponseData
+id-smime-ct 9		: id-smime-ct-compressedData
+id-smime-ct 27		: id-ct-asciiTextWithCRLF
 
 # S/MIME Attributes
 id-smime-aa 1		: id-smime-aa-receiptRequest
@@ -484,6 +494,7 @@ id-it 12		: id-it-revPassphrase
 id-it 13		: id-it-implicitConfirm
 id-it 14		: id-it-confirmWaitTime
 id-it 15		: id-it-origPKIMessage
+id-it 16		: id-it-suppLangTags
 
 # CRMF registration
 id-pkip 1		: id-regCtrl
@@ -570,6 +581,7 @@ id-ad 2			: caIssuers		: CA Issuers
 id-ad 3			: ad_timestamping	: AD Time Stamping
 !Cname ad-dvcs
 id-ad 4			: AD_DVCS		: ad dvcs
+id-ad 5			: caRepository		: CA Repository
 
 
 !Alias id-pkix-OCSP ad-OCSP
@@ -768,7 +780,7 @@ mime-mhs-headings 2	: id-hex-multipart-message : id-hex-multipart-message
 !Cname rle-compression
 1 1 1 1 666 1		: RLE			: run length compression
 !Cname zlib-compression
-1 1 1 1 666 2		: ZLIB			: zlib compression
+id-smime-alg 8		: ZLIB			: zlib compression
 
 # AES aka Rijndael
 
@@ -809,6 +821,10 @@ aes 44			: AES-256-CFB		: aes-256-cfb
 			: DES-CFB8		: des-cfb8
 			: DES-EDE3-CFB1		: des-ede3-cfb1
 			: DES-EDE3-CFB8		: des-ede3-cfb8
+
+aes 5			: id-aes128-wrap 
+aes 25			: id-aes192-wrap 
+aes 45			: id-aes256-wrap 
 
 # OIDs for SHA224, SHA256, SHA385 and SHA512, according to x9.84.
 !Alias nist_hashalgs nistAlgorithms 2

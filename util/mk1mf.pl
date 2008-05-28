@@ -42,6 +42,7 @@ $infile="MINFO";
 	"FreeBSD","FreeBSD distribution",
 	"OS2-EMX", "EMX GCC OS/2",
 	"netware-clib", "CodeWarrior for NetWare - CLib - with WinSock Sockets",
+	"netware-clib-bsdsock", "CodeWarrior for NetWare - CLib - with BSD Sockets",
 	"netware-libc", "CodeWarrior for NetWare - LibC - with WinSock Sockets",
 	"netware-libc-bsdsock", "CodeWarrior for NetWare - LibC - with BSD Sockets",
 	"default","cc under unix",
@@ -76,7 +77,7 @@ and [options] can be one of
 	no-hw					- No hw
 	nasm 					- Use NASM for x86 asm
 	nw-nasm					- Use NASM x86 asm for NetWare
-	nw-mwasm					- Use Metrowerks x86 asm for NetWare
+	nw-mwasm				- Use Metrowerks x86 asm for NetWare
 	gaswin					- Use GNU as with Mingw32
 	no-socks				- No socket code
 	no-err					- No error strings
@@ -173,10 +174,10 @@ elsif ($platform eq "OS2-EMX")
 	require 'OS2-EMX.pl';
 	}
 elsif (($platform eq "netware-clib") || ($platform eq "netware-libc") ||
-       ($platform eq "netware-libc-bsdsock"))
+       ($platform eq "netware-clib-bsdsock") || ($platform eq "netware-libc-bsdsock"))
 	{
 	$LIBC=1 if $platform eq "netware-libc" || $platform eq "netware-libc-bsdsock";
-	$BSDSOCK=1 if $platform eq "netware-libc-bsdsock";
+	$BSDSOCK=1 if ($platform eq "netware-libc-bsdsock") || ($platform eq "netware-clib-bsdsock");
 	require 'netware.pl';
 	}
 else
@@ -219,6 +220,7 @@ $cflags.=" -DOPENSSL_NO_SOCK" if $no_sock;
 $cflags.=" -DOPENSSL_NO_SSL2" if $no_ssl2;
 $cflags.=" -DOPENSSL_NO_SSL3" if $no_ssl3;
 $cflags.=" -DOPENSSL_NO_TLSEXT" if $no_tlsext;
+$cflags.=" -DOPENSSL_NO_CMS" if $no_cms;
 $cflags.=" -DOPENSSL_NO_ERR"  if $no_err;
 $cflags.=" -DOPENSSL_NO_KRB5" if $no_krb5;
 $cflags.=" -DOPENSSL_NO_EC"   if $no_ec;
@@ -333,24 +335,24 @@ close(IN);
 if ($shlib)
 	{
 	$extra_install= <<"EOF";
-	\$(CP) \$(O_SSL) \$(INSTALLTOP)${o}bin
-	\$(CP) \$(O_CRYPTO) \$(INSTALLTOP)${o}bin
-	\$(CP) \$(L_SSL) \$(INSTALLTOP)${o}lib
-	\$(CP) \$(L_CRYPTO) \$(INSTALLTOP)${o}lib
+	\$(CP) \"\$(O_SSL)\" \"\$(INSTALLTOP)${o}bin\"
+	\$(CP) \"\$(O_CRYPTO)\" \"\$(INSTALLTOP)${o}bin\"
+	\$(CP) \"\$(L_SSL)\" \"\$(INSTALLTOP)${o}lib\"
+	\$(CP) \"\$(L_CRYPTO)\" \"\$(INSTALLTOP)${o}lib\"
 EOF
 	if ($no_static_engine)
 		{
 		$extra_install .= <<"EOF"
-	\$(MKDIR) \$(INSTALLTOP)${o}lib${o}engines
-	\$(CP) \$(E_SHLIB) \$(INSTALLTOP)${o}lib${o}engines
+	\$(MKDIR) \"\$(INSTALLTOP)${o}lib${o}engines\"
+	\$(CP) \"\$(E_SHLIB)\" \"\$(INSTALLTOP)${o}lib${o}engines\"
 EOF
 		}
 	}
 else
 	{
 	$extra_install= <<"EOF";
-	\$(CP) \$(O_SSL) \$(INSTALLTOP)${o}lib
-	\$(CP) \$(O_CRYPTO) \$(INSTALLTOP)${o}lib
+	\$(CP) \"\$(O_SSL)\" \"\$(INSTALLTOP)${o}lib\"
+	\$(CP) \"\$(O_CRYPTO)\" \"\$(INSTALLTOP)${o}lib\"
 EOF
 	$ex_libs .= " $zlib_lib" if $zlib_opt == 1;
 	}
@@ -492,7 +494,7 @@ banner:
 $banner
 
 \$(TMP_D):
-	\$(MKDIR) \$(TMP_D)
+	\$(MKDIR) \"\$(TMP_D)\"
 # NB: uncomment out these lines if BIN_D, TEST_D and LIB_D are different
 #\$(BIN_D):
 #	\$(MKDIR) \$(BIN_D)
@@ -501,13 +503,13 @@ $banner
 #	\$(MKDIR) \$(TEST_D)
 
 \$(LIB_D):
-	\$(MKDIR) \$(LIB_D)
+	\$(MKDIR) \"\$(LIB_D)\"
 
 \$(INCO_D): \$(INC_D)
-	\$(MKDIR) \$(INCO_D)
+	\$(MKDIR) \"\$(INCO_D)\"
 
 \$(INC_D):
-	\$(MKDIR) \$(INC_D)
+	\$(MKDIR) \"\$(INC_D)\"
 
 headers: \$(HEADER) \$(EXHEADER)
 	@
@@ -517,14 +519,14 @@ lib: \$(LIBS_DEP) \$(E_SHLIB)
 exe: \$(T_EXE) \$(BIN_D)$o\$(E_EXE)$exep
 
 install: all
-	\$(MKDIR) \$(INSTALLTOP)
-	\$(MKDIR) \$(INSTALLTOP)${o}bin
-	\$(MKDIR) \$(INSTALLTOP)${o}include
-	\$(MKDIR) \$(INSTALLTOP)${o}include${o}openssl
-	\$(MKDIR) \$(INSTALLTOP)${o}lib
-	\$(CP) \$(INCO_D)${o}*.\[ch\] \$(INSTALLTOP)${o}include${o}openssl
-	\$(CP) \$(BIN_D)$o\$(E_EXE)$exep \$(INSTALLTOP)${o}bin
-	\$(CP) apps${o}openssl.cnf \$(INSTALLTOP)
+	\$(MKDIR) \"\$(INSTALLTOP)\"
+	\$(MKDIR) \"\$(INSTALLTOP)${o}bin\"
+	\$(MKDIR) \"\$(INSTALLTOP)${o}include\"
+	\$(MKDIR) \"\$(INSTALLTOP)${o}include${o}openssl\"
+	\$(MKDIR) \"\$(INSTALLTOP)${o}lib\"
+	\$(CP) \"\$(INCO_D)${o}*.\[ch\]\" \"\$(INSTALLTOP)${o}include${o}openssl\"
+	\$(CP) \"\$(BIN_D)$o\$(E_EXE)$exep\" \"\$(INSTALLTOP)${o}bin\"
+	\$(CP) \"apps${o}openssl.cnf\" \"\$(INSTALLTOP)\"
 $extra_install
 
 
@@ -748,6 +750,7 @@ sub var_add
 	return("") if $no_dsa  && $dir =~ /\/dsa/;
 	return("") if $no_dh   && $dir =~ /\/dh/;
 	return("") if $no_ec   && $dir =~ /\/ec/;
+	return("") if $no_cms  && $dir =~ /\/cms/;
 	if ($no_des && $dir =~ /\/des/)
 		{
 		if ($val =~ /read_pwd/)
@@ -969,7 +972,7 @@ sub do_copy_rule
 		if ($n =~ /bss_file/)
 			{ $pp=".c"; }
 		else	{ $pp=$p; }
-		$ret.="$to${o}$n$pp: \$(SRC_D)$o$_$pp\n\t\$(CP) \$(SRC_D)$o$_$pp $to${o}$n$pp\n\n";
+		$ret.="$to${o}$n$pp: \$(SRC_D)$o$_$pp\n\t\$(CP) \"\$(SRC_D)$o$_$pp\" \"$to${o}$n$pp\"\n\n";
 		}
 	return($ret);
 	}
@@ -1013,6 +1016,7 @@ sub read_options
 		"no-ssl2" => \$no_ssl2,
 		"no-ssl3" => \$no_ssl3,
 		"no-tlsext" => \$no_tlsext,
+		"no-cms" => \$no_cms,
 		"no-err" => \$no_err,
 		"no-sock" => \$no_sock,
 		"no-krb5" => \$no_krb5,
@@ -1035,6 +1039,7 @@ sub read_options
 		"shared" => 0,
 		"no-gmp" => 0,
 		"no-rfc3779" => 0,
+		"no-montasm" => 0,
 		"no-shared" => 0,
 		"no-zlib" => 0,
 		"no-zlib-dynamic" => 0,

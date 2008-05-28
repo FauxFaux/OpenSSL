@@ -31,8 +31,10 @@ if ($FLAVOR =~ /WIN64/)
     $base_cflags=' /W3 /Gs0 /GF /Gy /nologo -DWIN32_LEAN_AND_MEAN -DL_ENDIAN -DDSO_WIN32 -DOPENSSL_SYSNAME_WIN32 -DOPENSSL_SYSNAME_WINNT -DUNICODE -D_UNICODE';
     $base_cflags.=' -D_CRT_SECURE_NO_DEPRECATE';	# shut up VC8
     $base_cflags.=' -D_CRT_NONSTDC_NO_DEPRECATE';	# shut up VC8
-    $opt_cflags=' /MD /Ox';
-    $dbg_cflags=' /MDd /Od -DDEBUG -D_DEBUG';
+    my $f = $shlib?' /MD':' /MT';
+    $lib_cflag='/Zl' if (!$shlib);	# remove /DEFAULTLIBs from static lib
+    $opt_cflags=$f.' /Ox';
+    $dbg_cflags=$f.'d /Od -DDEBUG -D_DEBUG';
     $lflags="/nologo /subsystem:console /opt:ref";
     }
 elsif ($FLAVOR =~ /CE/)
@@ -94,8 +96,10 @@ else	# Win32
     $base_cflags=' /W3 /WX /Gs0 /GF /Gy /nologo -DOPENSSL_SYSNAME_WIN32 -DWIN32_LEAN_AND_MEAN -DL_ENDIAN -DDSO_WIN32';
     $base_cflags.=' -D_CRT_SECURE_NO_DEPRECATE';	# shut up VC8
     $base_cflags.=' -D_CRT_NONSTDC_NO_DEPRECATE';	# shut up VC8
-    $opt_cflags=' /MD /Ox /O2 /Ob2';
-    $dbg_cflags=' /MDd /Od -DDEBUG -D_DEBUG';
+    my $f = $shlib?' /MD':' /MT';
+    $lib_cflag='/Zl' if (!$shlib);	# remove /DEFAULTLIBs from static lib
+    $opt_cflags=$f.' /Ox /O2 /Ob2';
+    $dbg_cflags=$f.'d /Od -DDEBUG -D_DEBUG';
     $lflags="/nologo /subsystem:console /opt:ref";
     }
 $mlflags='';
@@ -156,7 +160,10 @@ $lfile='/out:';
 $shlib_ex_obj="";
 $app_ex_obj="setargv.obj" if ($FLAVOR !~ /CE/);
 if ($nasm) {
-	$asm='nasmw -f win32';
+	my $ver=`nasm -v 2>NUL`;
+	my $vew=`nasmw -v 2>NUL`;
+	# pick newest version
+	$asm=($ver gt $vew?"nasm":"nasmw")." -f win32";
 	$afile='-o ';
 } else {
 	$asm='ml /Cp /coff /c /Cx';
@@ -203,7 +210,6 @@ if (!$no_asm)
 if ($shlib && $FLAVOR !~ /CE/)
 	{
 	$mlflags.=" $lflags /dll";
-#	$cflags =~ s| /MD| /MT|;
 	$lib_cflag=" -D_WINDLL";
 	$out_def="out32dll";
 	$tmp_def="tmp32dll";

@@ -146,6 +146,7 @@ sub main'exch	{ &out2("xchg",@_); }
 sub main'cmp	{ &out2("cmp",@_); }
 sub main'lea	{ &out2("lea",@_); }
 sub main'mul	{ &out1("mul",@_); }
+sub main'imul	{ &out2("imul",@_); }
 sub main'div	{ &out1("div",@_); }
 sub main'dec	{ &out1("dec",@_); }
 sub main'inc	{ &out1("inc",@_); }
@@ -339,8 +340,17 @@ EOF
 sub main'file_end
 	{
 	# try to detect if SSE2 or MMX extensions were used...
-	if (grep {/\b[x]?mm[0-7]\b,/i} @out) {
-		grep {s/\.[3-7]86/\.686\n\t\.XMM/} @out;
+	my $xmmheader=<<___;
+.686
+.XMM
+IF \@Version LT 800
+XMMWORD STRUCT 16
+	DQ  2 dup (?)
+XMMWORD ENDS
+ENDIF
+___
+	if (grep {/\b[x]?mm[0-7]\b/i} @out) {
+		grep {s/\.[3-7]86/$xmmheader/} @out;
 		}
 	push(@out,"_TEXT\$	ENDS\n");
 	push(@out,"END\n");
