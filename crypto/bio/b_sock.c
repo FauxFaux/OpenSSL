@@ -56,14 +56,17 @@
  * [including the GNU Public Licence.]
  */
 
-#ifndef OPENSSL_NO_SOCK
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #define USE_SOCKETS
 #include "cryptlib.h"
 #include <openssl/bio.h>
+#if defined(OPENSSL_SYS_NETWARE) && defined(NETWARE_BSDSOCK)
+#include "netdb.h"
+#endif
+
+#ifndef OPENSSL_NO_SOCK
 
 #ifdef OPENSSL_SYS_WIN16
 #define SOCKET_PROTOCOL 0 /* more microsoft stupidity */
@@ -79,7 +82,7 @@
 #define MAX_LISTEN  32
 #endif
 
-#ifdef OPENSSL_SYS_WINDOWS
+#if defined(OPENSSL_SYS_WINDOWS) || (defined(OPENSSL_SYS_NETWARE) && !defined(NETWARE_BSDSOCK))
 static int wsa_init_done=0;
 #endif
 
@@ -453,9 +456,6 @@ int BIO_sock_init(void)
 		{
 		int err;
 	  
-#ifdef SIGINT
-		signal(SIGINT,(void (*)(int))BIO_sock_cleanup);
-#endif
 		wsa_init_done=1;
 		memset(&wsa_state,0,sizeof(wsa_state));
 		if (WSAStartup(0x0101,&wsa_state)!=0)
@@ -473,6 +473,26 @@ int BIO_sock_init(void)
 	if (sock_init())
 		return (-1);
 #endif
+
+#if defined(OPENSSL_SYS_NETWARE) && !defined(NETWARE_BSDSOCK)
+    WORD wVerReq;
+    WSADATA wsaData;
+    int err;
+
+    if (!wsa_init_done)
+    {
+        wsa_init_done=1;
+        wVerReq = MAKEWORD( 2, 0 );
+        err = WSAStartup(wVerReq,&wsaData);
+        if (err != 0)
+        {
+            SYSerr(SYS_F_WSASTARTUP,err);
+            BIOerr(BIO_F_BIO_SOCK_INIT,BIO_R_WSASTARTUP);
+            return(-1);
+			}
+		}
+#endif
+
 	return(1);
 	}
 
@@ -483,9 +503,15 @@ void BIO_sock_cleanup(void)
 		{
 		wsa_init_done=0;
 #ifndef OPENSSL_SYS_WINCE
-		WSACancelBlockingCall();
+		WSACancelBlockingCall();	/* Winsock 1.1 specific */
 #endif
 		WSACleanup();
+		}
+#elif defined(OPENSSL_SYS_NETWARE) && !defined(NETWARE_BSDSOCK)
+   if (wsa_init_done)
+        {
+        wsa_init_done=0;
+        WSACleanup();
 		}
 #endif
 	}

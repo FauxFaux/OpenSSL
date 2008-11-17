@@ -61,7 +61,6 @@
 #include <openssl/fips.h>
 #include "rc5_locl.h"
 
-
 #ifdef OPENSSL_FIPS
 void RC5_32_set_key(RC5_32_KEY *key, int len, const unsigned char *data,
 		    int rounds)

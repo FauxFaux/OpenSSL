@@ -80,28 +80,10 @@ static SSL_METHOD *ssl23_get_client_method(int ver)
 		return(NULL);
 	}
 
-SSL_METHOD *SSLv23_client_method(void)
-	{
-	static int init=1;
-	static SSL_METHOD SSLv23_client_data;
-
-	if (init)
-		{
-		CRYPTO_w_lock(CRYPTO_LOCK_SSL_METHOD);
-
-		if (init)
-			{
-			memcpy((char *)&SSLv23_client_data,
-				(char *)sslv23_base_method(),sizeof(SSL_METHOD));
-			SSLv23_client_data.ssl_connect=ssl23_connect;
-			SSLv23_client_data.get_ssl_method=ssl23_get_client_method;
-			init=0;
-			}
-
-		CRYPTO_w_unlock(CRYPTO_LOCK_SSL_METHOD);
-		}
-	return(&SSLv23_client_data);
-	}
+IMPLEMENT_ssl23_meth_func(SSLv23_client_method,
+			ssl_undefined_function,
+			ssl23_connect,
+			ssl23_get_client_method)
 
 int ssl23_connect(SSL *s)
 	{
@@ -254,7 +236,7 @@ static int ssl23_client_hello(SSL *s)
 #endif
 
 		p=s->s3->client_random;
-		Time=(unsigned long)time(NULL);			/* Time */
+		Time=(unsigned long)time(NULL);		/* Time */
 		l2n(Time,p);
 		if (RAND_pseudo_bytes(p,SSL3_RANDOM_SIZE-4) <= 0)
 			return -1;
@@ -608,7 +590,6 @@ static int ssl23_get_server_hello(SSL *s)
 	if (!ssl_get_new_session(s,0))
 		goto err;
 
-	s->first_packet=1;
 	return(SSL_connect(s));
 err:
 	return(-1);

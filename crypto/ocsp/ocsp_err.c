@@ -71,11 +71,11 @@
 static ERR_STRING_DATA OCSP_str_functs[]=
 	{
 {ERR_FUNC(OCSP_F_ASN1_STRING_ENCODE),	"ASN1_STRING_encode"},
-{ERR_FUNC(OCSP_F_CERT_ID_NEW),	"CERT_ID_NEW"},
 {ERR_FUNC(OCSP_F_D2I_OCSP_NONCE),	"D2I_OCSP_NONCE"},
 {ERR_FUNC(OCSP_F_OCSP_BASIC_ADD1_STATUS),	"OCSP_basic_add1_status"},
 {ERR_FUNC(OCSP_F_OCSP_BASIC_SIGN),	"OCSP_basic_sign"},
 {ERR_FUNC(OCSP_F_OCSP_BASIC_VERIFY),	"OCSP_basic_verify"},
+{ERR_FUNC(OCSP_F_OCSP_CERT_ID_NEW),	"OCSP_cert_id_new"},
 {ERR_FUNC(OCSP_F_OCSP_CHECK_DELEGATED),	"OCSP_CHECK_DELEGATED"},
 {ERR_FUNC(OCSP_F_OCSP_CHECK_IDS),	"OCSP_CHECK_IDS"},
 {ERR_FUNC(OCSP_F_OCSP_CHECK_ISSUER),	"OCSP_CHECK_ISSUER"},
@@ -129,15 +129,12 @@ static ERR_STRING_DATA OCSP_str_reasons[]=
 
 void ERR_load_OCSP_strings(void)
 	{
-	static int init=1;
-
-	if (init)
-		{
-		init=0;
 #ifndef OPENSSL_NO_ERR
+
+	if (ERR_func_error_string(OCSP_str_functs[0].error) == NULL)
+		{
 		ERR_load_strings(0,OCSP_str_functs);
 		ERR_load_strings(0,OCSP_str_reasons);
-#endif
-
 		}
+#endif
 	}

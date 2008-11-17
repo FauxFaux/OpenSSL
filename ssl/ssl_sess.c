@@ -126,6 +126,13 @@ SSL_SESSION *SSL_SESSION_new(void)
 	return(ss);
 	}
 
+const unsigned char *SSL_SESSION_get_id(const SSL_SESSION *s, unsigned int *len)
+	{
+	if(len)
+		*len = s->session_id_length;
+	return s->session_id;
+	}
+
 /* Even with SSLv2, we have 16 bytes (128 bits) of session ID space. SSLv3/TLSv1
  * has 32 bytes (256 bits). As such, filling the ID with random gunk repeatedly
  * until we have no conflict is going to complete in one iteration pretty much
@@ -141,7 +148,7 @@ static int def_generate_session_id(const SSL *ssl, unsigned char *id,
 {
 	unsigned int retry = 0;
 	do
-		if(RAND_pseudo_bytes(id, *id_len) <= 0)
+		if (RAND_pseudo_bytes(id, *id_len) <= 0)
 			return 0;
 	while(SSL_has_matching_session_id(ssl, id, *id_len) &&
 		(++retry < MAX_SESS_ID_ATTEMPTS));
@@ -196,6 +203,11 @@ int ssl_get_new_session(SSL *s, int session)
 		else if (s->version == TLS1_VERSION)
 			{
 			ss->ssl_version=TLS1_VERSION;
+			ss->session_id_length=SSL3_SSL_SESSION_ID_LENGTH;
+			}
+		else if (s->version == DTLS1_VERSION)
+			{
+			ss->ssl_version=DTLS1_VERSION;
 			ss->session_id_length=SSL3_SSL_SESSION_ID_LENGTH;
 			}
 		else
@@ -322,33 +334,35 @@ int ssl_get_prev_session(SSL *s, unsigned char *session_id, int len)
 
 	/* Now ret is non-NULL, and we own one of its reference counts. */
 
-	if((s->verify_mode&SSL_VERIFY_PEER)
-	   && (!s->sid_ctx_length || ret->sid_ctx_length != s->sid_ctx_length
-	       || memcmp(ret->sid_ctx,s->sid_ctx,ret->sid_ctx_length)))
-	    {
+	if (ret->sid_ctx_length != s->sid_ctx_length
+	    || memcmp(ret->sid_ctx,s->sid_ctx,ret->sid_ctx_length))
+		{
 		/* We've found the session named by the client, but we don't
 		 * want to use it in this context. */
-		
-		if (s->sid_ctx_length == 0)
-			{
-			/* application should have used SSL[_CTX]_set_session_id_context
-			 * -- we could tolerate this and just pretend we never heard
-			 * of this session, but then applications could effectively
-			 * disable the session cache by accident without anyone noticing */
 
-			SSLerr(SSL_F_SSL_GET_PREV_SESSION,SSL_R_SESSION_ID_CONTEXT_UNINITIALIZED);
-			fatal = 1;
-			goto err;
-			}
-		else
-			{
 #if 0 /* The client cannot always know when a session is not appropriate,
-	   * so we shouldn't generate an error message. */
+       * so we shouldn't generate an error message. */
 
-			SSLerr(SSL_F_SSL_GET_PREV_SESSION,SSL_R_ATTEMPT_TO_REUSE_SESSION_IN_DIFFERENT_CONTEXT);
+		SSLerr(SSL_F_SSL_GET_PREV_SESSION,SSL_R_ATTEMPT_TO_REUSE_SESSION_IN_DIFFERENT_CONTEXT);
 #endif
-			goto err; /* treat like cache miss */
-			}
+		goto err; /* treat like cache miss */
+		}
+	
+	if((s->verify_mode & SSL_VERIFY_PEER) && s->sid_ctx_length == 0)
+		{
+		/* We can't be sure if this session is being used out of
+		 * context, which is especially important for SSL_VERIFY_PEER.
+		 * The application should have used SSL[_CTX]_set_session_id_context.
+		 *
+		 * For this error case, we generate an error instead of treating
+		 * the event like a cache miss (otherwise it would be easy for
+		 * applications to effectively disable the session cache by
+		 * accident without anyone noticing).
+		 */
+		
+		SSLerr(SSL_F_SSL_GET_PREV_SESSION,SSL_R_SESSION_ID_CONTEXT_UNINITIALIZED);
+		fatal = 1;
+		goto err;
 		}
 
 	if (ret->cipher == NULL)
@@ -568,7 +582,7 @@ int SSL_set_session(SSL *s, SSL_SESSION *session)
                 if (s->kssl_ctx && !s->kssl_ctx->client_princ &&
                     session->krb5_client_princ_len > 0)
                 {
-                    s->kssl_ctx->client_princ = (char *)malloc(session->krb5_client_princ_len + 1);
+                    s->kssl_ctx->client_princ = (char *)OPENSSL_malloc(session->krb5_client_princ_len + 1);
                     memcpy(s->kssl_ctx->client_princ,session->krb5_client_princ,
                             session->krb5_client_princ_len);
                     s->kssl_ctx->client_princ[session->krb5_client_princ_len] = '\0';
@@ -751,5 +765,74 @@ static void SSL_SESSION_list_add(SSL_CTX *ctx, SSL_SESSION *s)
 		s->prev=(SSL_SESSION *)&(ctx->session_cache_head);
 		ctx->session_cache_head=s;
 		}
+	}
+
+void SSL_CTX_sess_set_new_cb(SSL_CTX *ctx,
+	int (*cb)(struct ssl_st *ssl,SSL_SESSION *sess))
+	{
+	ctx->new_session_cb=cb;
+	}
+
+int (*SSL_CTX_sess_get_new_cb(SSL_CTX *ctx))(SSL *ssl, SSL_SESSION *sess)
+	{
+	return ctx->new_session_cb;
+	}
+
+void SSL_CTX_sess_set_remove_cb(SSL_CTX *ctx,
+	void (*cb)(SSL_CTX *ctx,SSL_SESSION *sess))
+	{
+	ctx->remove_session_cb=cb;
+	}
+
+void (*SSL_CTX_sess_get_remove_cb(SSL_CTX *ctx))(SSL_CTX * ctx,SSL_SESSION *sess)
+	{
+	return ctx->remove_session_cb;
+	}
+
+void SSL_CTX_sess_set_get_cb(SSL_CTX *ctx,
+	SSL_SESSION *(*cb)(struct ssl_st *ssl,
+	         unsigned char *data,int len,int *copy))
+	{
+	ctx->get_session_cb=cb;
+	}
+
+SSL_SESSION * (*SSL_CTX_sess_get_get_cb(SSL_CTX *ctx))(SSL *ssl,
+	         unsigned char *data,int len,int *copy)
+	{
+	return ctx->get_session_cb;
+	}
+
+void SSL_CTX_set_info_callback(SSL_CTX *ctx, 
+	void (*cb)(const SSL *ssl,int type,int val))
+	{
+	ctx->info_callback=cb;
+	}
+
+void (*SSL_CTX_get_info_callback(SSL_CTX *ctx))(const SSL *ssl,int type,int val)
+	{
+	return ctx->info_callback;
+	}
+
+void SSL_CTX_set_client_cert_cb(SSL_CTX *ctx,
+	int (*cb)(SSL *ssl, X509 **x509, EVP_PKEY **pkey))
+	{
+	ctx->client_cert_cb=cb;
+	}
+
+int (*SSL_CTX_get_client_cert_cb(SSL_CTX *ctx))(SSL * ssl, X509 ** x509 , EVP_PKEY **pkey)
+	{
+	return ctx->client_cert_cb;
+	}
+
+void SSL_CTX_set_cookie_generate_cb(SSL_CTX *ctx,
+	int (*cb)(SSL *ssl, unsigned char *cookie, unsigned int *cookie_len))
+	{
+	ctx->app_gen_cookie_cb=cb;
+	}
+
+void SSL_CTX_set_cookie_verify_cb(SSL_CTX *ctx,
+	int (*cb)(SSL *ssl, unsigned char *cookie, unsigned int cookie_len))
+	{
+	ctx->app_verify_cookie_cb=cb;
 	}
 

@@ -58,8 +58,8 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <openssl/crypto.h>
 #include <openssl/blowfish.h>
+#include <openssl/crypto.h>
 #include <openssl/fips.h>
 #include "bf_locl.h"
 #include "bf_pi.h"

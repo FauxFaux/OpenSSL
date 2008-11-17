@@ -115,7 +115,6 @@
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/md5.h>
-#include <openssl/fips.h>
 
 static void tls1_P_hash(const EVP_MD *md, const unsigned char *sec,
 			int sec_len, unsigned char *seed, int seed_len,
@@ -180,6 +179,7 @@ static void tls1_PRF(const EVP_MD *md5, const EVP_MD *sha1,
 	S2= &(sec[len]);
 	len+=(slen&1); /* add for odd, make longer */
 
+	
 	tls1_P_hash(md5 ,S1,len,label,label_len,out1,olen);
 	tls1_P_hash(sha1,S2,len,label,label_len,out2,olen);
 
@@ -233,7 +233,9 @@ int tls1_change_cipher_state(SSL *s, int which)
 	int client_write;
 	EVP_CIPHER_CTX *dd;
 	const EVP_CIPHER *c;
+#ifndef OPENSSL_NO_COMP
 	const SSL_COMP *comp;
+#endif
 	const EVP_MD *m;
 	int is_export,n,i,j,k,exp_label_len,cl;
 	int reuse_dd = 0;
@@ -241,7 +243,9 @@ int tls1_change_cipher_state(SSL *s, int which)
 	is_export=SSL_C_IS_EXPORT(s->s3->tmp.new_cipher);
 	c=s->s3->tmp.new_sym_enc;
 	m=s->s3->tmp.new_hash;
+#ifndef OPENSSL_NO_COMP
 	comp=s->s3->tmp.new_compression;
+#endif
 	key_block=s->s3->tmp.key_block;
 
 #ifdef KSSL_DEBUG
@@ -265,8 +269,12 @@ int tls1_change_cipher_state(SSL *s, int which)
 			reuse_dd = 1;
 		else if ((s->enc_read_ctx=OPENSSL_malloc(sizeof(EVP_CIPHER_CTX))) == NULL)
 			goto err;
+		else
+			/* make sure it's intialized in case we exit later with an error */
+			EVP_CIPHER_CTX_init(s->enc_read_ctx);
 		dd= s->enc_read_ctx;
 		s->read_hash=m;
+#ifndef OPENSSL_NO_COMP
 		if (s->expand != NULL)
 			{
 			COMP_CTX_free(s->expand);
@@ -286,7 +294,10 @@ int tls1_change_cipher_state(SSL *s, int which)
 			if (s->s3->rrec.comp == NULL)
 				goto err;
 			}
-		memset(&(s->s3->read_sequence[0]),0,8);
+#endif
+		/* this is done by dtls1_reset_seq_numbers for DTLS1_VERSION */
+ 		if (s->version != DTLS1_VERSION)
+			memset(&(s->s3->read_sequence[0]),0,8);
 		mac_secret= &(s->s3->read_mac_secret[0]);
 		}
 	else
@@ -295,12 +306,12 @@ int tls1_change_cipher_state(SSL *s, int which)
 			reuse_dd = 1;
 		else if ((s->enc_write_ctx=OPENSSL_malloc(sizeof(EVP_CIPHER_CTX))) == NULL)
 			goto err;
-		if ((s->enc_write_ctx == NULL) &&
-			((s->enc_write_ctx=(EVP_CIPHER_CTX *)
-			OPENSSL_malloc(sizeof(EVP_CIPHER_CTX))) == NULL))
-			goto err;
+		else
+			/* make sure it's intialized in case we exit later with an error */
+			EVP_CIPHER_CTX_init(s->enc_write_ctx);
 		dd= s->enc_write_ctx;
 		s->write_hash=m;
+#ifndef OPENSSL_NO_COMP
 		if (s->compress != NULL)
 			{
 			COMP_CTX_free(s->compress);
@@ -315,13 +326,15 @@ int tls1_change_cipher_state(SSL *s, int which)
 				goto err2;
 				}
 			}
-		memset(&(s->s3->write_sequence[0]),0,8);
+#endif
+		/* this is done by dtls1_reset_seq_numbers for DTLS1_VERSION */
+ 		if (s->version != DTLS1_VERSION)
+			memset(&(s->s3->write_sequence[0]),0,8);
 		mac_secret= &(s->s3->write_mac_secret[0]);
 		}
 
 	if (reuse_dd)
 		EVP_CIPHER_CTX_cleanup(dd);
-	EVP_CIPHER_CTX_init(dd);
 
 	p=s->s3->tmp.key_block;
 	i=EVP_MD_size(m);
@@ -503,7 +516,7 @@ printf("\nkey block\n");
 #endif
 			}
 		}
-
+		
 	return(1);
 err:
 	SSLerr(SSL_F_TLS1_SETUP_KEY_BLOCK,ERR_R_MALLOC_FAILURE);
@@ -618,7 +631,15 @@ int tls1_enc(SSL *s, int send)
 			{
 			ii=i=rec->data[l-1]; /* padding_length */
 			i++;
-			if (s->options&SSL_OP_TLS_BLOCK_PADDING_BUG)
+			/* NB: if compression is in operation the first packet
+			 * may not be of even length so the padding bug check
+			 * cannot be performed. This bug workaround has been
+			 * around since SSLeay so hopefully it is either fixed
+			 * now or no buggy implementation supports compression 
+			 * [steve]
+			 */
+			if ( (s->options&SSL_OP_TLS_BLOCK_PADDING_BUG)
+				&& !s->expand)
 				{
 				/* First packet is even in size, so check */
 				if ((memcmp(s->s3->read_sequence,
@@ -744,10 +765,13 @@ printf("rec=");
 {unsigned int z; for (z=0; z<rec->length; z++) printf("%02X ",buf[z]); printf("\n"); }
 #endif
 
-	for (i=7; i>=0; i--)
-		{
-		++seq[i];
-		if (seq[i] != 0) break; 
+    if ( SSL_version(ssl) != DTLS1_VERSION)
+	    {
+		for (i=7; i>=0; i--)
+			{
+			++seq[i];
+			if (seq[i] != 0) break; 
+			}
 		}
 
 #ifdef TLS_DEBUG
@@ -810,6 +834,8 @@ int tls1_alert_code(int code)
 	case SSL_AD_INTERNAL_ERROR:	return(TLS1_AD_INTERNAL_ERROR);
 	case SSL_AD_USER_CANCELLED:	return(TLS1_AD_USER_CANCELLED);
 	case SSL_AD_NO_RENEGOTIATION:	return(TLS1_AD_NO_RENEGOTIATION);
+	case DTLS1_AD_MISSING_HANDSHAKE_MESSAGE: return 
+					  (DTLS1_AD_MISSING_HANDSHAKE_MESSAGE);
 	default:			return(-1);
 		}
 	}
