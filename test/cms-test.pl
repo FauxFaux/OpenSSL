@@ -333,10 +333,6 @@ my @smime_cms_comp_tests = (
 
 );
 
-print "PKCS#7 <=> PKCS#7 consistency tests\n";
-
-run_smime_tests( \$badcmd, \@smime_pkcs7_tests, $pk7cmd, $pk7cmd );
-
 print "CMS => PKCS#7 compatibility tests\n";
 
 run_smime_tests( \$badcmd, \@smime_pkcs7_tests, $cmscmd, $pk7cmd );

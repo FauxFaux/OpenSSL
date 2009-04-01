@@ -56,7 +56,7 @@
  * [including the GNU Public Licence.]
  */
 /* ====================================================================
- * Copyright (c) 1998-2001 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1998-2006 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -123,6 +123,7 @@
 
 int verify_depth=0;
 int verify_error=X509_V_OK;
+int verify_return_error=0;
 
 int MS_CALLBACK verify_callback(int ok, X509_STORE_CTX *ctx)
 	{
@@ -142,7 +143,8 @@ int MS_CALLBACK verify_callback(int ok, X509_STORE_CTX *ctx)
 			X509_verify_cert_error_string(err));
 		if (verify_depth >= depth)
 			{
-			ok=1;
+			if (!verify_return_error)
+				ok=1;
 			verify_error=X509_V_OK;
 			}
 		else
@@ -258,7 +260,7 @@ int set_cert_key_stuff(SSL_CTX *ctx, X509 *cert, EVP_PKEY *key)
 	}
 
 long MS_CALLBACK bio_dump_callback(BIO *bio, int cmd, const char *argp,
-	int argi, long argl, long ret)
+				   int argi, long argl, long ret)
 	{
 	BIO *out;
 
@@ -267,15 +269,15 @@ long MS_CALLBACK bio_dump_callback(BIO *bio, int cmd, const char *argp,
 
 	if (cmd == (BIO_CB_READ|BIO_CB_RETURN))
 		{
-		BIO_printf(out,"read from %p [%p] (%d bytes => %ld (0x%lX))\n",
- 			(void *)bio,argp,argi,ret,ret);
+		BIO_printf(out,"read from %p [%p] (%lu bytes => %ld (0x%lX))\n",
+ 			(void *)bio,argp,(unsigned long)argi,ret,ret);
 		BIO_dump(out,argp,(int)ret);
 		return(ret);
 		}
 	else if (cmd == (BIO_CB_WRITE|BIO_CB_RETURN))
 		{
-		BIO_printf(out,"write to %p [%p] (%d bytes => %ld (0x%lX))\n",
-			(void *)bio,argp,argi,ret,ret);
+		BIO_printf(out,"write to %p [%p] (%lu bytes => %ld (0x%lX))\n",
+			(void *)bio,argp,(unsigned long)argi,ret,ret);
 		BIO_dump(out,argp,(int)ret);
 		}
 	return(ret);
@@ -504,6 +506,21 @@ void MS_CALLBACK msg_cb(int write_p, int version, int content_type, const void *
 				case 100:
 					str_details2 = " no_renegotiation";
 					break;
+				case 110:
+					str_details2 = " unsupported_extension";
+					break;
+				case 111:
+					str_details2 = " certificate_unobtainable";
+					break;
+				case 112:
+					str_details2 = " unrecognized_name";
+					break;
+				case 113:
+					str_details2 = " bad_certificate_status_response";
+					break;
+				case 114:
+					str_details2 = " bad_certificate_hash_value";
+					break;
 					}
 				}
 			}
@@ -621,6 +638,11 @@ void MS_CALLBACK tlsext_cb(SSL *s, int client_server, int type,
 		extname = "server ticket";
 		break;
 
+#ifdef TLSEXT_TYPE_opaque_prf_input
+		case TLSEXT_TYPE_opaque_prf_input:
+		extname = "opaque PRF input";
+		break;
+#endif
 
 		default:
 		extname = "unknown";

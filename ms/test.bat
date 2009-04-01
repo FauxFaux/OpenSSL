@@ -181,7 +181,6 @@ echo test sslv2/sslv3 with both client and server authentication via BIO pair
 %SSL_TEST% -bio_pair -server_auth -client_auth
 if errorlevel 1 goto done
 
-
 echo passed all tests
 goto end
 :done

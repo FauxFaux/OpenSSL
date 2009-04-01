@@ -1,6 +1,7 @@
 #!/usr/local/bin/perl -w
 
 my $config = "crypto/err/openssl.ec";
+my $hprefix = "openssl/";
 my $debug = 0;
 my $rebuild = 0;
 my $static = 1;
@@ -12,11 +13,16 @@ my $staticloader = "";
 my $pack_errcode;
 my $load_errcode;
 
+my $errcount;
+
 while (@ARGV) {
 	my $arg = $ARGV[0];
 	if($arg eq "-conf") {
 		shift @ARGV;
 		$config = shift @ARGV;
+	} elsif($arg eq "-hprefix") {
+		shift @ARGV;
+		$hprefix = shift @ARGV;
 	} elsif($arg eq "-debug") {
 		$debug = 1;
 		shift @ARGV;
@@ -44,8 +50,7 @@ while (@ARGV) {
 }
 
 if($recurse) {
-	@source = ( <crypto/*.c>, <crypto/*/*.c>, <ssl/*.c>,
-			<fips/*.c>, <fips/*/*.c>);
+	@source = (<crypto/*.c>, <crypto/*/*.c>, <ssl/*.c>);
 } else {
 	@source = @ARGV;
 }
@@ -192,6 +197,7 @@ while (($hdr, $lib) = each %libinc)
 				$rcodes{$name} = $code;
 				if ($rassigned{$lib} =~ /:$code:/) {
 					print STDERR "!! ERROR: $lib reason code $code assigned twice\n";
+					++$errcount;
 				}
 				$rassigned{$lib} .= "$code:";
 				if(!(exists $rextra{$name}) &&
@@ -201,6 +207,7 @@ while (($hdr, $lib) = each %libinc)
 			} else {
 				if ($fassigned{$lib} =~ /:$code:/) {
 					print STDERR "!! ERROR: $lib function code $code assigned twice\n";
+					++$errcount;
 				}
 				$fassigned{$lib} .= "$code:";
 				if($code > $fmax{$lib}) {
@@ -231,6 +238,7 @@ while (($hdr, $lib) = each %libinc)
 		if ($rmax{$lib} >= 1000) {
 			print STDERR "!! ERROR: SSL error codes 1000+ are reserved for alerts.\n";
 			print STDERR "!!        Any new alerts must be added to $config.\n";
+			++$errcount;
 			print STDERR "\n";
 		}
 	}
@@ -369,6 +377,10 @@ foreach $lib (keys %csrc)
 "#ifndef HEADER_${lib}_ERR_H\n",
 "#define HEADER_${lib}_ERR_H\n",
 "\n",
+"#ifdef  __cplusplus\n",
+"extern \"C\" {\n",
+"#endif\n",
+"\n",
 "/* BEGIN ERROR CODES */\n";
 	}
 	open (OUT, ">$hfile") || die "Can't Open File $hfile for writing\n";
@@ -455,14 +467,21 @@ EOF
 			if (/\b(${lib}_R_\w*)\b.*\"(.*)\"/) {
 				$err_reason_strings{$1} = $2;
 			}
+			if (/\b${lib}_F_(\w*)\b.*\"(.*)\"/) {
+				if (!exists $ftrans{$1} && ($1 ne $2)) {
+					print STDERR "WARNING: Mismatched function string $2\n";
+					$ftrans{$1} = $2;
+				}
+			}
 		}
 		close(IN);
 	}
 
+
 	my $hincf;
 	if($static) {
 		$hfile =~ /([^\/]+)$/;
-		$hincf = "<openssl/$1>";
+		$hincf = "<${hprefix}$1>";
 	} else {
 		$hincf = "\"$hfile\"";
 	}
@@ -713,3 +732,9 @@ if($debug && defined(@runref) ) {
 		print STDERR "$_\n";
 	}
 }
+
+if($errcount) {
+	print STDERR "There were errors, failing...\n\n";
+	exit $errcount;
+}
+
