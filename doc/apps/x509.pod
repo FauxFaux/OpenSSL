@@ -23,6 +23,7 @@ B<openssl> B<x509>
 [B<-issuer>]
 [B<-nameopt option>]
 [B<-email>]
+[B<-ocsp_uri>]
 [B<-startdate>]
 [B<-enddate>]
 [B<-purpose>]
@@ -103,7 +104,7 @@ then this option has no effect: SHA1 is always used with DSA keys.
 
 =item B<-engine id>
 
-specifying an engine (by it's unique B<id> string) will cause B<req>
+specifying an engine (by its unique B<id> string) will cause B<x509>
 to attempt to obtain a functional reference to the specified engine,
 thus initialising it if needed. The engine will then be set as the default
 for all available algorithms.
@@ -175,6 +176,10 @@ set multiple options. See the B<NAME OPTIONS> section for more information.
 =item B<-email>
 
 outputs the email address(es) if any.
+
+=item B<-ocsp_uri>
+
+outputs the OCSP responder address(es) if any.
 
 =item B<-startdate>
 

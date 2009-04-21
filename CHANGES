@@ -4,6 +4,27 @@
 
  Changes between 0.9.8k and 1.0  [xx XXX xxxx]
 
+  *) Add "missing" function EVP_MD_flags() (without this the only way to
+     retrieve a digest flags is by accessing the structure directly. Update
+     EVP_MD_do_all*() and EVP_CIPHER_do_all*() to include the name a digest
+     or cipher is registered as in the "from" argument. Print out all
+     registered digests in the dgst usage message instead of manually 
+     attempting to work them out.
+     [Steve Henson]
+
+  *) If no SSLv2 ciphers are used don't use an SSLv2 compatible client hello:
+     this allows the use of compression and extensions. Change default cipher
+     string to remove SSLv2 ciphersuites. This effectively avoids ancient SSLv2
+     by default unless an application cipher string requests it.
+     [Steve Henson]
+
+  *) Alter match criteria in PKCS12_parse(). It used to try to use local
+     key ids to find matching certificates and keys but some PKCS#12 files
+     don't follow the (somewhat unwritten) rules and this strategy fails.
+     Now just gather all certificates together and the first private key
+     then look for the first certificate that matches the key.
+     [Steve Henson]
+
   *) Support use of registered digest and cipher names for dgst and cipher
      commands instead of having to add each one as a special case. So now
      you can do:
@@ -764,6 +785,9 @@
      [NTT]
 
  Changes between 0.9.8k and 0.9.8l  [xx XXX xxxx]
+
+  *) Handle non-blocking I/O properly in SSL_shutdown() call.
+     [Darryl Miles <darryl-mailinglists@netbauds.net>]
 
   *) Add 2.5.4.* OIDs
      [Ilya O. <vrghost@gmail.com>]

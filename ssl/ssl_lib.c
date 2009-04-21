@@ -1038,7 +1038,8 @@ long SSL_ctrl(SSL *s,int cmd,long larg,void *parg)
 		s->max_cert_list=larg;
 		return(l);
 	case SSL_CTRL_SET_MTU:
-		if (SSL_version(s) == DTLS1_VERSION)
+		if (SSL_version(s) == DTLS1_VERSION ||
+		    SSL_version(s) == DTLS1_BAD_VER)
 			{
 			s->d1->mtu = larg;
 			return larg;
@@ -2986,3 +2987,6 @@ void ssl_clear_hash_ctx(EVP_MD_CTX **hash)
 
 IMPLEMENT_STACK_OF(SSL_CIPHER)
 IMPLEMENT_STACK_OF(SSL_COMP)
+IMPLEMENT_OBJ_BSEARCH_GLOBAL_CMP_FN(SSL_CIPHER, SSL_CIPHER,
+				    ssl_cipher_id);
+

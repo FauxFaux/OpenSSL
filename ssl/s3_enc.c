@@ -604,7 +604,7 @@ int ssl3_digest_cached_records(SSL *s)
 	hdatalen = BIO_get_mem_data(s->s3->handshake_buffer,&hdata);
 	if (hdatalen <= 0)
 		{
-		SSLerr(SSL_F_DIGEST_CACHED_RECORDS, SSL_R_BAD_HANDSHAKE_LENGTH);
+		SSLerr(SSL_F_SSL3_DIGEST_CACHED_RECORDS, SSL_R_BAD_HANDSHAKE_LENGTH);
 		return 0;
 		}
 
@@ -655,7 +655,7 @@ static int ssl3_handshake_mac(SSL *s, int md_nid,
 		if (!ssl3_digest_cached_records(s))
 			return 0;
 
-	/* Search for djgest of specified type  in the handshake_dgst
+	/* Search for digest of specified type in the handshake_dgst
 	 * array*/
 	for (i=0;i<SSL_MAX_DIGEST;i++) 
 		{

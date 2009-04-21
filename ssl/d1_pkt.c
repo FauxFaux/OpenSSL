@@ -591,7 +591,7 @@ again:
 				}
 			}
 
-		if ((version & 0xff00) != (DTLS1_VERSION & 0xff00))
+		if ((version & 0xff00) != (s->version & 0xff00))
 			{
 			SSLerr(SSL_F_DTLS1_GET_RECORD,SSL_R_WRONG_VERSION_NUMBER);
 			goto err;
@@ -746,6 +746,23 @@ start:
 	 * s->s3->rrec.length,  - number of bytes. */
 	rr = &(s->s3->rrec);
 
+	/* We are not handshaking and have no data yet,
+	 * so process data buffered during the last handshake
+	 * in advance, if any.
+	 */
+	if (s->state == SSL_ST_OK && rr->length == 0)
+		{
+		pitem *item;
+		item = pqueue_pop(s->d1->buffered_app_data.q);
+		if (item)
+			{
+			dtls1_copy_record(s, item);
+
+			OPENSSL_free(item->data);
+			pitem_free(item);
+			}
+		}
+		
 	/* get new packet if necessary */
 	if ((rr->length == 0) || (s->rstate == SSL_ST_READ_BODY))
 		{
@@ -767,9 +784,14 @@ start:
 	                               * reset by ssl3_get_finished */
 		&& (rr->type != SSL3_RT_HANDSHAKE))
 		{
-		al=SSL_AD_UNEXPECTED_MESSAGE;
-		SSLerr(SSL_F_DTLS1_READ_BYTES,SSL_R_DATA_BETWEEN_CCS_AND_FINISHED);
-		goto err;
+		/* We now have application data between CCS and Finished.
+		 * Most likely the packets were reordered on their way, so
+		 * buffer the application data for later processing rather
+		 * than dropping the connection.
+		 */
+		dtls1_buffer_record(s, &(s->d1->buffered_app_data), 0);
+		rr->length = 0;
+		goto start;
 		}
 
 	/* If the other end has shut down, throw anything we read away
@@ -839,15 +861,28 @@ start:
 			dest = s->d1->alert_fragment;
 			dest_len = &s->d1->alert_fragment_len;
 			}
-                /* else it's a CCS message, or it's wrong */
-                else if (rr->type != SSL3_RT_CHANGE_CIPHER_SPEC)
-                        {
-                          /* Not certain if this is the right error handling */
-                          al=SSL_AD_UNEXPECTED_MESSAGE;
-                          SSLerr(SSL_F_DTLS1_READ_BYTES,SSL_R_UNEXPECTED_RECORD);
-                          goto f_err;
-                        }
+		/* else it's a CCS message, or application data or wrong */
+		else if (rr->type != SSL3_RT_CHANGE_CIPHER_SPEC)
+			{
+			/* Application data while renegotiating
+			 * is allowed. Try again reading.
+			 */
+			if (rr->type == SSL3_RT_APPLICATION_DATA)
+				{
+				BIO *bio;
+				s->s3->in_read_app_data=2;
+				bio=SSL_get_rbio(s);
+				s->rwstate=SSL_READING;
+				BIO_clear_retry_flags(bio);
+				BIO_set_retry_read(bio);
+				return(-1);
+				}
 
+			/* Not certain if this is the right error handling */
+			al=SSL_AD_UNEXPECTED_MESSAGE;
+			SSLerr(SSL_F_DTLS1_READ_BYTES,SSL_R_UNEXPECTED_RECORD);
+			goto f_err;
+			}
 
 		if (dest_maxlen > 0)
 			{
@@ -985,7 +1020,9 @@ start:
 				n2s(p, seq);
 				n2l3(p, frag_off);
 
-				dtls1_retransmit_message(s, seq, frag_off, &found);
+				dtls1_retransmit_message(s,
+										 dtls1_get_queue_priority(frag->msg_header.seq, 0),
+										 frag_off, &found);
 				if ( ! found  && SSL_in_init(s))
 					{
 					/* fprintf( stderr,"in init = %d\n", SSL_in_init(s)); */
@@ -1030,13 +1067,17 @@ start:
 	if (rr->type == SSL3_RT_CHANGE_CIPHER_SPEC)
 		{
 		struct ccs_header_st ccs_hdr;
+		unsigned int ccs_hdr_len = DTLS1_CCS_HEADER_LENGTH;
 
 		dtls1_get_ccs_header(rr->data, &ccs_hdr);
+
+		if (s->version == DTLS1_BAD_VER)
+			ccs_hdr_len = 3;
 
 		/* 'Change Cipher Spec' is just a single byte, so we know
 		 * exactly what the record payload has to look like */
 		/* XDTLS: check that epoch is consistent */
-		if (	(rr->length != DTLS1_CCS_HEADER_LENGTH) || 
+		if (	(rr->length != ccs_hdr_len) || 
 			(rr->off != 0) || (rr->data[0] != SSL3_MT_CCS))
 			{
 			i=SSL_AD_ILLEGAL_PARAMETER;
@@ -1057,6 +1098,9 @@ start:
 		/* do this whenever CCS is processed */
 		dtls1_reset_seq_numbers(s, SSL3_CC_READ);
 
+		if (s->version == DTLS1_BAD_VER)
+			s->d1->handshake_read_seq++;
+
 		goto start;
 		}
 
@@ -1070,6 +1114,16 @@ start:
 		dtls1_get_message_header(rr->data, &msg_hdr);
 		if( rr->epoch != s->d1->r_epoch)
 			{
+			rr->length = 0;
+			goto start;
+			}
+
+		/* If we are server, we may have a repeated FINISHED of the
+		 * client here, then retransmit our CCS and FINISHED.
+		 */
+		if (msg_hdr.type == SSL3_MT_FINISHED)
+			{
+			dtls1_retransmit_buffered_messages(s);
 			rr->length = 0;
 			goto start;
 			}
@@ -1354,7 +1408,7 @@ int do_dtls1_write(SSL *s, int type, const unsigned char *buf, unsigned int len,
 #if 0
 	/* 'create_empty_fragment' is true only when this function calls itself */
 	if (!clear && !create_empty_fragment && !s->s3->empty_fragment_done
-		&& SSL_version(s) != DTLS1_VERSION)
+	    && SSL_version(s) != DTLS1_VERSION && SSL_version(s) != DTLS1_BAD_VER)
 		{
 		/* countermeasure against known-IV weakness in CBC ciphersuites
 		 * (see http://www.openssl.org/~bodo/tls-cbc.txt) 
@@ -1381,7 +1435,6 @@ int do_dtls1_write(SSL *s, int type, const unsigned char *buf, unsigned int len,
 		s->s3->empty_fragment_done = 1;
 		}
 #endif
-
 	p = wb->buf + prefix_len;
 
 	/* write the header */
@@ -1728,6 +1781,7 @@ dtls1_reset_seq_numbers(SSL *s, int rw)
 	else
 		{
 		seq = s->s3->write_sequence;
+		memcpy(s->d1->last_write_sequence, seq, sizeof(s->s3->write_sequence));
 		s->d1->w_epoch++;
 		}
 
