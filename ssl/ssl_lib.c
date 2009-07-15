@@ -259,7 +259,8 @@ int SSL_CTX_set_ssl_version(SSL_CTX *ctx,const SSL_METHOD *meth)
 	ctx->method=meth;
 
 	sk=ssl_create_cipher_list(ctx->method,&(ctx->cipher_list),
-		&(ctx->cipher_list_by_id),SSL_DEFAULT_CIPHER_LIST);
+		&(ctx->cipher_list_by_id),
+		meth->version == SSL2_VERSION ? "SSLv2" : SSL_DEFAULT_CIPHER_LIST);
 	if ((sk == NULL) || (sk_SSL_CIPHER_num(sk) <= 0))
 		{
 		SSLerr(SSL_F_SSL_CTX_SET_SSL_VERSION,SSL_R_SSL_LIBRARY_HAS_NO_CIPHERS);
@@ -483,6 +484,16 @@ int SSL_CTX_set_trust(SSL_CTX *s, int trust)
 int SSL_set_trust(SSL *s, int trust)
 	{
 	return X509_VERIFY_PARAM_set_trust(s->param, trust);
+	}
+
+int SSL_CTX_set1_param(SSL_CTX *ctx, X509_VERIFY_PARAM *vpm)
+	{
+	return X509_VERIFY_PARAM_set1(ctx->param, vpm);
+	}
+
+int SSL_set1_param(SSL *ssl, X509_VERIFY_PARAM *vpm)
+	{
+	return X509_VERIFY_PARAM_set1(ssl->param, vpm);
 	}
 
 void SSL_free(SSL *s)
@@ -1528,7 +1539,7 @@ SSL_CTX *SSL_CTX_new(const SSL_METHOD *meth)
 
 	ssl_create_cipher_list(ret->method,
 		&ret->cipher_list,&ret->cipher_list_by_id,
-		SSL_DEFAULT_CIPHER_LIST);
+		meth->version == SSL2_VERSION ? "SSLv2" : SSL_DEFAULT_CIPHER_LIST);
 	if (ret->cipher_list == NULL
 	    || sk_SSL_CIPHER_num(ret->cipher_list) <= 0)
 		{
@@ -1966,6 +1977,8 @@ void ssl_set_cert_masks(CERT *c, const SSL_CIPHER *cipher)
 #define ku_reject(x, usage) \
 	(((x)->ex_flags & EXFLAG_KUSAGE) && !((x)->ex_kusage & (usage)))
 
+#ifndef OPENSSL_NO_EC
+
 int ssl_check_srvr_ecc_cert_and_alg(X509 *x, const SSL_CIPHER *cs)
 	{
 	unsigned long alg_k, alg_a;
@@ -2036,6 +2049,8 @@ int ssl_check_srvr_ecc_cert_and_alg(X509 *x, const SSL_CIPHER *cs)
 
 	return 1;  /* all checks are ok */
 	}
+
+#endif
 
 /* THIS NEEDS CLEANING UP */
 X509 *ssl_get_server_send_cert(SSL *s)

@@ -4,7 +4,7 @@
 ## Makefile for OpenSSL
 ##
 
-VERSION=1.0.0-beta2
+VERSION=1.0.0-beta3
 MAJOR=1
 MINOR=0.0
 SHLIB_VERSION_NUMBER=1.0.0
@@ -13,7 +13,7 @@ SHLIB_MAJOR=1
 SHLIB_MINOR=0.0
 SHLIB_EXT=
 PLATFORM=dist
-OPTIONS= no-gmp no-jpake no-krb5 no-mdc2 no-rc5 no-rfc3779 no-shared no-store no-zlib no-zlib-dynamic static-engine
+OPTIONS= no-gmp no-jpake no-krb5 no-md2 no-mdc2 no-rc5 no-rfc3779 no-shared no-store no-zlib no-zlib-dynamic static-engine
 CONFIGURE_ARGS=dist
 SHLIB_TARGET=
 
@@ -61,7 +61,7 @@ OPENSSLDIR=/usr/local/ssl
 
 CC= cc
 CFLAG= -O
-DEPFLAG= -DOPENSSL_NO_GMP -DOPENSSL_NO_JPAKE -DOPENSSL_NO_MDC2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_RFC3779 -DOPENSSL_NO_STORE
+DEPFLAG= -DOPENSSL_NO_GMP -DOPENSSL_NO_JPAKE -DOPENSSL_NO_MD2 -DOPENSSL_NO_MDC2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_RFC3779 -DOPENSSL_NO_STORE
 PEX_LIBS= 
 EX_LIBS= 
 EXE_EXT= 
@@ -111,12 +111,13 @@ ZLIB_INCLUDE=
 LIBZLIB=
 
 DIRS=   crypto ssl engines apps test tools
+ENGDIRS= ccgost
 SHLIBDIRS= crypto ssl
 
 # dirs in crypto to build
 SDIRS=  \
 	objects \
-	md2 md4 md5 sha hmac ripemd whrlpool \
+	md4 md5 sha hmac ripemd whrlpool \
 	des aes rc2 rc4 idea bf cast camellia seed modes \
 	bn ec rsa dsa ecdsa dh ecdh dso engine \
 	buffer bio stack lhash rand err \
@@ -181,7 +182,7 @@ BUILDENV=	PLATFORM='$(PLATFORM)' PROCESSOR='$(PROCESSOR)' \
 		AS='$(CC)' ASFLAG='$(CFLAG) -c'			\
 		AR='$(AR)' NM='$(NM)' RANLIB='$(RANLIB)'	\
 		CROSS_COMPILE_PREFIX='$(CROSS_COMPILE_PREFIX)'	\
-		PERL='$(PERL)'					\
+		PERL='$(PERL)' ENGDIRS='$(ENGDIRS)'		\
 		SDIRS='$(SDIRS)' LIBRPATH='$(INSTALLTOP)/lib'	\
 		INSTALL_PREFIX='$(INSTALL_PREFIX)'		\
 		INSTALLTOP='$(INSTALLTOP)' OPENSSLDIR='$(OPENSSLDIR)'	\

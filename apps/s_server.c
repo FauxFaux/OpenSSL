@@ -298,7 +298,9 @@ static const char *session_id_prefix=NULL;
 
 static int enable_timeouts = 0;
 static long socket_mtu;
+#ifndef OPENSSL_NO_DTLS1
 static int cert_chain = 0;
+#endif
 
 #ifndef OPENSSL_NO_PSK
 static char *psk_identity="Client_identity";
@@ -459,7 +461,7 @@ static void sv_usage(void)
 	BIO_printf(bio_err," -tls1         - Just talk TLSv1\n");
 	BIO_printf(bio_err," -dtls1        - Just talk DTLSv1\n");
 	BIO_printf(bio_err," -timeout      - Enable timeouts\n");
-	BIO_printf(bio_err," -mtu          - Set MTU\n");
+	BIO_printf(bio_err," -mtu          - Set link layer MTU\n");
 	BIO_printf(bio_err," -chain        - Read a certificate chain\n");
 	BIO_printf(bio_err," -no_ssl2      - Just disable SSLv2\n");
 	BIO_printf(bio_err," -no_ssl3      - Just disable SSLv3\n");
@@ -833,8 +835,8 @@ static char *jpake_secret = NULL;
 
 int MAIN(int argc, char *argv[])
 	{
-	X509_STORE *store = NULL;
-	int vflags = 0;
+	X509_VERIFY_PARAM *vpm = NULL;
+	int badarg = 0;
 	short port=PORT;
 	char *CApath=NULL,*CAfile=NULL;
 	unsigned char *context = NULL;
@@ -999,13 +1001,11 @@ int MAIN(int argc, char *argv[])
 			if (--argc < 1) goto bad;
 			CApath= *(++argv);
 			}
-		else if (strcmp(*argv,"-crl_check") == 0)
+		else if (args_verify(&argv, &argc, &badarg, bio_err, &vpm))
 			{
-			vflags |= X509_V_FLAG_CRL_CHECK;
-			}
-		else if (strcmp(*argv,"-crl_check_all") == 0)
-			{
-			vflags |= X509_V_FLAG_CRL_CHECK|X509_V_FLAG_CRL_CHECK_ALL;
+			if (badarg)
+				goto bad;
+			continue;
 			}
 		else if (strcmp(*argv,"-verify_return_error") == 0)
 			verify_return_error = 1;
@@ -1410,8 +1410,8 @@ bad:
 		ERR_print_errors(bio_err);
 		/* goto end; */
 		}
-	store = SSL_CTX_get_cert_store(ctx);
-	X509_STORE_set_flags(store, vflags);
+	if (vpm)
+		SSL_CTX_set1_param(ctx, vpm);
 
 #ifndef OPENSSL_NO_TLSEXT
 	if (s_cert2)
@@ -1462,8 +1462,8 @@ bad:
 			{
 			ERR_print_errors(bio_err);
 			}
-		store = SSL_CTX_get_cert_store(ctx2);
-		X509_STORE_set_flags(store, vflags);
+		if (vpm)
+			SSL_CTX_set1_param(ctx2, vpm);
 		}
 #endif 
 
@@ -1823,10 +1823,10 @@ static int sv_body(char *hostname, int s, unsigned char *context)
 			BIO_ctrl(sbio, BIO_CTRL_DGRAM_SET_SEND_TIMEOUT, 0, &timeout);
 			}
 
-		if (socket_mtu > 0)
+		if (socket_mtu > 28)
 			{
 			SSL_set_options(con, SSL_OP_NO_QUERY_MTU);
-			SSL_set_mtu(con, socket_mtu);
+			SSL_set_mtu(con, socket_mtu - 28);
 			}
 		else
 			/* want to do MTU discovery */

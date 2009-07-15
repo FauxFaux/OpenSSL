@@ -519,6 +519,7 @@ dtls1_retrieve_buffered_fragment(SSL *s, long max, int *ok)
 
 	if ( s->d1->handshake_read_seq == frag->msg_header.seq)
 		{
+		unsigned long frag_len = frag->msg_header.frag_len;
 		pqueue_pop(s->d1->buffered_messages);
 
 		al=dtls1_preprocess_fragment(s,&frag->msg_header,max);
@@ -536,7 +537,7 @@ dtls1_retrieve_buffered_fragment(SSL *s, long max, int *ok)
 		if (al==0)
 			{
 			*ok = 1;
-			return frag->msg_header.frag_len;
+			return frag_len;
 			}
 
 		ssl3_send_alert(s,SSL3_AL_FATAL,al);
@@ -561,7 +562,20 @@ dtls1_process_out_of_seq_message(SSL *s, struct hm_header_st* msg_hdr, int *ok)
 	if ((msg_hdr->frag_off+frag_len) > msg_hdr->msg_len)
 		goto err;
 
-	if (msg_hdr->seq <= s->d1->handshake_read_seq)
+	/* Try to find item in queue, to prevent duplicate entries */
+	memset(seq64be,0,sizeof(seq64be));
+	seq64be[6] = (unsigned char) (msg_hdr->seq>>8);
+	seq64be[7] = (unsigned char) msg_hdr->seq;
+	item = pqueue_find(s->d1->buffered_messages, seq64be);
+	
+	/* Discard the message if sequence number was already there, is
+	 * too far in the future, already in the queue or if we received
+	 * a FINISHED before the SERVER_HELLO, which then must be a stale
+	 * retransmit.
+	 */
+	if (msg_hdr->seq <= s->d1->handshake_read_seq ||
+		msg_hdr->seq > s->d1->handshake_read_seq + 10 || item != NULL ||
+		(s->d1->handshake_read_seq == 0 && msg_hdr->type == SSL3_MT_FINISHED))
 		{
 		unsigned char devnull [256];
 
@@ -799,14 +813,30 @@ int dtls1_send_change_cipher_spec(SSL *s, int a, int b)
 	return(dtls1_do_write(s,SSL3_RT_CHANGE_CIPHER_SPEC));
 	}
 
+static int dtls1_add_cert_to_buf(BUF_MEM *buf, unsigned long *l, X509 *x)
+	{
+	int n;
+	unsigned char *p;
+
+	n=i2d_X509(x,NULL);
+	if (!BUF_MEM_grow_clean(buf,(int)(n+(*l)+3)))
+		{
+		SSLerr(SSL_F_DTLS1_ADD_CERT_TO_BUF,ERR_R_BUF_LIB);
+		return 0;
+		}
+	p=(unsigned char *)&(buf->data[*l]);
+	l2n3(n,p);
+	i2d_X509(x,&p);
+	*l+=n+3;
+
+	return 1;
+	}
 unsigned long dtls1_output_cert_chain(SSL *s, X509 *x)
 	{
 	unsigned char *p;
-	int n,i;
+	int i;
 	unsigned long l= 3 + DTLS1_HM_HEADER_LENGTH;
 	BUF_MEM *buf;
-	X509_STORE_CTX xs_ctx;
-	X509_OBJECT obj;
 
 	/* TLSv1 sends a chain with nothing in it, instead of an alert */
 	buf=s->init_buf;
@@ -817,54 +847,33 @@ unsigned long dtls1_output_cert_chain(SSL *s, X509 *x)
 		}
 	if (x != NULL)
 		{
-		if(!X509_STORE_CTX_init(&xs_ctx,s->ctx->cert_store,NULL,NULL))
-			{
-			SSLerr(SSL_F_DTLS1_OUTPUT_CERT_CHAIN,ERR_R_X509_LIB);
-			return(0);
-			}
+		X509_STORE_CTX xs_ctx;
 
-		for (;;)
-			{
-			n=i2d_X509(x,NULL);
-			if (!BUF_MEM_grow_clean(buf,(n+l+3)))
-				{
-				SSLerr(SSL_F_DTLS1_OUTPUT_CERT_CHAIN,ERR_R_BUF_LIB);
-				return(0);
-				}
-			p=(unsigned char *)&(buf->data[l]);
-			l2n3(n,p);
-			i2d_X509(x,&p);
-			l+=n+3;
-			if (X509_NAME_cmp(X509_get_subject_name(x),
-				X509_get_issuer_name(x)) == 0) break;
+		if (!X509_STORE_CTX_init(&xs_ctx,s->ctx->cert_store,x,NULL))
+  			{
+  			SSLerr(SSL_F_DTLS1_OUTPUT_CERT_CHAIN,ERR_R_X509_LIB);
+  			return(0);
+  			}
+  
+		X509_verify_cert(&xs_ctx);
+		for (i=0; i < sk_X509_num(xs_ctx.chain); i++)
+  			{
+			x = sk_X509_value(xs_ctx.chain, i);
 
-			i=X509_STORE_get_by_subject(&xs_ctx,X509_LU_X509,
-				X509_get_issuer_name(x),&obj);
-			if (i <= 0) break;
-			x=obj.data.x509;
-			/* Count is one too high since the X509_STORE_get uped the
-			 * ref count */
-			X509_free(x);
-			}
-
-		X509_STORE_CTX_cleanup(&xs_ctx);
-		}
-
-	/* Thawte special :-) */
-	if (s->ctx->extra_certs != NULL)
+			if (!dtls1_add_cert_to_buf(buf, &l, x))
+  				{
+				X509_STORE_CTX_cleanup(&xs_ctx);
+				return 0;
+  				}
+  			}
+  		X509_STORE_CTX_cleanup(&xs_ctx);
+  		}
+  	/* Thawte special :-) */
 	for (i=0; i<sk_X509_num(s->ctx->extra_certs); i++)
 		{
 		x=sk_X509_value(s->ctx->extra_certs,i);
-		n=i2d_X509(x,NULL);
-		if (!BUF_MEM_grow_clean(buf,(n+l+3)))
-			{
-			SSLerr(SSL_F_DTLS1_OUTPUT_CERT_CHAIN,ERR_R_BUF_LIB);
-			return(0);
-			}
-		p=(unsigned char *)&(buf->data[l]);
-		l2n3(n,p);
-		i2d_X509(x,&p);
-		l+=n+3;
+		if (!dtls1_add_cert_to_buf(buf, &l, x))
+			return 0;
 		}
 
 	l-= (3 + DTLS1_HM_HEADER_LENGTH);
@@ -882,7 +891,6 @@ unsigned long dtls1_output_cert_chain(SSL *s, X509 *x)
 int dtls1_read_failed(SSL *s, int code)
 	{
 	DTLS1_STATE *state;
-	BIO *bio;
 	int send_alert = 0;
 
 	if ( code > 0)
@@ -891,8 +899,7 @@ int dtls1_read_failed(SSL *s, int code)
 		return 1;
 		}
 
-	bio = SSL_get_rbio(s);
-	if ( ! BIO_dgram_recv_timedout(bio))
+	if (!dtls1_is_timer_expired(s))
 		{
 		/* not a timeout, none of our business, 
 		   let higher layers handle this.  in fact it's probably an error */
@@ -905,6 +912,7 @@ int dtls1_read_failed(SSL *s, int code)
 		return code;
 		}
 
+	dtls1_double_timeout(s);
 	state = s->d1;
 	state->timeout.num_alerts++;
 	if ( state->timeout.num_alerts > DTLS1_TMO_ALERT_COUNT)
@@ -969,7 +977,7 @@ dtls1_retransmit_buffered_messages(SSL *s)
 		{
 		frag = (hm_fragment *)item->data;
 			if ( dtls1_retransmit_message(s,
-				dtls1_get_queue_priority(frag->msg_header.seq, frag->msg_header.is_ccs),
+				(unsigned short)dtls1_get_queue_priority(frag->msg_header.seq, frag->msg_header.is_ccs),
 				0, &found) <= 0 && found)
 			{
 			fprintf(stderr, "dtls1_retransmit_message() failed\n");

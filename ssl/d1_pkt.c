@@ -207,6 +207,10 @@ dtls1_buffer_record(SSL *s, record_pqueue *queue, unsigned char *priority)
 	DTLS1_RECORD_DATA *rdata;
 	pitem *item;
 
+	/* Limit the size of the queue to prevent DOS attacks */
+	if (pqueue_size(queue->q) >= 100)
+		return 0;
+		
 	rdata = OPENSSL_malloc(sizeof(DTLS1_RECORD_DATA));
 	item = pitem_new(priority, rdata);
 	if (rdata == NULL || item == NULL)
@@ -526,7 +530,7 @@ err:
 /* used only by dtls1_read_bytes */
 int dtls1_get_record(SSL *s)
 	{
-	int ssl_major,ssl_minor,al;
+	int ssl_major,ssl_minor;
 	int i,n;
 	SSL3_RECORD *rr;
 	SSL_SESSION *sess;
@@ -557,7 +561,12 @@ again:
 		/* read timeout is handled by dtls1_read_bytes */
 		if (n <= 0) return(n); /* error or non-blocking */
 
-		OPENSSL_assert(s->packet_length == DTLS1_RT_HEADER_LENGTH);
+		/* this packet contained a partial record, dump it */
+		if (s->packet_length != DTLS1_RT_HEADER_LENGTH)
+			{
+			s->packet_length = 0;
+			goto again;
+			}
 
 		s->rstate=SSL_ST_READ_BODY;
 
@@ -582,26 +591,27 @@ again:
 			{
 			if (version != s->version)
 				{
-				SSLerr(SSL_F_DTLS1_GET_RECORD,SSL_R_WRONG_VERSION_NUMBER);
-				/* Send back error using their
-				 * version number :-) */
-				s->version=version;
-				al=SSL_AD_PROTOCOL_VERSION;
-				goto f_err;
+				/* unexpected version, silently discard */
+				rr->length = 0;
+				s->packet_length = 0;
+				goto again;
 				}
 			}
 
 		if ((version & 0xff00) != (s->version & 0xff00))
 			{
-			SSLerr(SSL_F_DTLS1_GET_RECORD,SSL_R_WRONG_VERSION_NUMBER);
-			goto err;
+			/* wrong version, silently discard record */
+			rr->length = 0;
+			s->packet_length = 0;
+			goto again;
 			}
 
 		if (rr->length > SSL3_RT_MAX_ENCRYPTED_LENGTH)
 			{
-			al=SSL_AD_RECORD_OVERFLOW;
-			SSLerr(SSL_F_DTLS1_GET_RECORD,SSL_R_PACKET_LENGTH_TOO_LONG);
-			goto f_err;
+			/* record too long, silently discard it */
+			rr->length = 0;
+			s->packet_length = 0;
+			goto again;
 			}
 
 		/* now s->rstate == SSL_ST_READ_BODY */
@@ -619,6 +629,7 @@ again:
 		/* this packet contained a partial record, dump it */
 		if ( n != i)
 			{
+			rr->length = 0;
 			s->packet_length = 0;
 			goto again;
 			}
@@ -632,6 +643,7 @@ again:
 	bitmap = dtls1_get_bitmap(s, rr, &is_next_epoch);
 	if ( bitmap == NULL)
 		{
+		rr->length = 0;
 		s->packet_length = 0;  /* dump this record */
 		goto again;   /* get another record */
 		}
@@ -656,6 +668,7 @@ again:
 		{
 		dtls1_record_bitmap_update(s, bitmap);
 		dtls1_buffer_record(s, &(s->d1->unprocessed_rcds), rr->seq_num);
+		rr->length = 0;
 		s->packet_length = 0;
 		goto again;
 		}
@@ -666,10 +679,6 @@ again:
 	dtls1_clear_timeouts(s);  /* done waiting */
 	return(1);
 
-f_err:
-	ssl3_send_alert(s,SSL3_AL_FATAL,al);
-err:
-	return(0);
 	}
 
 /* Return up to 'len' payload bytes received in 'type' records.
@@ -762,7 +771,14 @@ start:
 			pitem_free(item);
 			}
 		}
-		
+
+	/* Check for timeout */
+	if (dtls1_is_timer_expired(s))
+		{
+		if (dtls1_read_failed(s, -1) > 0);
+			goto start;
+		}
+
 	/* get new packet if necessary */
 	if ((rr->length == 0) || (s->rstate == SSL_ST_READ_BODY))
 		{
@@ -1090,6 +1106,16 @@ start:
 		if (s->msg_callback)
 			s->msg_callback(0, s->version, SSL3_RT_CHANGE_CIPHER_SPEC, 
 				rr->data, 1, s, s->msg_callback_arg);
+
+		/* We can't process a CCS now, because previous handshake
+		 * messages are still missing, so just drop it.
+		 */
+		if (!s->d1->change_cipher_spec_ok)
+			{
+			goto start;
+			}
+
+		s->d1->change_cipher_spec_ok = 0;
 
 		s->s3->change_cipher_spec=1;
 		if (!ssl3_do_change_cipher_spec(s))

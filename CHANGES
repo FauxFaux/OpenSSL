@@ -4,6 +4,34 @@
 
  Changes between 0.9.8k and 1.0  [xx XXX xxxx]
 
+  *) Delete MD2 from algorithm tables. This follows the recommendation in 
+     several standards that it is not used in new applications due to
+     several cryptographic weaknesses. The algorithm is also disabled in
+     the default configuration.
+     [Steve Henson]
+
+  *) In BIO_pop() and BIO_push() use the ctrl argument (which was NULL) to
+     indicate the initial BIO being pushed or popped. This makes it possible
+     to determine whether the BIO is the one explicitly called or as a result
+     of the ctrl being passed down the chain. Fix BIO_pop() and SSL BIOs so
+     it handles reference counts correctly and doesn't zero out the I/O bio
+     when it is not being explicitly popped. WARNING: applications which
+     included workarounds for the old buggy behaviour will need to be modified
+     or they could free up already freed BIOs.
+     [Steve Henson]
+
+  *) Rename uni2asc and asc2uni functions to OPENSSL_uni2asc and
+     OPENSSL_asc2uni the original names were too generic and cause name
+     clashes on Netware.
+     [Guenter <lists@gknw.net>]
+
+  *) Add ECDHE and PSK support to DTLS.
+     [Michael Tuexen <tuexen@fh-muenster.de>]
+
+  *) Add CHECKED_STACK_OF macro to safestack.h, otherwise safestack can't
+     be used on C++.
+     [Steve Henson]
+
   *) Add "missing" function EVP_MD_flags() (without this the only way to
      retrieve a digest flags is by accessing the structure directly. Update
      EVP_MD_do_all*() and EVP_CIPHER_do_all*() to include the name a digest
@@ -785,6 +813,43 @@
      [NTT]
 
  Changes between 0.9.8k and 0.9.8l  [xx XXX xxxx]
+
+  *) Add compression id to {d2i,i2d}_SSL_SESSION so it is correctly saved
+     and restored.
+     [Steve Henson]
+
+  *) Fix the server certificate chain building code to use X509_verify_cert(),
+     it used to have an ad-hoc builder which was unable to cope with anything
+     other than a simple chain.
+     [David Woodhouse <dwmw2@infradead.org>, Steve Henson]
+
+  *) Don't check self signed certificate signatures in X509_verify_cert()
+     by default (a flag can override this): it just wastes time without
+     adding any security. As a useful side effect self signed root CAs
+     with non-FIPS digests are now usable in FIPS mode.
+     [Steve Henson]
+
+  *) In dtls1_process_out_of_seq_message() the check if the current message
+     is already buffered was missing. For every new message was memory
+     allocated, allowing an attacker to perform an denial of service attack
+     with sending out of seq handshake messages until there is no memory
+     left. Additionally every future messege was buffered, even if the
+     sequence number made no sense and would be part of another handshake.
+     So only messages with sequence numbers less than 10 in advance will be
+     buffered.
+     [Robin Seggelmann, discovered by Daniel Mentz] 	
+
+  *) Records are buffered if they arrive with a future epoch to be
+     processed after finishing the corresponding handshake. There is
+     currently no limitation to this buffer allowing an attacker to perform
+     a DOS attack with sending records with future epochs until there is no
+     memory left. This patch adds the pqueue_size() function to detemine
+     the size of a buffer and limits the record buffer to 100 entries.
+     [Robin Seggelmann, discovered by Daniel Mentz] 	
+
+  *) Keep a copy of frag->msg_header.frag_len so it can be used after the
+     parent structure is freed.
+     [Daniel Mentz] 	
 
   *) Handle non-blocking I/O properly in SSL_shutdown() call.
      [Darryl Miles <darryl-mailinglists@netbauds.net>]

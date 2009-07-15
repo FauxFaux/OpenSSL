@@ -109,14 +109,16 @@
  *
  */
 
+#ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 2	/* On VMS, you need to define this to get
 				   the declaration of fileno().  The value
 				   2 is to make sure no function defined
 				   in POSIX-2 is left undefined. */
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifndef OPENSSL_SYSNAME_WIN32
+#if !defined(OPENSSL_SYSNAME_WIN32) && !defined(NETWARE_CLIB)
 #include <strings.h>
 #endif
 #include <sys/types.h>
@@ -921,11 +923,13 @@ EVP_PKEY *load_key(BIO *err, const char *file, int format, int maybe_stdin,
 				&pkey, NULL, NULL))
 			goto end;
 		}
+#if !defined(OPENSSL_NO_RSA) && !defined(OPENSSL_NO_DSA)
 	else if (format == FORMAT_MSBLOB)
 		pkey = b2i_PrivateKey_bio(key);
 	else if (format == FORMAT_PVK)
 		pkey = b2i_PVK_bio(key, (pem_password_cb *)password_callback,
 								&cb_data);
+#endif
 	else
 		{
 		BIO_printf(err,"bad input format specified for key file\n");
@@ -989,6 +993,7 @@ EVP_PKEY *load_pubkey(BIO *err, const char *file, int format, int maybe_stdin,
 		{
 		pkey=d2i_PUBKEY_bio(key, NULL);
 		}
+#ifndef OPENSSL_NO_RSA
 	else if (format == FORMAT_ASN1RSA)
 		{
 		RSA *rsa;
@@ -1018,7 +1023,7 @@ EVP_PKEY *load_pubkey(BIO *err, const char *file, int format, int maybe_stdin,
 		else
 			pkey = NULL;
 		}
-
+#endif
 	else if (format == FORMAT_PEM)
 		{
 		pkey=PEM_read_bio_PUBKEY(key,NULL,
@@ -1028,8 +1033,10 @@ EVP_PKEY *load_pubkey(BIO *err, const char *file, int format, int maybe_stdin,
 	else if (format == FORMAT_NETSCAPE || format == FORMAT_IISSGC)
 		pkey = load_netscape_key(err, key, file, key_descrip, format);
 #endif
+#if !defined(OPENSSL_NO_RSA) && !defined(OPENSSL_NO_DSA)
 	else if (format == FORMAT_MSBLOB)
 		pkey = b2i_PublicKey_bio(key);
+#endif
 	else
 		{
 		BIO_printf(err,"bad input format specified for key file\n");
@@ -2185,7 +2192,7 @@ int args_verify(char ***pargs, int *pargc,
 	ASN1_OBJECT *otmp = NULL;
 	unsigned long flags = 0;
 	int i;
-	int purpose = 0;
+	int purpose = 0, depth = -1;
 	char **oldargs = *pargs;
 	char *arg = **pargs, *argn = (*pargs)[1];
 	if (!strcmp(arg, "-policy"))
@@ -2225,6 +2232,21 @@ int args_verify(char ***pargs, int *pargc,
 			}
 		(*pargs)++;
 		}
+	else if (strcmp(arg,"-verify_depth") == 0)
+		{
+		if (!argn)
+			*badarg = 1;
+		else
+			{
+			depth = atoi(argn);
+			if(depth < 0)
+				{
+				BIO_printf(err, "invalid depth\n");
+				*badarg = 1;
+				}
+			}
+		(*pargs)++;
+		}
 	else if (!strcmp(arg, "-ignore_critical"))
 		flags |= X509_V_FLAG_IGNORE_CRITICAL;
 	else if (!strcmp(arg, "-issuer_checks"))
@@ -2249,6 +2271,8 @@ int args_verify(char ***pargs, int *pargc,
 		flags |= X509_V_FLAG_USE_DELTAS;
 	else if (!strcmp(arg, "-policy_print"))
 		flags |= X509_V_FLAG_NOTIFY_POLICY;
+	else if (!strcmp(arg, "-check_ss_sig"))
+		flags |= X509_V_FLAG_CHECK_SS_SIGNATURE;
 	else
 		return 0;
 
@@ -2273,6 +2297,9 @@ int args_verify(char ***pargs, int *pargc,
 
 	if (purpose)
 		X509_VERIFY_PARAM_set_purpose(*pm, purpose);
+
+	if (depth >= 0)
+		X509_VERIFY_PARAM_set_depth(*pm, depth);
 
 	end:
 

@@ -2821,13 +2821,11 @@ SSL_CIPHER *ssl3_choose_cipher(SSL *s, STACK_OF(SSL_CIPHER) *clnt,
 	SSL_CIPHER *c,*ret=NULL;
 	STACK_OF(SSL_CIPHER) *prio, *allow;
 	int i,ii,ok;
-#ifndef OPENSSL_NO_TLSEXT
+#if !defined(OPENSSL_NO_TLSEXT) && !defined(OPENSSL_NO_EC)
 	unsigned int j;
-#ifndef OPENSSL_NO_EC
 	int ec_ok, ec_nid;
 	unsigned char ec_search1 = 0, ec_search2 = 0;
-#endif /* OPENSSL_NO_EC */
-#endif /* OPENSSL_NO_TLSEXT */
+#endif
 	CERT *cert;
 	unsigned long alg_k,alg_a,mask_k,mask_a,emask_k,emask_a;
 
@@ -3088,6 +3086,18 @@ int ssl3_get_req_cert_type(SSL *s, unsigned char *p)
 	unsigned long alg_k;
 
 	alg_k = s->s3->tmp.new_cipher->algorithm_mkey;
+
+#ifndef OPENSSL_NO_GOST
+	if (s->version >= TLS1_VERSION)
+		{
+		if (alg_k & SSL_kGOST)
+			{
+			p[ret++]=TLS_CT_GOST94_SIGN;
+			p[ret++]=TLS_CT_GOST01_SIGN;
+			return(ret);
+			}
+		}
+#endif
 
 #ifndef OPENSSL_NO_DH
 	if (alg_k & (SSL_kDHr|SSL_kEDH))
