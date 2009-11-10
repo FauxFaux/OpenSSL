@@ -4,6 +4,23 @@
 
  Changes between 0.9.8k and 1.0  [xx XXX xxxx]
 
+  *) Add load_crls() function to apps tidying load_certs() too. Add option
+     to verify utility to allow additional CRLs to be included.
+     [Steve Henson]
+
+  *) Update OCSP request code to permit adding custom headers to the request:
+     some responders need this.
+     [Steve Henson]
+
+  *) The function EVP_PKEY_sign() returns <=0 on error: check return code
+     correctly.
+     [Julia Lawall <julia@diku.dk>]
+
+  *) Update verify callback code in apps/s_cb.c and apps/verify.c, it
+     needlessly dereferenced structures, used obsolete functions and
+     didn't handle all updated verify codes correctly.
+     [Steve Henson]
+
   *) Delete MD2 from algorithm tables. This follows the recommendation in 
      several standards that it is not used in new applications due to
      several cryptographic weaknesses. The algorithm is also disabled in
@@ -812,7 +829,46 @@
   *) Change 'Configure' script to enable Camellia by default.
      [NTT]
 
- Changes between 0.9.8k and 0.9.8l  [xx XXX xxxx]
+ Changes between 0.9.8l and 0.9.8m  [xx XXX xxxx]
+
+  *) Implement
+     https://svn.resiprocate.org/rep/ietf-drafts/ekr/draft-rescorla-tls-renegotiate.txt. Re-enable
+     renegotiation but require the extension as needed. Unfortunately,
+     SSL3_FLAGS_ALLOW_UNSAFE_LEGACY_RENEGOTIATION turns out to be a
+     bad idea. It has been replaced by
+     SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION which can be set with
+     SSL_CTX_set_options(). This is really not recommended unless you
+     know what you are doing.
+     [Eric Rescorla <ekr@networkresonance.com> and Ben Laurie]
+
+  *) Fixes to stateless session resumption handling. Use initial_ctx when
+     issuing and attempting to decrypt tickets in case it has changed during
+     servername handling. Use a non-zero length session ID when attempting
+     stateless session resumption: this makes it possible to determine if
+     a resumption has occurred immediately after receiving server hello 
+     (several places in OpenSSL subtly assume this) instead of later in
+     the handshake.
+     [Steve Henson]
+
+  *) The functions ENGINE_ctrl(), OPENSSL_isservice(),
+     CMS_get1_RecipientRequest() and RAND_bytes() can return <=0 on error
+     fixes for a few places where the return code is not checked
+     correctly.
+     [Julia Lawall <julia@diku.dk>]
+
+  *) Add --strict-warnings option to Configure script to include devteam
+     warnings in other configurations.
+     [Steve Henson]
+
+  *) Add support for --libdir option and LIBDIR variable in makefiles. This
+     makes it possible to install openssl libraries in locations which 
+     have names other than "lib", for example "/usr/lib64" which some
+     systems need.
+     [Steve Henson, based on patch from Jeremy Utley]
+
+  *) Don't allow the use of leading 0x80 in OIDs. This is a violation of
+     X690 8.9.12 and can produce some misleading textual output of OIDs.
+     [Steve Henson, reported by Dan Kaminsky]
 
   *) Add compression id to {d2i,i2d}_SSL_SESSION so it is correctly saved
      and restored.

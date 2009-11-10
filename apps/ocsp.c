@@ -75,6 +75,7 @@
 #include <openssl/ssl.h>
 #include <openssl/evp.h>
 #include <openssl/bn.h>
+#include <openssl/x509v3.h>
 
 #if defined(NETWARE_CLIB)
 #  ifdef NETWARE_BSDSOCK
@@ -99,7 +100,7 @@ static int add_ocsp_cert(OCSP_REQUEST **req, X509 *cert, const EVP_MD *cert_id_m
 static int add_ocsp_serial(OCSP_REQUEST **req, char *serial, const EVP_MD * cert_id_md, X509 *issuer,
 				STACK_OF(OCSP_CERTID) *ids);
 static int print_ocsp_summary(BIO *out, OCSP_BASICRESP *bs, OCSP_REQUEST *req,
-			      STACK_OF(STRING) *names,
+			      STACK_OF(OPENSSL_STRING) *names,
 			      STACK_OF(OCSP_CERTID) *ids, long nsec,
 			      long maxage);
 
@@ -113,6 +114,7 @@ static BIO *init_responder(char *port);
 static int do_responder(OCSP_REQUEST **preq, BIO **pcbio, BIO *acbio, char *port);
 static int send_ocsp_response(BIO *cbio, OCSP_RESPONSE *resp);
 static OCSP_RESPONSE *query_responder(BIO *err, BIO *cbio, char *path,
+				STACK_OF(CONF_VALUE) *headers,
 				OCSP_REQUEST *req, int req_timeout);
 
 #undef PROG
@@ -131,6 +133,7 @@ int MAIN(int argc, char **argv)
 	char *rsignfile = NULL, *rkeyfile = NULL;
 	char *outfile = NULL;
 	int add_nonce = 1, noverify = 0, use_ssl = -1;
+	STACK_OF(CONF_VALUE) *headers = NULL;
 	OCSP_REQUEST *req = NULL;
 	OCSP_RESPONSE *resp = NULL;
 	OCSP_BASICRESP *bs = NULL;
@@ -153,7 +156,7 @@ int MAIN(int argc, char **argv)
 	int badarg = 0;
 	int i;
 	int ignore_err = 0;
-	STACK_OF(STRING) *reqnames = NULL;
+	STACK_OF(OPENSSL_STRING) *reqnames = NULL;
 	STACK_OF(OCSP_CERTID) *ids = NULL;
 
 	X509 *rca_cert = NULL;
@@ -170,7 +173,7 @@ int MAIN(int argc, char **argv)
 	SSL_load_error_strings();
 	OpenSSL_add_ssl_algorithms();
 	args = argv + 1;
-	reqnames = sk_STRING_new_null();
+	reqnames = sk_OPENSSL_STRING_new_null();
 	ids = sk_OCSP_CERTID_new_null();
 	while (!badarg && *args && *args[0] == '-')
 		{
@@ -227,6 +230,16 @@ int MAIN(int argc, char **argv)
 				{
 				args++;
 				port = *args;
+				}
+			else badarg = 1;
+			}
+		else if (!strcmp(*args, "-header"))
+			{
+			if (args[1] && args[2])
+				{
+				if (!X509V3_add_value(args[1], args[2], &headers))
+					goto end;
+				args += 2;
 				}
 			else badarg = 1;
 			}
@@ -432,7 +445,7 @@ int MAIN(int argc, char **argv)
 				if (!cert_id_md) cert_id_md = EVP_sha1();
 				if(!add_ocsp_cert(&req, cert, cert_id_md, issuer, ids))
 					goto end;
-				if(!sk_STRING_push(reqnames, *args))
+				if(!sk_OPENSSL_STRING_push(reqnames, *args))
 					goto end;
 				}
 			else badarg = 1;
@@ -445,7 +458,7 @@ int MAIN(int argc, char **argv)
 				if (!cert_id_md) cert_id_md = EVP_sha1();
 				if(!add_ocsp_serial(&req, *args, cert_id_md, issuer, ids))
 					goto end;
-				if(!sk_STRING_push(reqnames, *args))
+				if(!sk_OPENSSL_STRING_push(reqnames, *args))
 					goto end;
 				}
 			else badarg = 1;
@@ -756,7 +769,7 @@ int MAIN(int argc, char **argv)
 		{
 #ifndef OPENSSL_NO_SOCK
 		resp = process_responder(bio_err, req, host, path,
-						port, use_ssl, req_timeout);
+					port, use_ssl, headers, req_timeout);
 		if (!resp)
 			goto end;
 #else
@@ -901,10 +914,11 @@ end:
 	OCSP_REQUEST_free(req);
 	OCSP_RESPONSE_free(resp);
 	OCSP_BASICRESP_free(bs);
-	sk_STRING_free(reqnames);
+	sk_OPENSSL_STRING_free(reqnames);
 	sk_OCSP_CERTID_free(ids);
 	sk_X509_pop_free(sign_other, X509_free);
 	sk_X509_pop_free(verify_other, X509_free);
+	sk_CONF_VALUE_pop_free(headers, X509V3_conf_free);
 
 	if (use_ssl != -1)
 		{
@@ -971,7 +985,7 @@ static int add_ocsp_serial(OCSP_REQUEST **req, char *serial,const EVP_MD *cert_i
 	}
 
 static int print_ocsp_summary(BIO *out, OCSP_BASICRESP *bs, OCSP_REQUEST *req,
-			      STACK_OF(STRING) *names,
+			      STACK_OF(OPENSSL_STRING) *names,
 			      STACK_OF(OCSP_CERTID) *ids, long nsec,
 			      long maxage)
 	{
@@ -983,13 +997,13 @@ static int print_ocsp_summary(BIO *out, OCSP_BASICRESP *bs, OCSP_REQUEST *req,
 
 	ASN1_GENERALIZEDTIME *rev, *thisupd, *nextupd;
 
-	if (!bs || !req || !sk_STRING_num(names) || !sk_OCSP_CERTID_num(ids))
+	if (!bs || !req || !sk_OPENSSL_STRING_num(names) || !sk_OCSP_CERTID_num(ids))
 		return 1;
 
 	for (i = 0; i < sk_OCSP_CERTID_num(ids); i++)
 		{
 		id = sk_OCSP_CERTID_value(ids, i);
-		name = sk_STRING_value(names, i);
+		name = sk_OPENSSL_STRING_value(names, i);
 		BIO_printf(out, "%s: ", name);
 
 		if(!OCSP_resp_find_status(bs, id, &status, &reason,
@@ -1260,10 +1274,12 @@ static int send_ocsp_response(BIO *cbio, OCSP_RESPONSE *resp)
 	}
 
 static OCSP_RESPONSE *query_responder(BIO *err, BIO *cbio, char *path,
+				STACK_OF(CONF_VALUE) *headers,
 				OCSP_REQUEST *req, int req_timeout)
 	{
 	int fd;
 	int rv;
+	int i;
 	OCSP_REQ_CTX *ctx = NULL;
 	OCSP_RESPONSE *rsp = NULL;
 	fd_set confds;
@@ -1280,16 +1296,13 @@ static OCSP_RESPONSE *query_responder(BIO *err, BIO *cbio, char *path,
 		return NULL;
 		}
 
-	if (req_timeout == -1)
-		return OCSP_sendreq_bio(cbio, path, req);
-
 	if (BIO_get_fd(cbio, &fd) <= 0)
 		{
 		BIO_puts(err, "Can't get connection fd\n");
 		goto err;
 		}
 
-	if (rv <= 0)
+	if (req_timeout != -1 && rv <= 0)
 		{
 		FD_ZERO(&confds);
 		openssl_fdset(fd, &confds);
@@ -1304,15 +1317,27 @@ static OCSP_RESPONSE *query_responder(BIO *err, BIO *cbio, char *path,
 		}
 
 
-	ctx = OCSP_sendreq_new(cbio, path, req, -1);
+	ctx = OCSP_sendreq_new(cbio, path, NULL, -1);
 	if (!ctx)
 		return NULL;
+
+	for (i = 0; i < sk_CONF_VALUE_num(headers); i++)
+		{
+		CONF_VALUE *hdr = sk_CONF_VALUE_value(headers, i);
+		if (!OCSP_REQ_CTX_add1_header(ctx, hdr->name, hdr->value))
+			goto err;
+		}
+
+	if (!OCSP_REQ_CTX_set1_req(ctx, req))
+		goto err;
 	
 	for (;;)
 		{
 		rv = OCSP_sendreq_nbio(&rsp, ctx);
 		if (rv != -1)
 			break;
+		if (req_timeout == -1)
+			continue;
 		FD_ZERO(&confds);
 		openssl_fdset(fd, &confds);
 		tv.tv_usec = 0;
@@ -1336,7 +1361,7 @@ static OCSP_RESPONSE *query_responder(BIO *err, BIO *cbio, char *path,
 			BIO_puts(err, "Select error\n");
 			break;
 			}
-			
+
 		}
 	err:
 	if (ctx)
@@ -1347,6 +1372,7 @@ static OCSP_RESPONSE *query_responder(BIO *err, BIO *cbio, char *path,
 
 OCSP_RESPONSE *process_responder(BIO *err, OCSP_REQUEST *req,
 			char *host, char *path, char *port, int use_ssl,
+			STACK_OF(CONF_VALUE) *headers,
 			int req_timeout)
 	{
 	BIO *cbio = NULL;
@@ -1381,14 +1407,14 @@ OCSP_RESPONSE *process_responder(BIO *err, OCSP_REQUEST *req,
 		sbio = BIO_new_ssl(ctx, 1);
 		cbio = BIO_push(sbio, cbio);
 		}
-	resp = query_responder(err, cbio, path, req, req_timeout);
+	resp = query_responder(err, cbio, path, headers, req, req_timeout);
 	if (!resp)
 		BIO_printf(bio_err, "Error querying OCSP responsder\n");
 	end:
-	if (ctx)
-		SSL_CTX_free(ctx);
 	if (cbio)
 		BIO_free_all(cbio);
+	if (ctx)
+		SSL_CTX_free(ctx);
 	return resp;
 	}
 

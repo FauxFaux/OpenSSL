@@ -712,7 +712,7 @@ static int cert_status_cb(SSL *s, void *arg)
 	int use_ssl;
 	unsigned char *rspder = NULL;
 	int rspderlen;
-	STACK_OF(STRING) *aia = NULL;
+	STACK_OF(OPENSSL_STRING) *aia = NULL;
 	X509 *x = NULL;
 	X509_STORE_CTX inctx;
 	X509_OBJECT obj;
@@ -734,7 +734,7 @@ BIO_printf(err, "cert_status: received %d ids\n", sk_OCSP_RESPID_num(ids));
 	aia = X509_get1_ocsp(x);
 	if (aia)
 		{
-		if (!OCSP_parse_url(sk_STRING_value(aia, 0),
+		if (!OCSP_parse_url(sk_OPENSSL_STRING_value(aia, 0),
 			&host, &port, &path, &use_ssl))
 			{
 			BIO_puts(err, "cert_status: can't parse AIA URL\n");
@@ -742,7 +742,7 @@ BIO_printf(err, "cert_status: received %d ids\n", sk_OCSP_RESPID_num(ids));
 			}
 		if (srctx->verbose)
 			BIO_printf(err, "cert_status: AIA URL: %s\n",
-					sk_STRING_value(aia, 0));
+					sk_OPENSSL_STRING_value(aia, 0));
 		}
 	else
 		{
@@ -787,7 +787,7 @@ BIO_printf(err, "cert_status: received %d ids\n", sk_OCSP_RESPID_num(ids));
 		if (!OCSP_REQUEST_add_ext(req, ext, -1))
 			goto err;
 		}
-	resp = process_responder(err, req, host, path, port, use_ssl,
+	resp = process_responder(err, req, host, path, port, use_ssl, NULL,
 					srctx->timeout);
 	if (!resp)
 		{
@@ -859,6 +859,7 @@ int MAIN(int argc, char *argv[])
 	int s_dcert_format = FORMAT_PEM, s_dkey_format = FORMAT_PEM;
 	X509 *s_cert = NULL, *s_dcert = NULL;
 	EVP_PKEY *s_key = NULL, *s_dkey = NULL;
+	int no_cache = 0;
 #ifndef OPENSSL_NO_TLSEXT
 	EVP_PKEY *s_key2 = NULL;
 	X509 *s_cert2 = NULL;
@@ -1001,6 +1002,8 @@ int MAIN(int argc, char *argv[])
 			if (--argc < 1) goto bad;
 			CApath= *(++argv);
 			}
+		else if (strcmp(*argv,"-no_cache") == 0)
+			no_cache = 1;
 		else if (args_verify(&argv, &argc, &badarg, bio_err, &vpm))
 			{
 			if (badarg)
@@ -1388,8 +1391,10 @@ bad:
 	if (socket_type == SOCK_DGRAM) SSL_CTX_set_read_ahead(ctx, 1);
 
 	if (state) SSL_CTX_set_info_callback(ctx,apps_ssl_info_callback);
-
-	SSL_CTX_sess_set_cache_size(ctx,128);
+	if (no_cache)
+		SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
+	else
+		SSL_CTX_sess_set_cache_size(ctx,128);
 
 #if 0
 	if (cipher == NULL) cipher=getenv("SSL_CIPHER");
@@ -1455,7 +1460,10 @@ bad:
 
 		if (state) SSL_CTX_set_info_callback(ctx2,apps_ssl_info_callback);
 
-		SSL_CTX_sess_set_cache_size(ctx2,128);
+		if (no_cache)
+			SSL_CTX_set_session_cache_mode(ctx2,SSL_SESS_CACHE_OFF);
+		else
+			SSL_CTX_sess_set_cache_size(ctx2,128);
 
 		if ((!SSL_CTX_load_verify_locations(ctx2,CAfile,CApath)) ||
 			(!SSL_CTX_set_default_verify_paths(ctx2)))
@@ -1654,6 +1662,10 @@ bad:
 	SSL_CTX_set_session_id_context(ctx,(void*)&s_server_session_id_context,
 		sizeof s_server_session_id_context);
 
+	/* Set DTLS cookie generation and verification callbacks */
+	SSL_CTX_set_cookie_generate_cb(ctx, generate_cookie_callback);
+	SSL_CTX_set_cookie_verify_cb(ctx, verify_cookie_callback);
+
 #ifndef OPENSSL_NO_TLSEXT
 	if (ctx2)
 		{
@@ -1750,8 +1762,11 @@ static int sv_body(char *hostname, int s, unsigned char *context)
 	unsigned long l;
 	SSL *con=NULL;
 	BIO *sbio;
+	struct timeval timeout;
 #if defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_MSDOS) || defined(OPENSSL_SYS_NETWARE) || defined(OPENSSL_SYS_BEOS_R5)
 	struct timeval tv;
+#else
+	struct timeval *timeoutp;
 #endif
 
 	if ((buf=OPENSSL_malloc(bufsize)) == NULL)
@@ -1808,7 +1823,6 @@ static int sv_body(char *hostname, int s, unsigned char *context)
 
 	if (SSL_version(con) == DTLS1_VERSION)
 		{
-		struct timeval timeout;
 
 		sbio=BIO_new_dgram(s,BIO_NOCLOSE);
 
@@ -1919,7 +1933,19 @@ static int sv_body(char *hostname, int s, unsigned char *context)
 				read_from_terminal = 1;
 			(void)fcntl(fileno(stdin), F_SETFL, 0);
 #else
-			i=select(width,(void *)&readfds,NULL,NULL,NULL);
+			if ((SSL_version(con) == DTLS1_VERSION) &&
+				DTLSv1_get_timeout(con, &timeout))
+				timeoutp = &timeout;
+			else
+				timeoutp = NULL;
+
+			i=select(width,(void *)&readfds,NULL,NULL,timeoutp);
+
+			if ((SSL_version(con) == DTLS1_VERSION) && DTLSv1_handle_timeout(con) > 0)
+				{
+				BIO_printf(bio_err,"TIMEOUT occured\n");
+				}
+
 			if (i <= 0) continue;
 			if (FD_ISSET(fileno(stdin),&readfds))
 				read_from_terminal = 1;

@@ -30,7 +30,7 @@ LIBSRC=	\
 	ssl_lib.c ssl_err2.c ssl_cert.c ssl_sess.c \
 	ssl_ciph.c ssl_stat.c ssl_rsa.c \
 	ssl_asn1.c ssl_txt.c ssl_algs.c \
-	bio_ssl.c ssl_err.c kssl.c
+	bio_ssl.c ssl_err.c kssl.c t1_reneg.c
 LIBOBJ= \
 	s2_meth.o  s2_srvr.o  s2_clnt.o  s2_lib.o  s2_enc.o s2_pkt.o \
 	s3_meth.o  s3_srvr.o  s3_clnt.o  s3_lib.o  s3_enc.o s3_pkt.o s3_both.o \
@@ -41,7 +41,7 @@ LIBOBJ= \
 	ssl_lib.o ssl_err2.o ssl_cert.o ssl_sess.o \
 	ssl_ciph.o ssl_stat.o ssl_rsa.o \
 	ssl_asn1.o ssl_txt.o ssl_algs.o \
-	bio_ssl.o ssl_err.o kssl.o
+	bio_ssl.o ssl_err.o kssl.o t1_reneg.o
 
 SRC= $(LIBSRC)
 
@@ -934,6 +934,25 @@ t1_meth.o: ../include/openssl/ssl23.h ../include/openssl/ssl3.h
 t1_meth.o: ../include/openssl/stack.h ../include/openssl/symhacks.h
 t1_meth.o: ../include/openssl/tls1.h ../include/openssl/x509.h
 t1_meth.o: ../include/openssl/x509_vfy.h ssl_locl.h t1_meth.c
+t1_reneg.o: ../e_os.h ../include/openssl/asn1.h ../include/openssl/bio.h
+t1_reneg.o: ../include/openssl/buffer.h ../include/openssl/comp.h
+t1_reneg.o: ../include/openssl/crypto.h ../include/openssl/dsa.h
+t1_reneg.o: ../include/openssl/dtls1.h ../include/openssl/e_os2.h
+t1_reneg.o: ../include/openssl/ec.h ../include/openssl/ecdh.h
+t1_reneg.o: ../include/openssl/ecdsa.h ../include/openssl/err.h
+t1_reneg.o: ../include/openssl/evp.h ../include/openssl/hmac.h
+t1_reneg.o: ../include/openssl/kssl.h ../include/openssl/lhash.h
+t1_reneg.o: ../include/openssl/obj_mac.h ../include/openssl/objects.h
+t1_reneg.o: ../include/openssl/opensslconf.h ../include/openssl/opensslv.h
+t1_reneg.o: ../include/openssl/ossl_typ.h ../include/openssl/pem.h
+t1_reneg.o: ../include/openssl/pem2.h ../include/openssl/pkcs7.h
+t1_reneg.o: ../include/openssl/pqueue.h ../include/openssl/rsa.h
+t1_reneg.o: ../include/openssl/safestack.h ../include/openssl/sha.h
+t1_reneg.o: ../include/openssl/ssl.h ../include/openssl/ssl2.h
+t1_reneg.o: ../include/openssl/ssl23.h ../include/openssl/ssl3.h
+t1_reneg.o: ../include/openssl/stack.h ../include/openssl/symhacks.h
+t1_reneg.o: ../include/openssl/tls1.h ../include/openssl/x509.h
+t1_reneg.o: ../include/openssl/x509_vfy.h ssl_locl.h t1_reneg.c
 t1_srvr.o: ../e_os.h ../include/openssl/asn1.h ../include/openssl/bio.h
 t1_srvr.o: ../include/openssl/buffer.h ../include/openssl/comp.h
 t1_srvr.o: ../include/openssl/crypto.h ../include/openssl/dsa.h

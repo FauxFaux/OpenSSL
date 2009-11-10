@@ -225,7 +225,7 @@ int MAIN(int argc, char **argv)
 
 	ctx=X509_STORE_new();
 	if (ctx == NULL) goto end;
-	X509_STORE_set_verify_cb_func(ctx,callb);
+	X509_STORE_set_verify_cb(ctx,callb);
 
 	argc--;
 	argv++;
@@ -738,14 +738,14 @@ bad:
 			else if ((email == i) || (ocsp_uri == i))
 				{
 				int j;
-				STACK_OF(STRING) *emlst;
+				STACK_OF(OPENSSL_STRING) *emlst;
 				if (email == i)
 					emlst = X509_get1_email(x);
 				else
 					emlst = X509_get1_ocsp(x);
-				for (j = 0; j < sk_STRING_num(emlst); j++)
+				for (j = 0; j < sk_OPENSSL_STRING_num(emlst); j++)
 					BIO_printf(STDout, "%s\n",
-						   sk_STRING_value(emlst, j));
+						   sk_OPENSSL_STRING_value(emlst, j));
 				X509_email_free(emlst);
 				}
 			else if (aliasout == i)
