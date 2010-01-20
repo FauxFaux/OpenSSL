@@ -6,11 +6,12 @@ $!               A-Com Computing, Inc.
 $!               byer@mail.all-net.net
 $!
 $!  Changes by Richard Levitte <richard@levitte.org>
+$!             Zoltan Arpadffy <zoli@polarhome.com>   
 $!
 $!  This command files compiles and creates all the various different
 $!  "application" programs for the different types of encryption for OpenSSL.
 $!  The EXE's are placed in the directory [.xxx.EXE.APPS] where "xxx" denotes
-$!  either AXP or VAX depending on your machine architecture.
+$!  ALPHA, IA64 or VAX, depending on your machine architecture.
 $!
 $!  It was written so it would try to determine what "C" compiler to
 $!  use or you can specify which "C" compiler to use.
@@ -46,20 +47,21 @@ $ TCPIP_LIB = ""
 $!
 $! Check What Architecture We Are Using.
 $!
-$ IF (F$GETSYI("CPU").GE.128)
+$ IF (F$GETSYI("CPU").LT.128)
 $ THEN
 $!
-$!  The Architecture Is AXP.
+$!  The Architecture Is VAX.
 $!
-$   ARCH := AXP
+$   ARCH := VAX
 $!
 $! Else...
 $!
 $ ELSE
 $!
-$!  The Architecture Is VAX.
+$!  The Architecture Is Alpha, IA64 or whatever comes in the future.
 $!
-$   ARCH := VAX
+$   ARCH = F$EDIT( F$GETSYI( "ARCH_NAME"), "UPCASE")
+$   IF (ARCH .EQS. "") THEN ARCH = "UNK"
 $!
 $! End The Architecture Check.
 $!
@@ -73,18 +75,6 @@ $!	      RSA,DSA,DSAPARAM,-
 $!	      X509,GENRSA,GENDSA,S_SERVER,S_CLIENT,SPEED,-
 $!	      S_TIME,VERSION,PKCS7,CRL2P7,SESS_ID,CIPHERS,NSEQ,
 $!
-$! Check To Make Sure We Have Valid Command Line Parameters.
-$!
-$ GOSUB CHECK_OPTIONS
-$!
-$! Initialise logical names and such
-$!
-$ GOSUB INITIALISE
-$!
-$! Tell The User What Kind of Machine We Run On.
-$!
-$ WRITE SYS$OUTPUT "Compiling On A ",ARCH," Machine."
-$!
 $! Define The CRYPTO Library.
 $!
 $ CRYPTO_LIB := SYS$DISK:[-.'ARCH'.EXE.CRYPTO]LIBCRYPTO.OLB
@@ -96,6 +86,22 @@ $!
 $! Define The OBJ Directory.
 $!
 $ OBJ_DIR := SYS$DISK:[-.'ARCH'.OBJ.APPS]
+$!
+$! Define The EXE Directory.
+$!
+$ EXE_DIR := SYS$DISK:[-.'ARCH'.EXE.APPS]
+$!
+$! Check To Make Sure We Have Valid Command Line Parameters.
+$!
+$ GOSUB CHECK_OPTIONS
+$!
+$! Initialise logical names and such
+$!
+$ GOSUB INITIALISE
+$!
+$! Tell The User What Kind of Machine We Run On.
+$!
+$ WRITE SYS$OUTPUT "Compiling On A ",ARCH," Machine."
 $!
 $! Check To See If The OBJ Directory Exists.
 $!
@@ -109,10 +115,6 @@ $!
 $! End The OBJ Directory Check.
 $!
 $ ENDIF
-$!
-$! Define The EXE Directory.
-$!
-$ EXE_DIR := SYS$DISK:[-.'ARCH'.EXE.APPS]
 $!
 $! Check To See If The EXE Directory Exists.
 $!
@@ -136,20 +138,24 @@ $!
 $ GOSUB CHECK_OPT_FILE
 $!
 $! Define The Application Files.
+$! NOTE: Some might think this list ugly.  However, it's made this way to
+$! reflect the E_OBJ variable in Makefile as closely as possible, thereby
+$! making it fairly easy to verify that the lists are the same.
 $!
 $ LIB_FILES = "VERIFY;ASN1PARS;REQ;DGST;DH;DHPARAM;ENC;PASSWD;GENDH;ERRSTR;"+-
 	      "CA;PKCS7;CRL2P7;CRL;"+-
 	      "RSA;RSAUTL;DSA;DSAPARAM;EC;ECPARAM;"+-
 	      "X509;GENRSA;GENDSA;S_SERVER;S_CLIENT;SPEED;"+-
 	      "S_TIME;APPS;S_CB;S_SOCKET;APP_RAND;VERSION;SESS_ID;"+-
-	      "CIPHERS;NSEQ;PKCS12;PKCS8;SPKAC;SMIME;RAND;ENGINE;OCSP;PRIME"
+	      "CIPHERS;NSEQ;PKCS12;PKCS8;SPKAC;SMIME;RAND;ENGINE;"+-
+	      "OCSP;PRIME;CMS"
 $ TCPIP_PROGRAMS = ",,"
 $ IF COMPILER .EQS. "VAXC" THEN -
      TCPIP_PROGRAMS = ",OPENSSL,"
 $!
 $! Setup exceptional compilations
 $!
-$ COMPILEWITH_CC2 = ",S_SERVER,S_CLIENT,"
+$ COMPILEWITH_CC2 = ",S_SOCKET,S_SERVER,S_CLIENT,"
 $!
 $ PHASE := LIB
 $!
@@ -395,19 +401,19 @@ $!    Else...
 $!
 $     ELSE
 $!
-$!      Create The AXP Linker Option File.
+$!      Create The non-VAX Linker Option File.
 $!
 $       CREATE 'OPT_FILE'
 $DECK
 !
-! Default System Options File For AXP To Link Agianst 
+! Default System Options File For non-VAX To Link Agianst 
 ! The Sharable C Runtime Library.
 !
 SYS$SHARE:CMA$OPEN_LIB_SHR/SHARE
 SYS$SHARE:CMA$OPEN_RTL/SHARE
 $EOD
 $!
-$!    End The VAX/AXP DEC C Option File Check.
+$!    End The DEC C Option File Check.
 $!
 $     ENDIF
 $!
@@ -556,7 +562,7 @@ $   ELSE
 $!
 $!  Check To See If We Have VAXC Or DECC.
 $!
-$     IF (ARCH.EQS."AXP").OR.(F$TRNLNM("DECC$CC_DEFAULT").NES."")
+$     IF (ARCH.NES."VAX").OR.(F$TRNLNM("DECC$CC_DEFAULT").NES."")
 $     THEN 
 $!
 $!      Looks Like DECC, Set To Use DECC.
@@ -666,7 +672,7 @@ $     CC = CC + "/''CC_OPTIMIZE'/''DEBUGGER'/STANDARD=ANSI89" + -
 $!
 $!    Define The Linker Options File Name.
 $!
-$     OPT_FILE = "SYS$DISK:[]VAX_DECC_OPTIONS.OPT"
+$     OPT_FILE = "''EXE_DIR'VAX_DECC_OPTIONS.OPT"
 $!
 $!  End DECC Check.
 $!
@@ -687,9 +693,9 @@ $!
 $!    Compile Using VAXC.
 $!
 $     CC = "CC"
-$     IF ARCH.EQS."AXP"
+$     IF ARCH.NES."VAX"
 $     THEN
-$	WRITE SYS$OUTPUT "There is no VAX C on Alpha!"
+$	WRITE SYS$OUTPUT "There is no VAX C on ''ARCH'!"
 $	EXIT
 $     ENDIF
 $     IF F$TRNLNM("DECC$CC_DEFAULT").EQS."/DECC" THEN CC = "CC/VAXC"
@@ -703,7 +709,7 @@ $     DEFINE/NOLOG SYS SYS$COMMON:[SYSLIB]
 $!
 $!    Define The Linker Options File Name.
 $!
-$     OPT_FILE = "SYS$DISK:[]VAX_VAXC_OPTIONS.OPT"
+$     OPT_FILE = "''EXE_DIR'VAX_VAXC_OPTIONS.OPT"
 $!
 $!  End VAXC Check
 $!
@@ -730,7 +736,7 @@ $     CC = GCC+"/NOCASE_HACK/''GCC_OPTIMIZE'/''DEBUGGER'/NOLIST" + -
 $!
 $!    Define The Linker Options File Name.
 $!
-$     OPT_FILE = "SYS$DISK:[]VAX_GNUC_OPTIONS.OPT"
+$     OPT_FILE = "''EXE_DIR'VAX_GNUC_OPTIONS.OPT"
 $!
 $!  End The GNU C Check.
 $!

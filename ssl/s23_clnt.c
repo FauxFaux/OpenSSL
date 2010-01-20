@@ -202,11 +202,14 @@ static int ssl23_client_hello(SSL *s)
 	{
 	unsigned char *buf;
 	unsigned char *p,*d;
-	int i,j,ch_len;
+	int i,ch_len;
 	unsigned long Time,l;
 	int ssl2_compat;
 	int version = 0, version_major, version_minor;
+#ifndef OPENSSL_NO_COMP
+	int j;
 	SSL_COMP *comp;
+#endif
 	int ret;
 
 	ssl2_compat = (s->options & SSL_OP_NO_SSLv2) ? 0 : 1;
@@ -231,6 +234,8 @@ static int ssl23_client_hello(SSL *s)
 		if (s->tlsext_hostname != NULL)
 			ssl2_compat = 0;
 		if (s->tlsext_status_type != -1)
+			ssl2_compat = 0;
+		if (!(s->ctx->options & SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION))
 			ssl2_compat = 0;
 		}
 #endif

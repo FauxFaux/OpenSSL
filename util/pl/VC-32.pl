@@ -27,6 +27,10 @@ $rm='del /Q';
 
 $zlib_lib="zlib1.lib";
 
+# Santize -L options for ms link
+$l_flags =~ s/-L("\[^"]+")/\/libpath:$1/g;
+$l_flags =~ s/-L(\S+)/\/libpath:$1/g;
+
 # C compiler stuff
 $cc='cl';
 if ($FLAVOR =~ /WIN64/)
@@ -153,7 +157,8 @@ if ($FLAVOR =~ /CE/)
 else
 	{
 	$ex_libs.=' gdi32.lib crypt32.lib advapi32.lib user32.lib';
-	$ex_libs.=' bufferoverflowu.lib' if ($FLAVOR =~ /WIN64/);
+	$ex_libs.=' bufferoverflowu.lib' if ($FLAVOR =~ /WIN64/ and `cl 2>&1` =~ /14\.00\.4[0-9]{4}\./);
+
 	}
 
 # As native NT API is pure UNICODE, our WIN-NT build defaults to UNICODE,
