@@ -61,6 +61,7 @@ ENGINETEST=	enginetest
 EVPTEST=	evp_test
 IGETEST=	igetest
 JPAKETEST=	jpaketest
+ASN1TEST=	asn1test
 
 TESTS=		alltests
 
@@ -71,7 +72,8 @@ EXE=	$(BNTEST)$(EXE_EXT) $(ECTEST)$(EXE_EXT)  $(ECDSATEST)$(EXE_EXT) $(ECDHTEST)
 	$(MDC2TEST)$(EXE_EXT) $(RMDTEST)$(EXE_EXT) \
 	$(RANDTEST)$(EXE_EXT) $(DHTEST)$(EXE_EXT) $(ENGINETEST)$(EXE_EXT) \
 	$(BFTEST)$(EXE_EXT) $(CASTTEST)$(EXE_EXT) $(SSLTEST)$(EXE_EXT) $(EXPTEST)$(EXE_EXT) $(DSATEST)$(EXE_EXT) $(RSATEST)$(EXE_EXT) \
-	$(EVPTEST)$(EXE_EXT) $(IGETEST)$(EXE_EXT) $(JPAKETEST)$(EXE_EXT)
+	$(EVPTEST)$(EXE_EXT) $(IGETEST)$(EXE_EXT) $(JPAKETEST)$(EXE_EXT) \
+	$(ASN1TEST)$(EXE_EXT)
 
 # $(METHTEST)$(EXE_EXT)
 
@@ -83,7 +85,7 @@ OBJ=	$(BNTEST).o $(ECTEST).o  $(ECDSATEST).o $(ECDHTEST).o $(IDEATEST).o \
 	$(MDC2TEST).o $(RMDTEST).o \
 	$(RANDTEST).o $(DHTEST).o $(ENGINETEST).o $(CASTTEST).o \
 	$(BFTEST).o  $(SSLTEST).o  $(DSATEST).o  $(EXPTEST).o $(RSATEST).o \
-	$(EVPTEST).o $(IGETEST).o $(JPAKETEST).o
+	$(EVPTEST).o $(IGETEST).o $(JPAKETEST).o $(ASN1TEST).o
 SRC=	$(BNTEST).c $(ECTEST).c  $(ECDSATEST).c $(ECDHTEST).c $(IDEATEST).c \
 	$(MD2TEST).c  $(MD4TEST).c $(MD5TEST).c \
 	$(HMACTEST).c $(WPTEST).c \
@@ -91,7 +93,7 @@ SRC=	$(BNTEST).c $(ECTEST).c  $(ECDSATEST).c $(ECDHTEST).c $(IDEATEST).c \
 	$(DESTEST).c $(SHATEST).c $(SHA1TEST).c $(MDC2TEST).c $(RMDTEST).c \
 	$(RANDTEST).c $(DHTEST).c $(ENGINETEST).c $(CASTTEST).c \
 	$(BFTEST).c  $(SSLTEST).c $(DSATEST).c   $(EXPTEST).c $(RSATEST).c \
-	$(EVPTEST).c $(IGETEST).c $(JPAKETEST).c
+	$(EVPTEST).c $(IGETEST).c $(JPAKETEST).c $(ASN1TEST).c
 
 EXHEADER= 
 HEADER=	$(EXHEADER)
@@ -441,6 +443,9 @@ $(IGETEST)$(EXE_EXT): $(IGETEST).o $(DLIBCRYPTO)
 $(JPAKETEST)$(EXE_EXT): $(JPAKETEST).o $(DLIBCRYPTO)
 	@target=$(JPAKETEST); $(BUILD_CMD)
 
+$(ASN1TEST)$(EXE_EXT): $(ASN1TEST).o $(DLIBCRYPTO)
+	@target=$(ASN1TEST); $(BUILD_CMD)
+
 #$(AESTEST).o: $(AESTEST).c
 #	$(CC) -c $(CFLAGS) -DINTERMEDIATE_VALUE_KAT -DTRACE_KAT_MCT $(AESTEST).c
 
@@ -456,6 +461,18 @@ dummytest$(EXE_EXT): dummytest.o $(DLIBCRYPTO)
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
 
+asn1test.o: ../include/openssl/asn1.h ../include/openssl/asn1_mac.h
+asn1test.o: ../include/openssl/bio.h ../include/openssl/buffer.h
+asn1test.o: ../include/openssl/crypto.h ../include/openssl/e_os2.h
+asn1test.o: ../include/openssl/ec.h ../include/openssl/ecdh.h
+asn1test.o: ../include/openssl/ecdsa.h ../include/openssl/evp.h
+asn1test.o: ../include/openssl/lhash.h ../include/openssl/obj_mac.h
+asn1test.o: ../include/openssl/objects.h ../include/openssl/opensslconf.h
+asn1test.o: ../include/openssl/opensslv.h ../include/openssl/ossl_typ.h
+asn1test.o: ../include/openssl/pkcs7.h ../include/openssl/safestack.h
+asn1test.o: ../include/openssl/sha.h ../include/openssl/stack.h
+asn1test.o: ../include/openssl/symhacks.h ../include/openssl/x509.h
+asn1test.o: ../include/openssl/x509_vfy.h asn1test.c
 bftest.o: ../e_os.h ../include/openssl/blowfish.h ../include/openssl/e_os2.h
 bftest.o: ../include/openssl/opensslconf.h bftest.c
 bntest.o: ../e_os.h ../include/openssl/asn1.h ../include/openssl/bio.h

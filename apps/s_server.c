@@ -491,6 +491,7 @@ static void sv_usage(void)
 	BIO_printf(bio_err,"                 not specified (default is %s)\n",TEST_CERT2);
 	BIO_printf(bio_err," -tlsextdebug  - hex dump of all TLS extensions received\n");
 	BIO_printf(bio_err," -no_ticket    - disable use of RFC4507bis session tickets\n");
+	BIO_printf(bio_err," -legacy_renegotiation - enable use of legacy renegotiation (dangerous)\n");
 #endif
 	}
 
@@ -1014,6 +1015,8 @@ int MAIN(int argc, char *argv[])
 			verify_return_error = 1;
 		else if	(strcmp(*argv,"-serverpref") == 0)
 			{ off|=SSL_OP_CIPHER_SERVER_PREFERENCE; }
+		else if (strcmp(*argv,"-legacy_renegotiation") == 0)
+			off|=SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION;
 		else if	(strcmp(*argv,"-cipher") == 0)
 			{
 			if (--argc < 1) goto bad;
@@ -2206,6 +2209,8 @@ static int init_ssl_connection(SSL *con)
 			con->kssl_ctx->client_princ);
 		}
 #endif /* OPENSSL_NO_KRB5 */
+	BIO_printf(bio_s_out, "Secure Renegotiation IS%s supported\n",
+		      SSL_get_secure_renegotiation_support(con) ? "" : " NOT");
 	return(1);
 	}
 
