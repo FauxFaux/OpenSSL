@@ -146,7 +146,6 @@ int dtls1_accept(SSL *s)
 	BUF_MEM *buf;
 	unsigned long l,Time=(unsigned long)time(NULL);
 	void (*cb)(const SSL *ssl,int type,int val)=NULL;
-	long num1;
 	int ret= -1;
 	int new_state,state,skip=0;
 
@@ -442,16 +441,13 @@ int dtls1_accept(SSL *s)
 			break;
 		
 		case SSL3_ST_SW_FLUSH:
-			/* number of bytes to be flushed */
-			num1=BIO_ctrl(s->wbio,BIO_CTRL_INFO,0,NULL);
-			if (num1 > 0)
+			s->rwstate=SSL_WRITING;
+			if (BIO_flush(s->wbio) <= 0)
 				{
-				s->rwstate=SSL_WRITING;
-				num1=BIO_flush(s->wbio);
-				if (num1 <= 0) { ret= -1; goto end; }
-				s->rwstate=SSL_NOTHING;
+				ret= -1;
+				goto end;
 				}
-
+			s->rwstate=SSL_NOTHING;
 			s->state=s->s3->tmp.next_state;
 			break;
 
@@ -1307,9 +1303,10 @@ int dtls1_send_newsession_ticket(SSL *s)
 		p += hlen;
 		/* Now write out lengths: p points to end of data written */
 		/* Total length */
-		len = p - (unsigned char *)&(s->init_buf->data[DTLS1_HM_HEADER_LENGTH]);
+		len = p - (unsigned char *)(s->init_buf->data);
+		/* Ticket length */
 		p=(unsigned char *)&(s->init_buf->data[DTLS1_HM_HEADER_LENGTH]) + 4;
-		s2n(len - 18, p);  /* Ticket length */
+		s2n(len - DTLS1_HM_HEADER_LENGTH - 6, p);
 
 		/* number of bytes to write */
 		s->init_num= len;

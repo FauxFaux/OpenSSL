@@ -2,7 +2,27 @@
  OpenSSL CHANGES
  _______________
 
- Changes between 0.9.8l and 0.9.8m [xx XXX xxxx]
+ Changes between 0.9.8l and 0.9.8m [25 Feb 2010]
+
+  *) Always check bn_wexpend() return values for failure.  (CVE-2009-3245)
+     [Martin Olsson, Neel Mehta]
+
+  *) Fix X509_STORE locking: Every 'objs' access requires a lock (to
+     accommodate for stack sorting, always a write lock!).
+     [Bodo Moeller]
+
+  *) On some versions of WIN32 Heap32Next is very slow. This can cause
+     excessive delays in the RAND_poll(): over a minute. As a workaround
+     include a time check in the inner Heap32Next loop too.
+     [Steve Henson]
+
+  *) The code that handled flushing of data in SSL/TLS originally used the
+     BIO_CTRL_INFO ctrl to see if any data was pending first. This caused
+     the problem outlined in PR#1949. The fix suggested there however can
+     trigger problems with buggy BIO_CTRL_WPENDING (e.g. some versions
+     of Apache). So instead simplify the code to flush unconditionally.
+     This should be fine since flushing with no data to flush is a no op.
+     [Steve Henson]
 
   *) Handle TLS versions 2.0 and later properly and correctly use the
      highest version of TLS/SSL supported. Although TLS >= 2.0 is some way
@@ -11,7 +31,7 @@
 
   *) Modify compression code so it frees up structures without using the
      ex_data callbacks. This works around a problem where some applications
-     call CRYPTO_free_all_ex_data() before application exit (e.g. when
+     call CRYPTO_cleanup_all_ex_data() before application exit (e.g. when
      restarting) then use compression (e.g. SSL with compression) later.
      This results in significant per-connection memory leaks and
      has caused some security issues including CVE-2008-1678 and
@@ -23,7 +43,7 @@
      [Bodo Moeller]
 
   *) Add option SSL_OP_LEGACY_SERVER_CONNECT which will allow clients to
-     connect (but not renegotiate) with servers which do not support RI.
+     connect and renegotiate with servers which do not support RI.
      Until RI is more widely deployed this option is enabled by default.
      [Steve Henson]
 
@@ -31,14 +51,14 @@
      [Steve Henson]
 
   *) If client attempts to renegotiate and doesn't support RI respond with
-     a no_renegotiation alert as required by draft-ietf-tls-renegotiation.
-     Some renegotiating TLS clients will continue a connection gracefully
-     when they receive the alert. Unfortunately OpenSSL mishandled
-     this alert and would hang waiting for a server hello which it will never
-     receive. Now we treat a received no_renegotiation alert as a fatal 
-     error. This is because applications requesting a renegotiation might well
-     expect it to succeed and would have no code in place to handle the server
-     denying it so the only safe thing to do is to terminate the connection.
+     a no_renegotiation alert as required by RFC5746.  Some renegotiating
+     TLS clients will continue a connection gracefully when they receive
+     the alert. Unfortunately OpenSSL mishandled this alert and would hang
+     waiting for a server hello which it will never receive. Now we treat a
+     received no_renegotiation alert as a fatal error. This is because
+     applications requesting a renegotiation might well expect it to succeed
+     and would have no code in place to handle the server denying it so the
+     only safe thing to do is to terminate the connection.
      [Steve Henson]
 
   *) Add ctrl macro SSL_get_secure_renegotiation_support() which returns 1 if
@@ -50,10 +70,9 @@
      the updated NID creation version. This should correctly handle UTF8.
      [Steve Henson]
 
-  *) Implement draft-ietf-tls-renegotiation-03. Re-enable
-     renegotiation but require the extension as needed. Unfortunately,
-     SSL3_FLAGS_ALLOW_UNSAFE_LEGACY_RENEGOTIATION turns out to be a
-     bad idea. It has been replaced by
+  *) Implement RFC5746. Re-enable renegotiation but require the extension
+     as needed. Unfortunately, SSL3_FLAGS_ALLOW_UNSAFE_LEGACY_RENEGOTIATION
+     turns out to be a bad idea. It has been replaced by
      SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION which can be set with
      SSL_CTX_set_options(). This is really not recommended unless you
      know what you are doing.
