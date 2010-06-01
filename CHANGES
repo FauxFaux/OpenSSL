@@ -2,6 +2,23 @@
  OpenSSL CHANGES
  _______________
 
+ Changes between 0.9.8n and 0.9.8o [01 Jun 2010]
+
+  *) Correct a typo in the CMS ASN1 module which can result in invalid memory
+     access or freeing data twice (CVE-2010-0742)
+     [Steve Henson, Ronald Moesbergen <intercommit@gmail.com>]
+
+  *) Add SHA2 algorithms to SSL_library_init(). SHA2 is becoming far more
+     common in certificates and some applications which only call
+     SSL_library_init and not OpenSSL_add_all_algorithms() will fail.
+     [Steve Henson]
+
+  *) VMS fixes: 
+     Reduce copying into .apps and .test in makevms.com
+     Don't try to use blank CA certificate in CA.com
+     Allow use of C files from original directories in maketests.com
+     [Steven M. Schweda" <sms@antinode.info>]
+
  Changes between 0.9.8m and 0.9.8n [24 Mar 2010]
 
   *) When rejecting SSL/TLS records due to an incorrect version number, never
